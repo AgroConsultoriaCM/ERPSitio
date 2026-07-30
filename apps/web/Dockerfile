@@ -23,5 +23,11 @@ RUN npm run build --workspace apps/web
 
 FROM nginx:1.27-alpine AS runtime
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
-COPY infra/nginx/web.conf /etc/nginx/conf.d/default.conf
+# A config e um template: porta e destino do proxy sao resolvidos no start,
+# para servir tanto o docker-compose (api:3333, porta 80) quanto plataformas
+# gerenciadas, que injetam PORT e um dominio privado proprio.
+COPY infra/nginx/web.conf.template /etc/nginx/templates/web.conf.template
+COPY infra/nginx/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 EXPOSE 80
+ENTRYPOINT ["/entrypoint.sh"]

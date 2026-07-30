@@ -1,0 +1,43 @@
+# Template processado no start do container (envsubst no entrypoint).
+#
+#   PORTA_WEB    porta em que o nginx escuta. Em Docker Compose e 80; em
+#                plataformas gerenciadas vem da variavel PORT.
+#   API_UPSTREAM host:porta da API. Em Docker Compose e "api:3333"; no Railway
+#                use o dominio privado do serviço da API.
+#
+# O site e a API ficam na mesma origem (o nginx encaminha /api), o que evita
+# CORS e mantem o cookie/token no mesmo dominio.
+
+server {
+    listen ${PORTA_WEB};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # PWA: service worker e manifest nao podem ficar em cache, senao o
+    # aparelho continua com a versao antiga depois de uma atualizacao
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location = /manifest.webmanifest {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location /api/ {
+        proxy_pass http://${API_UPSTREAM}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    # SPA: qualquer rota desconhecida cai no index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

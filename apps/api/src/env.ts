@@ -11,7 +11,9 @@ const envSchema = z.object({
 });
 
 export const env = envSchema.parse({
-  API_PORT: process.env.API_PORT,
+  // Plataformas gerenciadas (Railway, Render, Fly) injetam PORT e esperam que
+  // o processo escute nela. Em Docker Compose usamos API_PORT.
+  API_PORT: process.env.PORT ?? process.env.API_PORT,
   DATABASE_URL: process.env.DATABASE_URL,
   JWT_SECRET: process.env.JWT_SECRET,
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
