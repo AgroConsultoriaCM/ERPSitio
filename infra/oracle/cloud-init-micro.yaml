@@ -1,0 +1,79 @@
+#cloud-config
+# Preparação automática da instância Oracle VM.Standard.E2.1.Micro (Always Free).
+#
+# Diferenças para o cloud-init.yaml (usado na máquina ARM maior):
+#   - swap de 4 GB em vez de 2: aqui só existe 1 GB de RAM
+#   - instala gnupg e rclone, que o backup criptografado para o Drive usa
+#   - não compila nada: a imagem da API vem pronta do GitHub Actions, porque
+#     1/8 de OCPU levaria dezenas de minutos para compilar
+#
+# Como usar: em "Initialization script", escolha "Choose cloud-init script
+# file" e envie este arquivo.
+#
+# Depois de criar a instância, confira se rodou com:
+#   cloud-init status --wait
+#   cat /var/log/erpsitio-preparacao.log
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - ca-certificates
+  # gnupg: criptografa o backup antes de sair da máquina
+  - gnupg
+  - unzip
+
+write_files:
+  # Evita que a instalação do iptables-persistent trave perguntando se deve
+  # salvar as regras atuais.
+  - path: /etc/erpsitio-preseed.conf
+    content: |
+      iptables-persistent iptables-persistent/autosave_v4 boolean true
+      iptables-persistent iptables-persistent/autosave_v6 boolean true
+
+runcmd:
+  - exec > >(tee -a /var/log/erpsitio-preparacao.log) 2>&1
+  - echo "=== preparando a maquina Micro para o ERPSitio ==="
+
+  - echo "[1/5] instalando Docker..."
+  - curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+  - sh /tmp/get-docker.sh
+  - usermod -aG docker ubuntu
+  - systemctl enable --now docker
+
+  - echo "[2/5] liberando portas 80 e 443 no firewall do sistema..."
+  # Esta é a segunda camada de firewall. A primeira (Security List) fica no
+  # painel da Oracle e precisa ser liberada lá também.
+  - debconf-set-selections /etc/erpsitio-preseed.conf
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+  - netfilter-persistent save
+
+  # Com 1 GB de RAM o swap deixa de ser rede de segurança e vira parte do
+  # projeto: é ele que absorve os picos do Postgres sem o kernel matar nada.
+  - echo "[3/5] criando swap de 4 GB..."
+  - fallocate -l 4G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  # Só recorre ao swap quando realmente apertar: disco é lento.
+  - sysctl -w vm.swappiness=10
+  - echo 'vm.swappiness=10' >> /etc/sysctl.conf
+
+  - echo "[4/5] instalando o rclone (backup para o Google Drive)..."
+  - curl -fsSL https://rclone.org/install.sh | bash
+
+  - echo "[5/5] baixando o sistema..."
+  - git clone https://github.com/AgroConsultoriaCM/ERPSitio.git /home/ubuntu/ERPSitio
+  - chown -R ubuntu:ubuntu /home/ubuntu/ERPSitio
+  - chmod +x /home/ubuntu/ERPSitio/infra/scripts/*.sh
+
+  - echo "=== maquina pronta ==="
+  - echo "Falta: liberar 80/443 na Security List da Oracle, criar o .env e"
+  - echo "configurar o rclone. Veja infra/oracle/README-micro.md"
+
+final_message: "ERPSitio: maquina preparada em $UPTIME segundos. Veja /var/log/erpsitio-preparacao.log"

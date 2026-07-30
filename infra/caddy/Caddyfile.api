@@ -1,0 +1,37 @@
+# Caddy no desenho dividido: a máquina só serve a API.
+#
+# O frontend está na Vercel, num domínio próprio. Aqui em cima fica apenas
+# api.seudominio.com.br, que o navegador chama por trás dos panos.
+#
+# DOMINIO_API e EMAIL_TLS vêm do .env (ver infra/oracle/README-micro.md).
+
+{
+	email {$EMAIL_TLS}
+	# Descomente para testar sem gastar a cota do Let's Encrypt:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$DOMINIO_API} {
+	encode gzip zstd
+
+	reverse_proxy api:3333 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Quem responde pelos cabeçalhos de origem cruzada é a API (ela conhece a
+	# lista do CORS_ORIGIN). O Caddy não deve inventar os dele, ou o navegador
+	# vê dois valores e recusa a resposta inteira.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/acesso.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

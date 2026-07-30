@@ -2,6 +2,24 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Com o site na Vercel e a API na Oracle, as chamadas passam a ser para outra
+// origem. Casar só pelo caminho ("/api/...") deixaria de identificar a API — e
+// pior, casaria com qualquer outro serviço que use um caminho parecido. Por
+// isso o service worker aprende, na compilação, o endereço real da API.
+const API_URL = process.env.VITE_API_URL ?? "http://localhost:3333/api/v1";
+const SEM_BARRA_FINAL = API_URL.replace(/\/+$/, "");
+
+function escaparRegex(texto: string) {
+  return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Precisa ser expressão regular, não função: o Workbox copia esta regra para
+// dentro do sw.js convertendo-a em texto, e uma função perde as variáveis de
+// fora junto. A regex atravessa inteira.
+const PADRAO_API = /^https?:\/\//i.test(API_URL)
+  ? new RegExp("^" + escaparRegex(SEM_BARRA_FINAL)) // outra origem: casa a URL toda
+  : new RegExp(escaparRegex(SEM_BARRA_FINAL)); // mesma origem: casa o caminho
+
 export default defineConfig({
   plugins: [
     react(),
@@ -25,9 +43,16 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
+            urlPattern: PADRAO_API,
             handler: "NetworkFirst",
-            options: { cacheName: "api-cache", networkTimeoutSeconds: 5 },
+            options: {
+              cacheName: "api-cache",
+              networkTimeoutSeconds: 5,
+              // Resposta de outra origem só entra no cache se tiver vindo
+              // completa (status 200). Sem isto, uma resposta opaca de erro
+              // seria guardada e servida como se fosse boa.
+              cacheableResponse: { statuses: [200] },
+            },
           },
         ],
       },

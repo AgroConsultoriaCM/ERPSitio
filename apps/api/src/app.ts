@@ -4,6 +4,7 @@ import sensible from "@fastify/sensible";
 import { ZodError } from "zod";
 import { env } from "./env.js";
 import { AppError } from "./lib/errors.js";
+import { montarVerificacaoOrigem } from "./lib/cors.js";
 
 import prismaPlugin from "./plugins/prisma.js";
 import authPlugin from "./plugins/auth.js";
@@ -34,7 +35,9 @@ export async function buildApp() {
   const app = Fastify({ logger: true });
 
   await app.register(cors, {
-    origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(","),
+    origin: montarVerificacaoOrigem(env.CORS_ORIGIN, (origem) =>
+      app.log.warn({ origem }, "requisição recusada: origem fora do CORS_ORIGIN"),
+    ),
   });
   await app.register(sensible);
   await app.register(prismaPlugin);

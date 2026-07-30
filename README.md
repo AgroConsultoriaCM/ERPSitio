@@ -136,7 +136,21 @@ são pontos de partida genéricos de literatura agronômica — **não substitue
 a orientação de um responsável técnico**; ajuste-os livremente com o
 conhecimento da propriedade.
 
-## Deploy em produção (VPS)
+## Deploy em produção
+
+Há três caminhos, do mais recomendado ao mais simples:
+
+| Caminho | Custo | Guia |
+| --- | --- | --- |
+| **Frontend na Vercel + API/banco na Oracle Micro** | grátis | [infra/oracle/README-micro.md](infra/oracle/README-micro.md) |
+| Tudo numa máquina só (Oracle ARM ou VPS paga) | grátis / ~R$ 25 mês | [infra/oracle/README.md](infra/oracle/README.md) |
+| Manual, sem HTTPS automático | — | seção abaixo |
+
+O primeiro é o que está em uso: a Vercel compila e distribui o PWA, e a
+máquina da Oracle roda só a API e o banco — que é onde ficam as contas de
+custo, estoque e margem, longe do navegador.
+
+### Deploy manual (VPS, mesma origem)
 
 1. No servidor, instale Docker e Docker Compose.
 2. Copie o repositório para o servidor (`git clone` ou `scp`) e o arquivo
