@@ -1,15 +1,23 @@
 #cloud-config
-# Preparação automática do servidor no primeiro boot da instância Oracle.
+# Preparacao automatica do servidor no primeiro boot da instancia Oracle ARM
+# (VM.Standard.A1.Flex, a maquina maior do Always Free).
 #
-# Faz o mesmo que infra/scripts/preparar-servidor.sh, mas sem você precisar
-# digitar nada: instala Docker e Git, libera as portas 80/443 no firewall do
-# sistema (a camada que existe ALÉM das regras do painel da Oracle) e cria
-# swap para o build do frontend não faltar memória.
+# Para a instancia Micro (1 GB), use cloud-init-micro.yaml.
+#
+# ATENCAO AO EDITAR: este arquivo tem de ficar em ASCII puro, sem acentos.
+# O painel da Oracle nao preserva a codificacao no upload, e um unico caractere
+# acentuado faz o cloud-init descartar o arquivo INTEIRO em silencio - a
+# instancia sobe limpa e voce so descobre depois, procurando o que nao rodou.
+# O erro fica em /var/log/cloud-init.log como "Failed loading yaml blob".
+#
+# O trabalho de verdade fica no script bash abaixo, nao em "runcmd", porque
+# o cloud-init executa runcmd com /bin/sh (dash), que nao entende sintaxe de
+# bash como "exec > >(tee ...)".
 #
 # Como usar: em "Initialization script", escolha "Choose cloud-init script
 # file" e envie este arquivo.
 #
-# Depois de criar a instância, confira se rodou com:
+# Depois de criar a instancia, confira com:
 #   cloud-init status --wait
 #   cat /var/log/erpsitio-preparacao.log
 
@@ -20,46 +28,62 @@ packages:
   - git
   - curl
   - ca-certificates
+  - gnupg
 
 write_files:
-  # Evita que a instalação do iptables-persistent trave perguntando se deve
+  # Evita que a instalacao do iptables-persistent trave perguntando se deve
   # salvar as regras atuais.
   - path: /etc/erpsitio-preseed.conf
     content: |
       iptables-persistent iptables-persistent/autosave_v4 boolean true
       iptables-persistent iptables-persistent/autosave_v6 boolean true
 
+  - path: /opt/erpsitio-preparar.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/erpsitio-preparacao.log) 2>&1
+
+      echo "=== preparando servidor para o ERPSitio ==="
+
+      echo "[1/4] instalando Docker..."
+      curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+      sh /tmp/get-docker.sh
+      usermod -aG docker ubuntu
+      systemctl enable --now docker
+
+      echo "[2/4] liberando portas 80 e 443 no firewall do sistema..."
+      # Segunda camada de firewall. A primeira (Security List) fica no painel
+      # da Oracle e precisa ser liberada la tambem.
+      debconf-set-selections /etc/erpsitio-preseed.conf
+      DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+      iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+      iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+      netfilter-persistent save
+
+      echo "[3/4] criando swap de 2 GB..."
+      if [ ! -f /swapfile ]; then
+        fallocate -l 2G /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      fi
+
+      echo "[4/4] instalando rclone e baixando o sistema..."
+      curl -fsSL https://rclone.org/install.sh | bash
+      if [ ! -d /home/ubuntu/ERPSitio ]; then
+        git clone https://github.com/AgroConsultoriaCM/ERPSitio.git /home/ubuntu/ERPSitio
+      fi
+      chown -R ubuntu:ubuntu /home/ubuntu/ERPSitio
+      chmod +x /home/ubuntu/ERPSitio/infra/scripts/*.sh
+
+      echo "=== servidor pronto ==="
+      echo "Falta liberar as portas 80/443 no painel da Oracle (Security List)"
+      echo "e configurar o .env antes de subir o sistema."
+
 runcmd:
-  - exec > >(tee -a /var/log/erpsitio-preparacao.log) 2>&1
-  - echo "=== preparando servidor para o ERPSitio ==="
-
-  - echo "[1/4] instalando Docker..."
-  - curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-  - sh /tmp/get-docker.sh
-  - usermod -aG docker ubuntu
-  - systemctl enable --now docker
-
-  - echo "[2/4] liberando portas 80 e 443 no firewall do sistema..."
-  - debconf-set-selections /etc/erpsitio-preseed.conf
-  - DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
-  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
-  - netfilter-persistent save
-
-  - echo "[3/4] criando swap de 2 GB..."
-  - fallocate -l 2G /swapfile
-  - chmod 600 /swapfile
-  - mkswap /swapfile
-  - swapon /swapfile
-  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
-
-  - echo "[4/4] baixando o sistema..."
-  - git clone https://github.com/AgroConsultoriaCM/ERPSitio.git /home/ubuntu/ERPSitio
-  - chown -R ubuntu:ubuntu /home/ubuntu/ERPSitio
-  - chmod +x /home/ubuntu/ERPSitio/infra/scripts/*.sh
-
-  - echo "=== servidor pronto ==="
-  - echo "Falta liberar as portas 80/443 no painel da Oracle (Security List)"
-  - echo "e configurar o .env antes de subir o sistema."
+  - [bash, /opt/erpsitio-preparar.sh]
 
 final_message: "ERPSitio: servidor preparado em $UPTIME segundos. Veja /var/log/erpsitio-preparacao.log"
