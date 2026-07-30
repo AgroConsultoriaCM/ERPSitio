@@ -1,0 +1,648 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Acesso e propriedade
+// ---------------------------------------------------------------------------
+
+enum RolePapel {
+  ADMIN
+  GERENTE
+  ENCARREGADO
+}
+
+model Propriedade {
+  id        String   @id @default(uuid())
+  nome      String
+  localizacao String?
+  latitude  Float?
+  longitude Float?
+  poligono  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios              Usuario[]
+  culturas              Cultura[]
+  talhoes               Talhao[]
+  tiposAtividade        TipoAtividade[]
+  atividades            Atividade[]
+  insumos               Insumo[]
+  movimentacoesEstoque  MovimentacaoEstoque[]
+  colheitas             Colheita[]
+  perfisCorrecaoSolo    PerfilCorrecaoSolo[]
+  analisesSolo          AnaliseSolo[]
+  analisesFoliar        AnaliseFoliar[]
+  setoresIrrigacao      SetorIrrigacao[]
+  gruposTalhao          GrupoTalhao[]
+  executores            Executor[]
+  lotesInsumo           LoteInsumo[]
+  regrasAlerta          RegraAlerta[]
+  irrigacoes            Irrigacao[]
+  permissoes            PermissaoPapel[]
+}
+
+// Permissao de um papel sobre um modulo do sistema. Quando nao ha linha
+// gravada, vale o padrao definido em apps/api/src/services/permissoes.ts.
+// ADMIN nunca e limitado (evita o admin se trancar para fora).
+model PermissaoPapel {
+  id            String   @id @default(uuid())
+  papel         RolePapel
+  modulo        String
+  podeVer       Boolean  @default(false)
+  podeEditar    Boolean  @default(false)
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([propriedadeId, papel, modulo])
+  @@index([propriedadeId])
+}
+
+model Usuario {
+  id           String    @id @default(uuid())
+  nome         String
+  email        String    @unique
+  senhaHash    String
+  role         RolePapel
+  ativo        Boolean   @default(true)
+  propriedadeId String
+  propriedade  Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  atividadesResponsavel Atividade[]      @relation("AtividadeResponsavel")
+  irrigacoes            Irrigacao[]      @relation("IrrigacaoResponsavel")
+  refreshTokens         RefreshToken[]
+
+  @@index([propriedadeId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+// ---------------------------------------------------------------------------
+// Cadastros base: culturas, talhoes, safras
+// ---------------------------------------------------------------------------
+
+model Cultura {
+  id            String   @id @default(uuid())
+  nome          String
+  variedade     String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  talhoes             Talhao[]
+  perfisCorrecaoSolo  PerfilCorrecaoSolo[]
+
+  @@index([propriedadeId])
+}
+
+enum StatusTalhao {
+  EM_FORMACAO
+  ATIVO
+  INATIVO
+}
+
+model Talhao {
+  id            String       @id @default(uuid())
+  nome          String
+  codigo        String?
+  areaHa        Float?
+  culturaId     String?
+  cultura       Cultura?     @relation(fields: [culturaId], references: [id])
+  dataPlantio   DateTime?
+  // Espacamento do plantio em metros. Combinado com areaHa permite estimar
+  // o numero de plantas do talhao.
+  espacamentoEntrePlantas Float?
+  espacamentoEntreLinhas  Float?
+  status        StatusTalhao @default(ATIVO)
+  poligono      Json?
+  corMapa       String?
+  propriedadeId String
+  propriedade   Propriedade  @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  safras          Safra[]
+  colheitas       Colheita[]
+  analisesSolo    AnaliseSolo[]
+  analisesFoliar  AnaliseFoliar[]
+  gruposItens     GrupoTalhaoItem[]
+  atividadesItens AtividadeTalhao[]
+
+  @@index([propriedadeId])
+  @@index([culturaId])
+}
+
+// ---------------------------------------------------------------------------
+// Grupos de talhoes: atalho para lancar operacoes em varios talhoes de uma
+// vez ("Limao Novo", "Abacate"). Um talhao pode estar em varios grupos.
+// ---------------------------------------------------------------------------
+
+model GrupoTalhao {
+  id            String   @id @default(uuid())
+  nome          String
+  corMapa       String?
+  observacoes   String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  itens GrupoTalhaoItem[]
+
+  @@index([propriedadeId])
+}
+
+model GrupoTalhaoItem {
+  id       String @id @default(uuid())
+  grupoId  String
+  grupo    GrupoTalhao @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  talhaoId String
+  talhao   Talhao @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+
+  @@unique([grupoId, talhaoId])
+  @@index([grupoId])
+  @@index([talhaoId])
+}
+
+// ---------------------------------------------------------------------------
+// Executores: quem realiza o servico. Cadastro reutilizavel para nao redigitar
+// nome de empreiteiro e permitir relatorio de custo por prestador.
+// ---------------------------------------------------------------------------
+
+enum TipoExecutor {
+  EQUIPE_PROPRIA
+  EMPREITEIRO
+  PRESTADOR_SERVICO
+}
+
+model Executor {
+  id            String   @id @default(uuid())
+  nome          String
+  tipo          TipoExecutor
+  contato       String?
+  observacoes   String?
+  ativo         Boolean  @default(true)
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  atividades Atividade[]
+  colheitas  Colheita[]
+
+  @@index([propriedadeId])
+}
+
+// Setores de irrigacao: camada independente dos talhoes (um setor pode
+// cruzar varios talhoes e vice-versa), mas tambem obrigatoriamente contido
+// no poligono da propriedade. Base para o manejo hidrico.
+model SetorIrrigacao {
+  id            String   @id @default(uuid())
+  nome          String
+  codigo        String?
+  areaHa        Float?
+  poligono      Json?
+  corMapa       String?
+  observacoes   String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  irrigacoes Irrigacao[]
+
+  @@index([propriedadeId])
+}
+
+model Safra {
+  id            String   @id @default(uuid())
+  nome          String
+  talhaoId      String
+  talhao        Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  dataInicio    DateTime
+  dataFim       DateTime?
+  observacoes   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  atividades  Atividade[]
+  colheitas   Colheita[]
+
+  @@index([talhaoId])
+}
+
+// ---------------------------------------------------------------------------
+// Atividades de campo (apontamentos do encarregado)
+// ---------------------------------------------------------------------------
+
+model TipoAtividade {
+  id            String   @id @default(uuid())
+  nome          String
+  descricao     String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  atividades  Atividade[]
+
+  @@index([propriedadeId])
+}
+
+enum OrigemLancamento {
+  WEB
+  APP
+}
+
+// Operacao de campo (poda, desbrota, pulverizacao, fertirrigacao...).
+// Chamada de "Operacao" na interface; o nome Atividade permanece no banco
+// porque o app de campo e a fila offline ja dependem dele.
+model Atividade {
+  id              String   @id @default(uuid())
+  clientId        String?  @unique
+  data            DateTime
+  observacoes     String?
+  origem          OrigemLancamento @default(WEB)
+
+  // Mao de obra: 0/nulo quando feita pela equipe propria; valor da diaria
+  // (ou do servico) quando terceirizada. Rateado entre os talhoes por area.
+  custoMaoDeObra  Float?
+
+  propriedadeId   String
+  propriedade     Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  tipoAtividadeId String
+  tipoAtividade   TipoAtividade @relation(fields: [tipoAtividadeId], references: [id])
+  executorId      String?
+  executor        Executor? @relation(fields: [executorId], references: [id])
+  safraId         String?
+  safra           Safra?   @relation(fields: [safraId], references: [id])
+  responsavelId   String
+  responsavel     Usuario  @relation("AtividadeResponsavel", fields: [responsavelId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  talhoes               AtividadeTalhao[]
+  insumos               AtividadeInsumo[]
+  movimentacoesEstoque  MovimentacaoEstoque[]
+
+  @@index([propriedadeId])
+  @@index([data])
+  @@index([executorId])
+}
+
+// Talhoes cobertos por uma operacao. areaHa e custoRateado sao gravados no
+// momento do lancamento (snapshot) para o historico de custo nao mudar se o
+// talhao for redesenhado depois.
+model AtividadeTalhao {
+  id           String @id @default(uuid())
+  atividadeId  String
+  atividade    Atividade @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+  talhaoId     String
+  talhao       Talhao @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  areaHa       Float?
+  custoRateado Float?
+
+  @@unique([atividadeId, talhaoId])
+  @@index([atividadeId])
+  @@index([talhaoId])
+}
+
+// Produto usado numa operacao. Na pulverizacao o encarregado declara o que
+// LEVOU e o que DEVOLVEU; o usado (quantidade) e a diferenca, e o custo vem
+// do preco do lote de onde saiu.
+model AtividadeInsumo {
+  id                   String   @id @default(uuid())
+  atividadeId          String
+  atividade            Atividade @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+  insumoId             String
+  insumo               Insumo   @relation(fields: [insumoId], references: [id])
+  quantidade           Float
+  quantidadeLevada     Float?
+  quantidadeRetornada  Float?
+  unidade              String
+  custoUnitario        Float?
+  custoTotal           Float?
+  createdAt            DateTime @default(now())
+
+  @@index([atividadeId])
+  @@index([insumoId])
+}
+
+// ---------------------------------------------------------------------------
+// Estoque de insumos
+// ---------------------------------------------------------------------------
+
+enum CategoriaInsumo {
+  DEFENSIVO
+  FERTILIZANTE
+  EMBALAGEM
+  OUTRO
+}
+
+// Funcao agronomica do produto - base do controle de pragas: permite saber
+// "quando foi a ultima vez que este talhao levou herbicida".
+enum FuncaoInsumo {
+  INSETICIDA
+  FUNGICIDA
+  HERBICIDA
+  ACARICIDA
+  NEMATICIDA
+  NUTRICAO_FOLIAR
+  FERTILIZANTE_SOLO
+  ADJUVANTE
+  OUTRO
+}
+
+model Insumo {
+  id             String   @id @default(uuid())
+  nome           String
+  categoria      CategoriaInsumo @default(OUTRO)
+  funcao         FuncaoInsumo?
+  unidadeMedida  String
+  estoqueMinimo  Float?
+  propriedadeId  String
+  propriedade    Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  movimentacoes         MovimentacaoEstoque[]
+  usosEmAtividades      AtividadeInsumo[]
+  lotes                 LoteInsumo[]
+
+  @@index([propriedadeId])
+}
+
+// Lote de entrada do produto no estoque - uma compra, o inventario inicial ou
+// um ajuste. Guarda o preco pago, o que permite custo real por talhao (e nao
+// custo medio chutado). "quantidadeRestante" e o saldo do lote.
+enum OrigemLote {
+  COMPRA
+  INVENTARIO_INICIAL
+  AJUSTE
+}
+
+model LoteInsumo {
+  id                 String   @id @default(uuid())
+  insumoId           String
+  insumo             Insumo   @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  origem             OrigemLote @default(COMPRA)
+  data               DateTime
+  quantidade         Float
+  quantidadeRestante Float
+  precoUnitario      Float
+  fornecedor         String?
+  numeroNota         String?
+  observacoes        String?
+  propriedadeId      String
+  propriedade        Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  movimentacoes MovimentacaoEstoque[]
+
+  @@index([propriedadeId])
+  @@index([insumoId])
+  @@index([data])
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+enum OrigemMovimentacaoEstoque {
+  COMPRA
+  USO_ATIVIDADE
+  AJUSTE
+  OUTRO
+}
+
+model MovimentacaoEstoque {
+  id            String   @id @default(uuid())
+  insumoId      String
+  insumo        Insumo   @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  tipo          TipoMovimentacaoEstoque
+  origem        OrigemMovimentacaoEstoque @default(OUTRO)
+  quantidade    Float
+  data          DateTime
+  observacoes   String?
+  // de qual lote saiu/entrou - base do custo real
+  loteId        String?
+  lote          LoteInsumo? @relation(fields: [loteId], references: [id])
+  custoUnitario Float?
+  custoTotal    Float?
+  atividadeId   String?
+  atividade     Atividade? @relation(fields: [atividadeId], references: [id])
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@index([propriedadeId])
+  @@index([insumoId])
+  @@index([loteId])
+}
+
+// ---------------------------------------------------------------------------
+// Controle de pragas: regras que disparam alerta quando um talhao passa muito
+// tempo sem receber determinada funcao de produto.
+// ---------------------------------------------------------------------------
+
+enum EscopoAlerta {
+  TODOS_TALHOES
+  GRUPO
+  TALHAO
+}
+
+model RegraAlerta {
+  id            String   @id @default(uuid())
+  nome          String
+  funcao        FuncaoInsumo
+  intervaloDias Int
+  escopo        EscopoAlerta @default(TODOS_TALHOES)
+  grupoId       String?
+  talhaoId      String?
+  ativo         Boolean  @default(true)
+  observacoes   String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([propriedadeId])
+}
+
+// ---------------------------------------------------------------------------
+// Manejo hidrico: registro de irrigacao por setor
+// ---------------------------------------------------------------------------
+
+model Irrigacao {
+  id            String   @id @default(uuid())
+  clientId      String?  @unique
+  setorId       String
+  setor         SetorIrrigacao @relation(fields: [setorId], references: [id], onDelete: Cascade)
+  data          DateTime
+  duracaoHoras  Float?
+  laminaMm      Float?
+  observacoes   String?
+  origem        OrigemLancamento @default(WEB)
+  responsavelId String?
+  responsavel   Usuario? @relation("IrrigacaoResponsavel", fields: [responsavelId], references: [id])
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([setorId])
+  @@index([data])
+}
+
+// ---------------------------------------------------------------------------
+// Colheita
+// ---------------------------------------------------------------------------
+
+// Colheita em dois momentos:
+//  1) campo (encarregado, diario) -> caixas, talhao, quem colheu, R$/caixa
+//  2) escritorio (gestor, depois)  -> peso colhido, refugo e valor de venda
+// Varios lancamentos no mesmo dia, em talhoes e com empreiteiros diferentes,
+// sao linhas separadas.
+model Colheita {
+  id             String   @id @default(uuid())
+  clientId       String?  @unique
+  talhaoId       String
+  talhao         Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  safraId        String?
+  safra          Safra?   @relation(fields: [safraId], references: [id])
+  data           DateTime
+
+  // --- lancamento de campo ---
+  quantidadeCaixas Float
+  executorId       String?
+  executor         Executor? @relation(fields: [executorId], references: [id])
+  valorPorCaixa    Float?
+  custoColheita    Float?
+  origem           OrigemLancamento @default(WEB)
+
+  // --- complemento comercial (preenchido depois) ---
+  pesoTotalKg     Float?
+  pesoRefugoKg    Float?
+  valorTotalVenda Float?
+
+  classificacao  String?
+  observacoes    String?
+  propriedadeId  String
+  propriedade    Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([talhaoId])
+  @@index([data])
+  @@index([executorId])
+}
+
+// ---------------------------------------------------------------------------
+// Analises de solo / folha e perfis de correcao (banco de conhecimento)
+// ---------------------------------------------------------------------------
+
+model PerfilCorrecaoSolo {
+  id                    String   @id @default(uuid())
+  nome                  String
+  culturaId             String
+  cultura               Cultura  @relation(fields: [culturaId], references: [id], onDelete: Cascade)
+  phIdealMin            Float?
+  phIdealMax            Float?
+  materiaOrganicaIdeal  Float?
+  fosforoIdeal          Float?
+  potassioIdeal         Float?
+  calcioIdeal           Float?
+  magnesioIdeal         Float?
+  saturacaoBasesIdeal   Float?
+  ctcReferencia         Float?
+  micronutrientesIdeais Json?
+  observacoes           String?
+  propriedadeId         String
+  propriedade           Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt              DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([culturaId])
+}
+
+model AnaliseSolo {
+  id               String   @id @default(uuid())
+  talhaoId         String
+  talhao           Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  dataColeta       DateTime
+  profundidadeCm   Float?
+  laboratorio      String?
+  ph               Float?
+  materiaOrganica  Float?
+  fosforo          Float?
+  potassio         Float?
+  calcio           Float?
+  magnesio         Float?
+  aluminio         Float?
+  hAl              Float?
+  somaBases        Float?
+  ctc              Float?
+  saturacaoBases   Float?
+  micronutrientes  Json?
+  observacoes      String?
+  propriedadeId    String
+  propriedade      Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([talhaoId])
+  @@index([dataColeta])
+}
+
+model AnaliseFoliar {
+  id                 String   @id @default(uuid())
+  talhaoId           String
+  talhao             Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  dataColeta         DateTime
+  estadioFenologico  String?
+  nitrogenio         Float?
+  fosforo            Float?
+  potassio           Float?
+  calcio             Float?
+  magnesio           Float?
+  enxofre            Float?
+  micronutrientes    Json?
+  observacoes        String?
+  propriedadeId      String
+  propriedade        Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([talhaoId])
+  @@index([dataColeta])
+}
