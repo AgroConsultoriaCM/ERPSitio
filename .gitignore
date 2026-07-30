@@ -14,3 +14,7 @@ coverage/
 # Docker atras de inspecao de HTTPS). Nunca commitar - especifico da maquina.
 infra/certs/*.crt
 infra/certs/*.pem
+
+# Backups do banco: dados reais, nunca vao para o repositorio
+backups/
+*.sql.gz

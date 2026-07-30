@@ -1,0 +1,82 @@
+# Produção em VPS (Oracle Cloud, Hetzner, Contabo...) com HTTPS automático.
+#
+# Uso, na raiz do repo:
+#   docker compose -f infra/docker-compose.vps.yml --env-file .env up -d --build
+#
+# Diferença para o docker-compose.prod.yml: o Caddy entra na frente, cuidando
+# do certificado TLS. Só ele expõe portas para a internet (80/443); banco, API
+# e site ficam na rede interna.
+name: erpsitio
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    command: sh -c "node_modules/.bin/prisma migrate deploy --schema packages/db/prisma/schema.prisma && node apps/api/dist/server.js"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      API_PORT: 3333
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN_DAYS: ${JWT_REFRESH_EXPIRES_IN_DAYS:-30}
+      # site e API na mesma origem: o navegador nunca faz requisição cross-site
+      CORS_ORIGIN: https://${DOMINIO}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: api:3333
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMINIO: ${DOMINIO}
+      EMAIL_TLS: ${EMAIL_TLS}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # certificados persistidos: sem isso, cada restart pede um novo ao
+      # Let's Encrypt e a cota semanal estoura
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      - web
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
