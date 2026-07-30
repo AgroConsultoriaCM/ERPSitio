@@ -1,0 +1,65 @@
+#cloud-config
+# Preparação automática do servidor no primeiro boot da instância Oracle.
+#
+# Faz o mesmo que infra/scripts/preparar-servidor.sh, mas sem você precisar
+# digitar nada: instala Docker e Git, libera as portas 80/443 no firewall do
+# sistema (a camada que existe ALÉM das regras do painel da Oracle) e cria
+# swap para o build do frontend não faltar memória.
+#
+# Como usar: em "Initialization script", escolha "Choose cloud-init script
+# file" e envie este arquivo.
+#
+# Depois de criar a instância, confira se rodou com:
+#   cloud-init status --wait
+#   cat /var/log/erpsitio-preparacao.log
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - ca-certificates
+
+write_files:
+  # Evita que a instalação do iptables-persistent trave perguntando se deve
+  # salvar as regras atuais.
+  - path: /etc/erpsitio-preseed.conf
+    content: |
+      iptables-persistent iptables-persistent/autosave_v4 boolean true
+      iptables-persistent iptables-persistent/autosave_v6 boolean true
+
+runcmd:
+  - exec > >(tee -a /var/log/erpsitio-preparacao.log) 2>&1
+  - echo "=== preparando servidor para o ERPSitio ==="
+
+  - echo "[1/4] instalando Docker..."
+  - curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+  - sh /tmp/get-docker.sh
+  - usermod -aG docker ubuntu
+  - systemctl enable --now docker
+
+  - echo "[2/4] liberando portas 80 e 443 no firewall do sistema..."
+  - debconf-set-selections /etc/erpsitio-preseed.conf
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+  - netfilter-persistent save
+
+  - echo "[3/4] criando swap de 2 GB..."
+  - fallocate -l 2G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+  - echo "[4/4] baixando o sistema..."
+  - git clone https://github.com/AgroConsultoriaCM/ERPSitio.git /home/ubuntu/ERPSitio
+  - chown -R ubuntu:ubuntu /home/ubuntu/ERPSitio
+  - chmod +x /home/ubuntu/ERPSitio/infra/scripts/*.sh
+
+  - echo "=== servidor pronto ==="
+  - echo "Falta liberar as portas 80/443 no painel da Oracle (Security List)"
+  - echo "e configurar o .env antes de subir o sistema."
+
+final_message: "ERPSitio: servidor preparado em $UPTIME segundos. Veja /var/log/erpsitio-preparacao.log"

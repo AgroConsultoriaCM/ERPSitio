@@ -196,6 +196,73 @@ As migrations do banco rodam sozinhas na subida da API.
 - [ ] PWA instalado no celular do encarregado e testado no campo
 - [ ] Repositório do GitHub em modo privado
 
+## Script de tentativa automática ("Out of capacity")
+
+A capacidade ARM gratuita vive esgotada nas regiões concorridas (São Paulo é
+uma delas). Ela só aparece quando outra conta apaga uma instância — então a
+saída é insistir. O script `tentar-instancia.ps1` faz isso sozinho.
+
+### 1. Salve a configuração como stack
+
+Na tela de criação da instância, em vez de "Create", clique em
+**"Save as stack"**. Isso guarda toda a configuração e permite repetir a
+tentativa sem refazer o formulário.
+
+Anote o **OCID do stack** (Resource Manager → Stacks → seu stack → OCID).
+
+### 2. Instale a ferramenta de linha de comando
+
+No PowerShell:
+
+```powershell
+winget install Oracle.OCI-CLI
+```
+
+Feche e reabra o PowerShell depois.
+
+### 3. Crie a chave de API
+
+No console da Oracle:
+
+1. Clique no ícone do seu perfil (canto superior direito) → **User settings**
+2. Menu lateral → **API keys** → **Add API key**
+3. Escolha **Generate API key pair** → **Download private key** (guarde!)
+4. **Add**
+5. A Oracle mostra um **Configuration file preview** — copie aquele texto
+
+Agora crie o arquivo de configuração:
+
+```powershell
+mkdir "$HOME\.oci" -Force
+notepad "$HOME\.oci\config"
+```
+
+Cole o texto copiado e ajuste a linha `key_file` para o caminho da chave
+privada que você baixou, por exemplo:
+
+```
+key_file=C:\Users\SeuUsuario\Downloads\oracleidentitycloudservice_...-privatekey.pem
+```
+
+Salve e feche.
+
+### 4. Deixe o script rodando
+
+```powershell
+cd C:\ERPSitio
+.\infra\oracle\tentar-instancia.ps1 -StackId "ocid1.ormstack.oc1.sa-saopaulo-1.xxxxx"
+```
+
+Ele tenta a cada 5 minutos, mostra o andamento e **apita quando conseguir**.
+Para parar, `Ctrl+C`.
+
+Se o job falhar por um motivo diferente de falta de capacidade, o script
+para e mostra o erro — assim você não fica repetindo uma configuração
+inválida achando que é fila.
+
+> Deixar rodando de madrugada costuma ser o mais produtivo: menos gente
+> criando instâncias ao mesmo tempo.
+
 ## Problemas comuns
 
 **O site não abre e o Caddy repete erro de certificado**
