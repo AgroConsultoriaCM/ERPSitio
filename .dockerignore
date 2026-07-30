@@ -1,0 +1,35 @@
+# Nada aqui é enviado ao daemon do Docker nem entra nas imagens.
+# Além de acelerar o build, evita que segredo ou artefato local vaze para
+# dentro de uma imagem publicada.
+
+# segredos e credenciais
+.env
+.env.*
+!.env.example
+infra/certs/*.crt
+infra/certs/*.pem
+
+# dependências e artefatos: reconstruídos dentro da imagem
+node_modules
+**/node_modules
+dist
+**/dist
+build
+**/build
+packages/db/generated
+apps/web/dev-dist
+
+# backups do banco
+backups
+*.sql.gz
+
+# controle de versão e editores
+.git
+.gitignore
+.vscode
+.idea
+
+# ruído de sistema operacional
+Thumbs.db
+.DS_Store
+*.log
