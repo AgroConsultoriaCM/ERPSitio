@@ -23,6 +23,7 @@ const Atividades = lazy(() => import("./pages/painel/Atividades"));
 const Pragas = lazy(() => import("./pages/painel/Pragas"));
 const Irrigacao = lazy(() => import("./pages/painel/Irrigacao"));
 const Estoque = lazy(() => import("./pages/painel/Estoque"));
+const Notas = lazy(() => import("./pages/painel/Notas"));
 const Usuarios = lazy(() => import("./pages/painel/Usuarios"));
 const CadastrosLayout = lazy(() => import("./pages/painel/CadastrosLayout"));
 const Propriedade = lazy(() => import("./pages/painel/Propriedade"));
@@ -90,6 +91,7 @@ export default function App() {
                 </Route>
                 <Route element={<ExigePermissao modulo="estoque" />}>
                   <Route path="estoque" element={<Estoque />} />
+                  <Route path="notas" element={<Notas />} />
                 </Route>
                 <Route element={<ExigePermissao modulo="usuarios" />}>
                   <Route path="usuarios" element={<Usuarios />} />

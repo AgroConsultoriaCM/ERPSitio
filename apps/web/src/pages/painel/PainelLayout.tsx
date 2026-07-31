@@ -15,6 +15,7 @@ import {
   Users,
   WifiOff,
   X,
+  FileText,
   type LucideProps,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -83,7 +84,7 @@ export default function PainelLayout() {
   useEffect(() => setMenuAberto(false), [pathname]);
 
   const emCadastros = pathname.startsWith(ROTAS.cadastros);
-  const veDiaADia = podeVer("colheitas") || podeVer("operacoes") || podeVer("estoque");
+  const veDiaADia = podeVer("colheitas") || podeVer("operacoes") || podeVer("estoque") || podeVer("notas");
   const veAcompanhamento = podeVer("pragas") || podeVer("irrigacao");
   const veConfiguracao = podeVer("cadastros") || podeVer("propriedade") || podeVer("usuarios");
 
@@ -116,6 +117,11 @@ export default function PainelLayout() {
           {podeVer("estoque") && (
             <ItemMenu para={ROTAS.estoque} icone={Package}>
               Estoque
+            </ItemMenu>
+          )}
+          {podeVer("notas") && (
+            <ItemMenu para={ROTAS.notas} icone={FileText}>
+              Notas fiscais
             </ItemMenu>
           )}
         </>

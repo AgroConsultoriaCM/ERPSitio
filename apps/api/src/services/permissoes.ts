@@ -8,6 +8,7 @@ export const MODULOS = [
   { id: "colheitas", rotulo: "Colheitas", descricao: "Lançamento e consolidação de colheita" },
   { id: "operacoes", rotulo: "Operações", descricao: "Poda, pulverização, fertirrigação etc." },
   { id: "estoque", rotulo: "Estoque", descricao: "Compras, lotes e movimentações" },
+  { id: "notas", rotulo: "Notas fiscais de entrada", descricao: "Notas recebidas, à espera de decisão" },
   { id: "pragas", rotulo: "Controle de pragas", descricao: "Alertas e histórico de aplicações" },
   { id: "irrigacao", rotulo: "Manejo hídrico", descricao: "Irrigação e clima" },
   { id: "analises", rotulo: "Análises de solo/folha", descricao: "Laudos e diagnóstico" },
@@ -39,6 +40,9 @@ const PADRAO: Record<RolePapel, Record<string, [ver: boolean, editar: boolean]>>
     colheitas: [true, true],
     operacoes: [true, true],
     estoque: [true, false],
+    // Nota fiscal e assunto do escritorio: envolve fornecedor, preco e
+    // decisao de compra. O encarregado nunca precisa ver.
+    notas: [false, false],
     pragas: [false, false],
     irrigacao: [true, true],
     analises: [false, false],

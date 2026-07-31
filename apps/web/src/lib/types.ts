@@ -390,6 +390,7 @@ export type ModuloId =
   | "analises"
   | "cadastros"
   | "propriedade"
+  | "notas"
   | "usuarios";
 
 export interface Permissao {
@@ -413,4 +414,58 @@ export interface LinhaMatrizPermissao {
 export interface RespostaPermissoes {
   modulos: ModuloDescricao[];
   matriz: LinhaMatrizPermissao[];
+}
+
+// ---------------------------------------------------------------------------
+// Notas fiscais de entrada
+// ---------------------------------------------------------------------------
+
+export type SituacaoNota = "PENDENTE" | "IMPORTADA" | "IGNORADA";
+export type OrigemNota = "ANEXO_MANUAL" | "EMAIL";
+
+export interface NotaResumo {
+  id: string;
+  chaveAcesso: string;
+  numero: string;
+  serie: string;
+  dataEmissao: string;
+  nomeEmitente: string;
+  cnpjEmitente: string;
+  nomeDestinatario: string | null;
+  documentoDestinatario: string | null;
+  valorTotal: number;
+  situacao: SituacaoNota;
+  origem: OrigemNota;
+  importadaEm: string | null;
+  quantidadeLotes: number;
+  /**
+   * true = emitida para a propriedade; false = para outra pessoa juridica que
+   * divide a mesma caixa de e-mail; null = a propriedade ainda nao tem
+   * documento cadastrado, entao nao ha com o que comparar.
+   */
+  destinatarioEhNosso: boolean | null;
+}
+
+export interface ItemNotaDetalhe {
+  numero: number;
+  codigo: string;
+  descricao: string;
+  unidade: string;
+  quantidade: number;
+  valorUnitario: number;
+  custoUnitarioReal: number;
+  /** Preenchidos quando este produto ja foi mapeado numa nota anterior. */
+  insumoId: string | null;
+  insumoNome: string | null;
+  insumoUnidade: string | null;
+  fatorConversao: number | null;
+  quantidadeConvertida: number | null;
+  custoConvertido: number | null;
+}
+
+export interface NotaDetalhe extends Omit<NotaResumo, "quantidadeLotes"> {
+  totalConfere: boolean;
+  somaItens: number;
+  observacoes: string | null;
+  itens: ItemNotaDetalhe[];
 }

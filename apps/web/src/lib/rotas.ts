@@ -8,6 +8,7 @@ export const ROTAS = {
   pragas: "/painel/pragas",
   irrigacao: "/painel/irrigacao",
   estoque: "/painel/estoque",
+  notas: "/painel/notas",
   usuarios: "/painel/usuarios",
 
   // Cadastros ficam agrupados em sub-abas
