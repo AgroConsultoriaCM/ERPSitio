@@ -1,8 +1,16 @@
 # ERPSitio — contexto para o Claude Code
 
-Sistema de gestão de fruticultura do **Sítio Santo Antônio** (Monte Alto-SP,
-limão e abacate). Não é projeto de estudo: **está em produção com dados reais**
-desde 30/07/2026.
+Sistema de gestão de fruticultura do **Sítio Santo Antônio** (limão taiti e
+abacate). Não é projeto de estudo: **está em produção**, no ar em
+`https://www.sitiocostamello.com.br` desde **31/07/2026**, com os cadastros
+reais do sítio.
+
+A propriedade fica **na divisa de Monte Alto e Taiaçu-SP**: 7,8 km do centro de
+uma e 5,2 km da outra. Isso importa para o clima — veja a seção 4.
+
+**Colheita intermitente.** Limão taiti não tem safra única: colhe-se em repiques
+ao longo do ano. Qualquer tela que só mostre acumulado esconde o que interessa,
+que é o ritmo. É por isso que o painel tem gráfico por semana.
 
 > **Foco a partir de agora: melhorar o sistema.**
 > A infraestrutura está montada, no ar e documentada abaixo. O trabalho daqui
@@ -37,7 +45,8 @@ Interface toda em português do Brasil, na linguagem da operação ("operações
 ```
         CELULAR / NAVEGADOR
                 |
-                |  (1) abre https://sitiocostamello.com.br
+                |  (1) abre https://www.sitiocostamello.com.br
+                |      (a raiz sem www responde 308 e redireciona para ela)
                 v
    +--------------------------------------+
    |  VERCEL                              |
@@ -142,15 +151,24 @@ Entrada:
 Saída: `0.0.0.0/0`, todos os protocolos.
 
 **(b) iptables dentro do Ubuntu** — a Oracle entrega o Ubuntu com iptables
-fechado. Liberar só no painel não adianta:
+fechado. Liberar só no painel não adianta.
+
+> **A posição da regra é o que importa, não o número 6.** A cadeia INPUT tem um
+> `REJECT all` no fim, e regra inserida **depois** dele não vale nada. Nesta
+> máquina o REJECT estava na posição **5**, então o `-I INPUT 6` que estava
+> documentado aqui caía atrás dele — as portas ficaram fechadas mesmo com as
+> regras "criadas". Confira antes e insira **na posição do REJECT**:
 
 ```bash
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo iptables -L INPUT -n --line-numbers        # ache a linha do REJECT
+sudo iptables -I INPUT <linha-do-REJECT> -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT <linha-do-REJECT> -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo iptables -L INPUT -n --line-numbers        # confirme: 80 e 443 ANTES do REJECT
 sudo netfilter-persistent save
 ```
 
-Esquecer a camada (b) é o motivo nº 1 de "o site não abre".
+Esquecer a camada (b), ou pôr a regra no lugar errado, é o motivo nº 1 de "o
+site não abre".
 
 ### O que roda na máquina
 
@@ -169,29 +187,54 @@ crontab                        backup 02:00 diario; conferencia dia 1, 03:00
 Preparação da máquina: `infra/oracle/cloud-init-micro.yaml` (Docker, gnupg,
 rclone, swap, iptables, clone do repositório).
 
+> **`up -d` sem nome de serviço sobe os três.** Já aconteceu de `db` e `api`
+> estarem de pé e o **caddy nunca ter sido iniciado** — a API respondia por
+> dentro e o site não abria por fora, sem erro em log nenhum. Ao investigar
+> "site fora do ar", confira `docker ps` e veja se **os três** aparecem.
+
+**Fuso da máquina:** `America/Sao_Paulo`. Estava em UTC até 30/07/2026, o que
+fazia o cron das 02:00 disparar às 23:00 de Brasília. Se recriar a instância,
+rode `sudo timedatectl set-timezone America/Sao_Paulo` — senão os horários do
+cron e do log não significam o que dizem.
+
 ## 2.2 Domínio — registro.br
 
 Painel: https://registro.br/painel/dominios → `sitiocostamello.com.br`
 
-Servidores DNS: os do próprio registro.br (`a.auto.dns.br`, `b.auto.dns.br`).
 A edição é feita em **CONFIGURAR ZONA DNS → MODO AVANÇADO** (o modo básico só
 configura a raiz e não cria subdomínio).
+
+**Zona configurada (31/07/2026), já publicada e propagada:**
 
 | Tipo | Nome | Dados | Para quê |
 | --- | --- | --- | --- |
 | A | `api.sitiocostamello.com.br` | `163.176.96.228` | aponta a API para a Oracle |
-| A | `sitiocostamello.com.br` | *(o que a Vercel indicar)* | raiz do site |
-| CNAME | `www.sitiocostamello.com.br` | *(o que a Vercel indicar)* | www |
+| A | `sitiocostamello.com.br` | `216.198.79.1` | raiz → Vercel (que responde 308 para o www) |
+| CNAME | `www.sitiocostamello.com.br` | `9a58cd0c11c07a2c.vercel-dns-017.com.` | onde o site realmente está |
+
+> **Os servidores autoritativos são `a.sec.dns.br` e `c.sec.dns.br`**, não os
+> `auto.dns.br`. Consultar os `auto` devolve "o nome DNS não existe" para
+> registros que **estão** publicados, e leva a diagnosticar erro onde não há.
+> Confirme a delegação real antes de concluir qualquer coisa:
+> `curl -s https://rdap.registro.br/domain/sitiocostamello.com.br`
+
+Conferência de fora, sem cache:
+
+```bash
+nslookup -type=A api.sitiocostamello.com.br a.sec.dns.br
+```
 
 Cuidados aprendidos:
 
-- O registro.br **não aceita `@` nem `*`** — escreva o nome completo.
-- Depois de digitar é preciso clicar em **SALVAR ALTERAÇÕES**; o botão fica
-  cinza quando não há nada pendente (ou seja, cinza = já salvo).
-- Domínio recém-registrado entra em **período de transição** (~2h) e a zona não
-  publica durante ele, mesmo com o registro salvo.
-- Para conferir de fora, sem cache:
-  `Resolve-DnsName api.sitiocostamello.com.br -Server a.auto.dns.br`
+- O campo **Nome é só o prefixo** — o painel completa com `.sitiocostamello.com.br`
+  sozinho. Para a **raiz, deixe o campo vazio**; digitar o domínio inteiro cria
+  `sitiocostamello.com.br.sitiocostamello.com.br`.
+- O registro.br **não aceita `@` nem `*`**. A Vercel escreve `@` para a raiz —
+  isso é notação dela, e traduzir para cá significa **campo vazio**.
+- **SALVAR ALTERAÇÕES** cinza = nada pendente, ou seja, já salvo.
+- Na tela **ALTERAR SERVIDORES DNS**, os campos vêm vazios porque a zona é do
+  próprio registro.br. **Não salve essa tela em branco** — tira a delegação e
+  derruba o domínio inteiro. Não é ali que se editam registros.
 
 ## 2.3 Vercel
 
@@ -206,7 +249,15 @@ Painel: https://vercel.com/dashboard → projeto **`erpsitio`**
 | Output Directory | `apps/web/dist` |
 | Install Command | `npm install` |
 | Variável | `VITE_API_URL = https://api.sitiocostamello.com.br/api/v1` |
-| Domínios | `sitiocostamello.com.br`, `www`, `erpsitio.vercel.app` |
+| Domínios | `www.sitiocostamello.com.br` (**é onde o site está**), raiz com 308 para o www, `erpsitio.vercel.app` |
+
+> **Pré-visualização de branch é protegida.** Deploy de branch responde **302**
+> para quem não estiver logado na conta da Vercel. Some-se a isso que o
+> `CORS_ORIGIN` da API só aceita **correspondência exata** e o endereço da
+> prévia **muda a cada envio** — na prática, revisar frontend pela prévia exige
+> acrescentar a origem nova ao `.env` toda vez. Para mudança só de frontend,
+> costuma valer mais ir direto à `main` (a Vercel publica em ~2 min) e desfazer
+> com `git revert -m 1 <hash do merge>` se desagradar.
 
 Os três comandos acima **vêm do `vercel.json` na raiz** e aparecem
 acinzentados na interface. Não ative o lápis ao lado deles: valor digitado na
@@ -260,18 +311,36 @@ cenário possível.
 `verificar-backup.sh --nuvem` baixa do Drive, descriptografa, restaura num
 Postgres descartável e conta o que voltou. **A produção não é tocada.**
 
+**Última prova de ponta a ponta: 31/07/2026.** Restaurou do Drive e devolveu
+1 propriedade, 7 talhões, **35,37 ha**, 6 culturas, 4 insumos, 2 usuários.
+Código de saída 0. Vale repetir de tempos em tempos — o cron já faz isso todo
+dia 1, mas rodar à mão depois de qualquer mexida grande é barato.
+
+> Os scripts usam `docker compose exec -T` por dentro. Ao chamá-los via SSH com
+> heredoc, acrescente `</dev/null` ou o `exec -T` engole o resto do script.
+
 ## 2.5 GitHub
 
 | Item | Valor |
 | --- | --- |
 | Repositório | https://github.com/AgroConsultoriaCM/ERPSitio (público) |
 | Branch | `main` |
+| Remoto | **SSH**: `git@github.com:AgroConsultoriaCM/ERPSitio.git` |
 | Actions | `.github/workflows/imagem-api.yml` |
 | Imagem publicada | `ghcr.io/agroconsultoriacm/erpsitio-api:main` |
 
 O workflow roda quando muda `apps/api/**`, `packages/db/**`, `package.json`,
 `package-lock.json`, `tsconfig.base.json` ou `infra/certs/**`. Compila em ~2
 minutos. Mexer só no frontend não dispara.
+
+> Instalar dependência do **frontend** mexe no `package-lock.json` e **dispara o
+> workflow da API sem necessidade**. Não é problema: a imagem nova fica no GHCR
+> e só chega ao servidor quando alguém roda `pull && up -d` lá.
+
+**Autenticação: use SSH, não HTTPS.** O remoto HTTPS depende do Git Credential
+Manager, que precisa abrir uma janela de login — e falha em terminal não
+interativo, que é onde o agente trabalha. Com SSH o envio funciona sozinho.
+Montagem em máquina nova está na seção 11.
 
 ---
 
@@ -323,6 +392,7 @@ cd ~/ERPSitio
 git pull
 docker compose -f infra/docker-compose.micro.yml --env-file .env pull
 docker compose -f infra/docker-compose.micro.yml --env-file .env up -d
+docker ps                 # confira que db, api E caddy estao de pe
 ```
 
 O `git pull` traz o compose e os scripts; o `docker compose pull` traz a
@@ -354,10 +424,23 @@ junto com o código. No servidor ela é aplicada sozinha na subida da API.
 
 ## Antes de encerrar uma mudança
 
-1. O site abre e **carrega dados** (tela em branco = quase sempre `CORS_ORIGIN`)
-2. `curl https://api.sitiocostamello.com.br/health` responde `{"status":"ok"}`
-3. `docker compose ... ps` mostra tudo `Up`
-4. Continuam **7 talhões e 35,37 ha**
+1. `npx tsc --noEmit -p apps/web/tsconfig.json` e o mesmo para `apps/api`
+2. O site abre e **carrega dados** (tela em branco = quase sempre `CORS_ORIGIN`)
+3. `curl https://api.sitiocostamello.com.br/health` responde `{"status":"ok"}`
+4. `docker compose ... ps` mostra **os três** containers `Up` — inclusive o caddy
+5. Continuam **7 talhões e 35,37 ha**
+6. Mexeu no frontend: confira o tamanho do pacote no build (seção 4)
+
+**Como saber que a Vercel realmente publicou**, sem depender de impressão: o
+nome do arquivo em `/assets/index-*.js` muda a cada build. Compare antes e
+depois:
+
+```bash
+curl -s https://www.sitiocostamello.com.br | grep -Eo '/assets/index-[A-Za-z0-9_-]+\.js'
+```
+
+O navegador guarda o service worker antigo — para conferir na tela, recarregue
+com **Ctrl+Shift+R**.
 
 ---
 
@@ -385,6 +468,62 @@ Serviços centrais em `apps/api/src/services/`: `rateio.ts`, `estoque.ts`,
 Serviços externos gratuitos: **Esri World Imagery** (satélite nos mapas,
 escolhido no lugar do Google Maps para não gerar mensalidade) e **Open-Meteo**
 (previsão e histórico de chuva, sem chave de API).
+
+## Frontend: peças criadas em 31/07/2026
+
+| Arquivo | O que é |
+| --- | --- |
+| `src/components/ui.tsx` | peças compartilhadas: `Indicador`, `Aviso`, `Tabela`, `EstadoVazio`, `Esqueleto`, `moeda`, `numero` |
+| `src/components/PainelClima.tsx` | bloco de clima do painel: chuva, saldo hídrico e janela de pulverização |
+| `src/components/GraficoColheita.tsx` | colheita por semana (Recharts); `agruparPorSemana` é função pura e testável |
+| `src/lib/clima.ts` | contas derivadas do clima: `janelaPulverizacao`, `balancoHidrico`, `resumoClima` |
+| `src/lib/useOnline.ts` | estado de conexão real (corrigido por falha de chamada, não só `navigator.onLine`) |
+| `src/lib/useInstalarApp.ts` | convite de instalação no Android (`beforeinstallprompt`) |
+
+Ícones: **lucide-react**, importados um a um (a biblioteca inteira não entra no
+pacote). Paleta e animações ficam em `tailwind.config.js`; utilitários de
+composição (`.cartao`, `.numero`, `.rotulo`, `.escalonar`) em `index.css`.
+
+**Peso é requisito, não detalhe.** O celular do encarregado abre isto em 3G no
+meio do talhão. As rotas do painel são carregadas sob demanda (`lazy`), e o
+`globIgnores` do Workbox mantém mapa e gráficos **fora do pré-carregamento** do
+service worker. Entrada ficou em ~200 kB e o precache em ~578 KiB, contra
+1.107 kB e 1.159 KiB antes. Ao mexer no frontend, confira o tamanho no build.
+
+## Clima: como a coordenada é escolhida
+
+`GET /clima` usa a **latitude e longitude da propriedade** — nunca nome de
+cidade. E essas coordenadas **não são digitadas**: a tela de Propriedade calcula
+o centro do polígono desenhado (`centroideDoPoligono`, em `src/lib/geo.ts`) e o
+grava a cada alteração do contorno. Por isso não existe campo de lat/long.
+
+A grade da Open-Meteo tem **2 a 3 km**, e o sítio tem 0,35 km² — cabe inteiro
+numa célula. Consequência prática: **não faz sentido "usar Monte Alto" ou "fazer
+média com Taiaçu"**. Medido em 31/07/2026, sobre 21 dias:
+
+| | Altitude atribuída | Chuva | ET0 |
+| --- | --- | --- | --- |
+| Sítio (centro do polígono) | 692 m | 11,7 mm | 84,6 mm |
+| Monte Alto | 713 m | 13,3 mm | 84,4 mm |
+| Taiaçu | 572 m | 9,5 mm | 83,5 mm |
+
+O valor do sítio já cai naturalmente entre os das duas cidades, porque o modelo
+interpola por posição. A média das cidades daria quase o mesmo número de chuva
+com uma altitude 50 m pior.
+
+**Alternativas avaliadas e descartadas:**
+
+- **IPMet (UNESP Bauru)** — tem radar que cobre a região, e seria o melhor dado
+  de chuva de curto prazo. Mas exige cadastro e **não tem API pública**: os
+  produtos são página e imagem. Integrar exigiria falar com eles.
+- **INMET** — tem API que funciona (`https://apiprevmet3.inmet.gov.br/previsao/3531308`,
+  onde 3531308 é o código IBGE de Monte Alto). **Exige cabeçalho `User-Agent`**,
+  senão devolve corpo vazio com HTTP 200. Descartada porque a previsão é texto
+  ("chuva isolada"), não milímetros, não traz ET0, e a estação automática mais
+  próxima está a 80–150 km.
+
+O maior ganho de precisão continua sendo **pluviômetro no sítio**: modelo
+estima, pluviômetro mede.
 
 ## Portas
 
@@ -439,8 +578,13 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 | Senha do Postgres, `JWT_SECRET` | `.env` do servidor (600) | geradas lá, nunca saíram |
 | `SENHA_BACKUP` | `.env` do servidor + gerenciador de senhas + papel | **nunca guardar no Drive** — é o que protege os backups que estão lá |
 | Autorização do Drive | `~/.config/rclone/rclone.conf` no servidor | |
-| Chave SSH | máquina do usuário | ao trocar de máquina, **gerar outra**, não copiar |
+| Chave SSH **do servidor** | máquina do usuário | a atual é `ssh-key-2026-07-30`. Ao montar máquina nova, **gerar outra** e instalá-la no `authorized_keys`, em vez de copiar |
+| Chave SSH **do GitHub** | máquina do usuário, separada da anterior | separadas de propósito: se uma vazar, a outra continua valendo |
 | Chave de API da Oracle | `~/.oci/config` na máquina do usuário | idem |
+
+Nenhuma dessas chaves tem passphrase, de propósito: são usadas por terminal não
+interativo, e senha em chave inviabilizaria automação. A proteção é a permissão
+de arquivo restrita ao usuário.
 
 Nada disso está no Git. Roteiro para montar outra máquina:
 `drive:ERPSitio/documentacao/ERPSitio-outra-maquina.md`.
@@ -464,7 +608,21 @@ Nada disso está no Git. Roteiro para montar outra máquina:
   `curl` num container à parte.
 - **PowerShell 5.1**: sem `&&`, sem `-AsArray` no `ConvertTo-Json`; redirecionar
   stderr de programa externo vira erro falso; `.ps1` com acento precisa de BOM
-  UTF-8; `Get-Content` em arquivo sem BOM corrompe acentos ao regravar.
+  UTF-8; `Get-Content` em arquivo sem BOM **exibe acentos corrompidos** (o
+  arquivo está certo — não "conserte" o que não está quebrado).
+- **PowerShell 5.1 e HTTPS**: `Invoke-WebRequest` negocia TLS antigo e falha com
+  "a conexão subjacente estava fechada". Antes de qualquer chamada:
+  `[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12`
+- **PowerShell 5.1 estraga aspas** ao chamar executável nativo: `-N ""` some da
+  linha de comando e `-N '""'` chega como string vazia. Para `curl`,
+  `ssh-keygen` e afins, use o Bash — as aspas atravessam inteiras.
+- **`credential.helper` com caminho contendo espaço** quebra: o Git tenta
+  executar `C:/Program`. Use o nome curto (`manager`), não o caminho completo.
+- **Cache de DNS do Windows** guarda o "não existe" de antes da publicação.
+  `Clear-DnsClientCache` precisa de elevação; para conferir sem cache, consulte
+  o servidor autoritativo direto ou force o IP com `curl --resolve`.
+- **`curl` sem `User-Agent`** recebe corpo vazio com HTTP 200 de alguns serviços
+  públicos brasileiros (INMET, por exemplo). Vazio nem sempre é "não existe".
 - **Postgres em 1 GB** precisa de `shared_buffers` e `max_connections`
   reduzidos; o padrão reserva memória que a máquina não tem.
 - **`CORS_ORIGIN`** precisa bater exatamente com o endereço do site, com
@@ -473,32 +631,136 @@ Nada disso está no Git. Roteiro para montar outra máquina:
 
 ---
 
-# 8. Pendências conhecidas (30/07/2026)
+# 8. Pendências conhecidas (31/07/2026)
+
+**Infraestrutura**
 
 1. **`client_id` próprio do Google Drive.** O rclone usa hoje um `client_id`
-   compartilhado que o Google desativa durante 2026. Quando cair, o envio do
-   backup para. A cópia local continua e o script sai com código 4, mas convém
-   resolver: https://rclone.org/drive/#making-your-own-client-id
+   compartilhado que o Google desativa durante 2026 — o aviso aparece em toda
+   execução do backup. Quando cair, o envio para. A cópia local continua e o
+   script sai com código 4: https://rclone.org/drive/#making-your-own-client-id
 2. **Repositório público.** Não há segredo commitado, mas com o sistema em
    operação real vale torná-lo privado. Se fizer, o servidor precisará de
    `docker login ghcr.io` — passo em `infra/oracle/README-micro.md`.
 3. **Instância ARM.** `infra/oracle/tentar-instancia.ps1` tenta obter a máquina
    maior sozinho. Migrar seria o mesmo compose mais restaurar um backup.
 
+**Produto — precisam de decisão do Igor, mexem em estrutura**
+
+4. **Ícone adaptativo (maskable)** do Android. Os ícones atuais não têm margem
+   de segurança e podem sair com a borda cortada em alguns aparelhos. Exige
+   gerar um PNG 512×512 com o desenho dentro dos 80% centrais.
+5. **Sincronização em segundo plano** (`Background Sync API`): hoje a fila só
+   anda com o app aberto. É a melhoria de maior efeito prático no campo.
+6. **Foto no lançamento** de praga/ocorrência: pedido comum em campo, mas exige
+   coluna nova, armazenamento de arquivo e mudança no formato da fila offline.
+7. **Testes automatizados.** Não há nenhuma infraestrutura de teste. Ao
+   exercitar `src/lib/clima.ts` à mão, apareceu um erro de projeto real (dia
+   seco antes de uma frente era rebaixado, e a semana ficava sem nenhum dia bom
+   para pulverizar). Instalar Vitest tornaria isso permanente.
+8. **Telas internas no padrão antigo.** Colheitas, Operações, Estoque, Talhões e
+   Cadastros ainda usam tabelas cruas, sem as peças de `components/ui.tsx`.
+   Trazê-las para a mesma linguagem visual é trabalho grande e sem risco.
+9. **`settings.local.json` está na raiz do repositório**, mas o Claude Code lê
+   `.claude/settings.local.json`. Enquanto não for movido, as permissões
+   escritas ali **não valem**. Mover é decisão do Igor — é o arquivo que define
+   o que o agente pode executar sem perguntar.
+10. **Centroide por média de vértices**, não de área (`src/lib/geo.ts`). Para
+    contorno com vértices concentrados de um lado, o ponto desloca algumas
+    centenas de metros. Irrelevante para o clima (célula de 2–3 km), afeta só o
+    enquadramento inicial do mapa.
+
 ---
 
 # 9. Como o usuário prefere trabalhar
 
-- Explicações em português, diretas, sem jargão desnecessário
-- Verificação de verdade antes de dizer que funcionou — rodar, medir, mostrar
+- **Igor é engenheiro agrônomo, não desenvolvedor.** Explicações em português,
+  diretas, sem jargão. Quando a interface de terceiro (registro.br, Vercel,
+  GitHub Desktop) for confusa, descrever o clique, não o conceito.
+- **Verificação de verdade antes de dizer que funcionou** — rodar, medir,
+  mostrar o número. Ele confere. Concluir por evidência circunstancial já levou
+  a diagnóstico errado aqui mais de uma vez.
 - Custo importa: Esri, Oracle Always Free, Open-Meteo e Vercel foram todas
-  escolhas para não gerar mensalidade
+  escolhas para não gerar mensalidade.
+- Ele autoriza trabalho autônomo, inclusive durante a noite. Mesmo assim: mudar
+  `.env` de produção, criar recurso na Oracle e ampliar as próprias permissões
+  **continuam sendo decisão dele**.
 
 # 10. Documentação do projeto
 
 | Arquivo | Assunto |
 | --- | --- |
 | `README.md` | visão geral e desenvolvimento |
+| `APP-NO-CELULAR.md` | instalar no Android, o que funciona sem sinal, como a fila se comporta |
 | `infra/oracle/README-micro.md` | **o deploy em uso**: Vercel + Oracle Micro |
 | `infra/oracle/README.md` | deploy alternativo, tudo numa máquina (ARM/VPS) |
 | `infra/certs/README.md` | antivírus/proxy que inspeciona HTTPS |
+
+---
+
+# 11. Montar outra máquina de trabalho
+
+O Igor trabalha de mais de um computador. Nada de segredo está no Git, então
+uma máquina nova precisa destes quatro itens. Ordem sugerida:
+
+**1. Repositório**
+
+```bash
+git clone git@github.com:AgroConsultoriaCM/ERPSitio.git C:/ERPSitio
+```
+
+Se ainda não houver chave SSH do GitHub, clone por HTTPS e troque o remoto
+depois do passo 3.
+
+**2. Node e dependências** — Node 20 ou mais novo.
+
+```bash
+cd C:/ERPSitio
+npm install
+npm run generate --workspace packages/db   # cliente Prisma
+npm run build --workspace packages/db      # senao o typecheck da API acusa
+                                           # "Cannot find module @erpsitio/db"
+```
+
+**3. Chave SSH do GitHub** (para o agente conseguir publicar sozinho)
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_github -N "" -C "erpsitio-github"
+```
+
+Cole o conteúdo de `~/.ssh/id_ed25519_github.pub` em
+<https://github.com/settings/keys>. Depois, em `~/.ssh/config`:
+
+```
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_github
+  IdentitiesOnly yes
+```
+
+Confirme com `ssh -T git@github.com` — deve responder "Hi AgroConsultoriaCM!".
+
+**4. Acesso ao servidor**
+
+A chave privada atual do servidor não deve ser copiada entre máquinas. O certo
+é gerar uma nova e autorizá-la, **a partir de uma máquina que já tem acesso**:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_sitio -N "" -C "erpsitio-servidor"
+# na maquina que ja entra:
+ssh -i CHAVE_ANTIGA ubuntu@163.176.96.228 "echo 'CONTEUDO_DO_.pub' >> ~/.ssh/authorized_keys"
+```
+
+No Windows, prefira o OpenSSH do sistema (`C:\Windows\System32\OpenSSH\`) ao de
+outras distribuições que estejam no PATH — é o que respeita as ACLs, e o
+OpenSSH recusa chave com permissão aberta. Restrinja com
+`icacls CAMINHO /inheritance:r /grant:r "%USERDOMAIN%\%USERNAME%:(R)"`.
+
+**5. Opcional: Oracle CLI**, só se for mexer em infraestrutura. `winget install
+Oracle.OCI-CLI`, mais `~/.oci/config` e a chave de API gerada no painel. Ele
+**não entra no PATH** — chame pelo caminho completo.
+
+**O que NÃO precisa na máquina nova:** Docker (a produção roda na Oracle; o
+compose local é só para desenvolvimento com banco próprio) e nenhum arquivo
+`.env` — o de produção vive só no servidor.
