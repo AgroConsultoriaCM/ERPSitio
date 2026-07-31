@@ -23,6 +23,8 @@ export interface AtividadePendente {
   tipoAtividadeNome: string;
   status: "pendente" | "erro";
   erro?: string;
+  /** quantas vezes o servidor já recusou este item */
+  tentativas?: number;
   criadoEm: string; // ISO
 }
 
@@ -39,6 +41,8 @@ export interface ColheitaPendente {
   executorNome?: string;
   status: "pendente" | "erro";
   erro?: string;
+  /** quantas vezes o servidor já recusou este item */
+  tentativas?: number;
   criadoEm: string; // ISO
 }
 

@@ -2,10 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  @apply bg-terra-100 font-sans text-terra-900 antialiased;
+}
+
+/* O encarregado usa o celular no sol, de luva, muitas vezes com a tela suja.
+   Alvo de toque grande e realce de foco visivel valem mais que sutileza. */
+@layer base {
+  :focus-visible {
+    @apply outline-none ring-2 ring-mata-500 ring-offset-2 ring-offset-terra-50;
+  }
+
+  /* Evita o zoom automatico do iOS/Android ao focar um campo: abaixo de 16px
+     o navegador amplia a pagina e o operador perde o contexto do formulario. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+}
+
+@layer components {
+  .cartao {
+    @apply rounded-xl border border-terra-200/70 bg-white shadow-cartao;
+  }
+
+  /* Numeros de caixa, area e dinheiro: largura fixa para as colunas nao
+     dancarem quando o valor muda. */
+  .numero {
+    @apply font-num tabular-nums tracking-tight;
+  }
+
+  .rotulo {
+    @apply text-xs font-medium uppercase tracking-wide text-terra-500;
+  }
+}
+
+/* Barras de rolagem discretas nas faixas horizontais (previsao do tempo,
+   listas de dias). No celular a barra grossa come area util. */
+@layer utilities {
+  .rolagem-fina {
+    scrollbar-width: thin;
+    scrollbar-color: theme("colors.terra.300") transparent;
+  }
+  .rolagem-fina::-webkit-scrollbar {
+    height: 6px;
+  }
+  .rolagem-fina::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-terra-300;
+  }
 }
