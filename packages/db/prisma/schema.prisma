@@ -25,6 +25,9 @@ model Propriedade {
   latitude  Float?
   longitude Float?
   poligono  Json?
+  /// CNPJ ou CPF do produtor. Usado para avisar quando uma nota importada foi
+  /// emitida para outra pessoa - nota de vizinho que caiu no mesmo e-mail.
+  documento String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -46,6 +49,8 @@ model Propriedade {
   regrasAlerta          RegraAlerta[]
   irrigacoes            Irrigacao[]
   permissoes            PermissaoPapel[]
+  notasEntrada          NotaFiscalEntrada[]
+  mapeamentosProduto    MapeamentoProdutoNota[]
 }
 
 // Permissao de um papel sobre um modulo do sistema. Quando nao ha linha
@@ -81,6 +86,7 @@ model Usuario {
   atividadesResponsavel Atividade[]      @relation("AtividadeResponsavel")
   irrigacoes            Irrigacao[]      @relation("IrrigacaoResponsavel")
   refreshTokens         RefreshToken[]
+  notasImportadas       NotaFiscalEntrada[] @relation("NotaImportadaPor")
 
   @@index([propriedadeId])
 }
@@ -390,6 +396,7 @@ model Insumo {
   movimentacoes         MovimentacaoEstoque[]
   usosEmAtividades      AtividadeInsumo[]
   lotes                 LoteInsumo[]
+  mapeamentosNota       MapeamentoProdutoNota[]
 
   @@index([propriedadeId])
 }
@@ -415,6 +422,9 @@ model LoteInsumo {
   fornecedor         String?
   numeroNota         String?
   observacoes        String?
+  /// De qual nota este lote veio, quando veio de importacao de XML.
+  notaFiscalId       String?
+  notaFiscal         NotaFiscalEntrada? @relation(fields: [notaFiscalId], references: [id])
   propriedadeId      String
   propriedade        Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
   createdAt          DateTime @default(now())
@@ -645,4 +655,99 @@ model AnaliseFoliar {
   @@index([propriedadeId])
   @@index([talhaoId])
   @@index([dataColeta])
+}
+
+// ---------------------------------------------------------------------------
+// Entrada de estoque por NF-e
+//
+// So leitura do XML: nada e emitido, transmitido ou escriturado. A nota segue
+// o fluxo normal dela com o contador. O que fazemos aqui e gerencial - virar
+// lote de estoque com custo real, que depois alimenta o custo por talhao.
+// ---------------------------------------------------------------------------
+
+enum OrigemNota {
+  ANEXO_MANUAL
+  EMAIL
+}
+
+enum SituacaoNota {
+  /// Lida, aguardando conferencia. Nao mexeu no estoque ainda.
+  PENDENTE
+  /// Conferida e confirmada: os lotes existem.
+  IMPORTADA
+  /// Nao interessa (nota de outro assunto, chegou por engano, foi cancelada).
+  IGNORADA
+}
+
+model NotaFiscalEntrada {
+  id          String   @id @default(uuid())
+  /// 44 digitos. Unica por definicao - e o que impede importar duas vezes e
+  /// dobrar o estoque em silencio.
+  chaveAcesso String   @unique
+  numero      String
+  serie       String
+  dataEmissao DateTime
+
+  cnpjEmitente String
+  nomeEmitente String
+  /// Para quem a nota foi emitida. Se nao for o CNPJ da propriedade, a tela
+  /// avisa - nota de vizinho que caiu no mesmo e-mail e estrago silencioso.
+  cnpjDestinatario String?
+
+  valorTotal Float
+  /// XML guardado inteiro: permite reprocessar se a leitura melhorar, e serve
+  /// de prova do que foi lido. Sao poucos KB por nota.
+  xmlOriginal String
+
+  origem   OrigemNota   @default(ANEXO_MANUAL)
+  situacao SituacaoNota @default(PENDENTE)
+
+  importadaEm    DateTime?
+  importadaPorId String?
+  importadaPor   Usuario?  @relation("NotaImportadaPor", fields: [importadaPorId], references: [id])
+  observacoes    String?
+
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  lotes LoteInsumo[]
+
+  @@index([propriedadeId, situacao])
+  @@index([cnpjEmitente])
+  @@index([dataEmissao])
+}
+
+/// O que o sistema aprende sobre o catalogo de cada fornecedor.
+///
+/// A nota diz "ZAPP QI 620 20 L BRA", codigo 462, unidade BD. O cadastro diz
+/// "Zapp QI", controlado em litros. Na primeira nota da Frutagro voce aponta a
+/// correspondencia e diz que cada BD tem 20 L; da segunda em diante os 3 BD
+/// viram 60 L sozinhos.
+///
+/// Sem o fator, o custo por talhao erra por um fator de 20.
+model MapeamentoProdutoNota {
+  id            String @id @default(uuid())
+  cnpjEmitente  String
+  codigoProduto String
+  /// Ultima descricao vista na nota, so para a tela mostrar o que e.
+  descricaoNota String
+  /// Unidade como o fornecedor vende (BD, CX, SC...).
+  unidadeNota String
+
+  insumoId String
+  insumo   Insumo @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+
+  /// quantidade da nota x fator = quantidade na unidade do nosso cadastro.
+  /// 1 BD de 20 litros -> fator 20.
+  fatorConversao Float @default(1)
+
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([propriedadeId, cnpjEmitente, codigoProduto])
+  @@index([insumoId])
 }
