@@ -289,7 +289,14 @@ export interface MovimentacaoEstoque {
 export interface Colheita {
   id: string;
   talhaoId: string;
-  talhao: { id: string; nome: string; codigo?: string | null; areaHa?: number | null };
+  talhao: {
+    id: string;
+    nome: string;
+    codigo?: string | null;
+    areaHa?: number | null;
+    /** Quem define a unidade do preço. Ausente = talhão sem cultura cadastrada. */
+    cultura?: { id: string; nome: string; pesoCaixaKg?: number | null } | null;
+  };
   safraId?: string | null;
   safra?: Safra | null;
   data: string;

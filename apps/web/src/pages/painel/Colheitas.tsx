@@ -100,6 +100,27 @@ export default function Colheitas() {
   const unidadePreco = (c: Colheita) =>
     c.pesoCaixaKg != null ? `R$/cx de ${c.pesoCaixaKg.toLocaleString("pt-BR")} kg` : "R$/kg";
 
+  /**
+   * Memória de cálculo da linha, em uma frase.
+   *
+   * Mostrar só "R$ 1,50/cx" escondia a divisão por 27,2 e fazia um resultado
+   * legítimo parecer erro. Aqui aparece o preço lançado, o preço do quilo que
+   * saiu dele e os quilos que entraram na conta.
+   */
+  const memoriaCalculo = (
+    c: Colheita,
+    preco: number | null | undefined,
+    precoKg: number | null | undefined,
+    kg: number | null | undefined,
+  ) => {
+    if (preco == null) return null;
+    const kgTexto = `${num(kg)} kg`;
+    if (c.pesoCaixaKg == null) return `${moeda(preco)}/kg × ${kgTexto}`;
+    return `${moeda(preco)}/cx ÷ ${c.pesoCaixaKg.toLocaleString("pt-BR")} = ${moeda(
+      precoKg ?? 0,
+    )}/kg × ${kgTexto}`;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -256,7 +277,22 @@ export default function Colheitas() {
                   <td className="px-3 py-2 whitespace-nowrap">
                     {new Date(c.data).toLocaleDateString("pt-BR")}
                   </td>
-                  <td className="px-3 py-2">{c.talhao?.nome}</td>
+                  {/* A cultura fica visível porque é ela que decide a unidade
+                      do preço nesta linha. Sem isso, um resultado 27x menor
+                      parecia erro de conta, quando era cadastro faltando. */}
+                  <td className="px-3 py-2">
+                    {c.talhao?.nome}
+                    {c.talhao?.cultura ? (
+                      <span className="block text-xs text-gray-400">{c.talhao.cultura.nome}</span>
+                    ) : (
+                      <span
+                        className="block text-xs font-medium text-amber-600"
+                        title="Sem cultura, o sistema usa caixa de 27,2 kg. Defina a cultura em Cadastros → Talhões."
+                      >
+                        sem cultura
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 font-medium">{num(c.quantidadeCaixas)}</td>
                   <td className="px-3 py-2">{c.executor?.nome ?? "-"}</td>
                   <td className="px-3 py-2">{moeda(c.valorPorCaixa)}</td>
@@ -311,12 +347,9 @@ export default function Colheitas() {
                     ) : (
                       <>
                         <span className="font-medium text-gray-800">{moeda(c.valorVendaBom)}</span>
-                        {c.precoCaixaBom != null && (
-                          <span className="block text-xs text-gray-400">
-                            {moeda(c.precoCaixaBom)}
-                            {c.pesoCaixaKg != null ? "/cx" : "/kg"} · {num(c.pesoLiquidoKg)} kg
-                          </span>
-                        )}
+                        <span className="block text-xs text-gray-400">
+                          {memoriaCalculo(c, c.precoCaixaBom, c.precoKgBom, c.pesoLiquidoKg)}
+                        </span>
                       </>
                     )}
                   </td>
@@ -337,12 +370,9 @@ export default function Colheitas() {
                         <span className="font-medium text-gray-800">
                           {moeda(c.valorVendaRefugo)}
                         </span>
-                        {c.precoCaixaRefugo != null && (
-                          <span className="block text-xs text-gray-400">
-                            {moeda(c.precoCaixaRefugo)}
-                            {c.pesoCaixaKg != null ? "/cx" : "/kg"} · {num(c.pesoRefugoKg)} kg
-                          </span>
-                        )}
+                        <span className="block text-xs text-gray-400">
+                          {memoriaCalculo(c, c.precoCaixaRefugo, c.precoKgRefugo, c.pesoRefugoKg)}
+                        </span>
                       </>
                     )}
                   </td>
