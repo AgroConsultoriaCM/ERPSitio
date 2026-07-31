@@ -5,6 +5,9 @@ import { NaoEncontradoError } from "../lib/errors.js";
 const culturaSchema = z.object({
   nome: z.string().min(1),
   variedade: z.string().optional(),
+  // Peso da caixa de venda. Preenchido, o preco da colheita e por caixa;
+  // vazio (null), o preco ja e por quilo. Ver Cultura no schema.
+  pesoCaixaKg: z.number().positive().optional().nullable(),
 });
 
 export default async function culturasRoutes(fastify: FastifyInstance) {

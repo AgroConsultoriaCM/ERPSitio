@@ -18,15 +18,12 @@ const colheitaCampoSchema = z.object({
 });
 
 /**
- * Peso da caixa padrao de limao taiti, em quilos.
+ * Peso da caixa usado quando a cultura do talhao nao esta cadastrada.
  *
- * O comprador negocia "R$ x a caixa", mas o que sai do sitio e pesado em
- * quilos. Este numero e a ponte entre as duas unidades: divide-se o preco da
- * caixa por ele para chegar ao preco do quilo.
- *
- * Esta como constante porque hoje e um so para a propriedade inteira. Se um dia
- * variar por comprador ou por cultura, vira campo de cadastro - a conta abaixo
- * nao muda, so passa a ler o valor de outro lugar.
+ * Nao e uma regra de negocio: e o que o sistema fazia para todo mundo antes de
+ * a unidade virar campo da cultura. Serve so para colheita em talhao sem
+ * cultura definida continuar dando o mesmo numero de antes. Com a cultura
+ * cadastrada, quem manda e o `pesoCaixaKg` dela.
  */
 export const PESO_CAIXA_PADRAO_KG = 27.2;
 
@@ -50,7 +47,17 @@ const loteSchema = z.object({
 });
 
 const INCLUDE_COMPLETO = {
-  talhao: { select: { id: true, nome: true, codigo: true, areaHa: true } },
+  // A cultura vem junto porque e ela que diz se o preco lancado e por caixa
+  // ou por quilo (ver pesoCaixaKg em Cultura).
+  talhao: {
+    select: {
+      id: true,
+      nome: true,
+      codigo: true,
+      areaHa: true,
+      cultura: { select: { id: true, nome: true, pesoCaixaKg: true } },
+    },
+  },
   executor: true,
   safra: true,
 } as const;
@@ -65,7 +72,10 @@ const arredondar = (v: number, casas = 2) => {
 type ColheitaComRelacoes = Awaited<
   ReturnType<PrismaClient["colheita"]["findFirstOrThrow"]>
 > & {
-  talhao?: { areaHa: number | null } | null;
+  talhao?: {
+    areaHa: number | null;
+    cultura?: { pesoCaixaKg: number | null } | null;
+  } | null;
 };
 
 // Exportada para poder ser exercitada por fora (ver verificacoes/), sem subir
@@ -84,13 +94,25 @@ export function comDerivados<T extends ColheitaComRelacoes>(c: T) {
       ? arredondar((c.pesoRefugoKg / c.pesoTotalKg) * 100, 2)
       : null;
 
-  // Receita por qualidade. O preco chega por caixa padrao; a fruta e pesada em
-  // quilos. Converte-se o preco para o quilo e multiplica-se pelo peso de cada
-  // qualidade - o refugo sai do peso total, e o que sobra e fruta boa.
-  const precoKgBom =
-    c.precoCaixaBom != null ? c.precoCaixaBom / PESO_CAIXA_PADRAO_KG : null;
-  const precoKgRefugo =
-    c.precoCaixaRefugo != null ? c.precoCaixaRefugo / PESO_CAIXA_PADRAO_KG : null;
+  // Receita por qualidade. A fruta e sempre pesada em quilos; o preco e que
+  // muda de unidade conforme a cultura:
+  //   limao  -> cultura com pesoCaixaKg (27,2): o preco e por caixa e vira
+  //             preco do quilo dividindo por esse peso
+  //   abacate -> cultura sem pesoCaixaKg: o preco lancado JA e por quilo,
+  //             entao nao se divide nada
+  // Talhao sem cultura cadastrada cai no peso padrao, que e o comportamento
+  // que o sistema tinha antes de a unidade existir.
+  const culturaCadastrada = c.talhao?.cultura !== undefined && c.talhao?.cultura !== null;
+  const pesoCaixaKg = culturaCadastrada
+    ? (c.talhao?.cultura?.pesoCaixaKg ?? null)
+    : PESO_CAIXA_PADRAO_KG;
+
+  // Divisor 1 = preco ja esta por quilo. Nunca divide por zero: peso de caixa
+  // zerado seria erro de cadastro, e tratamos como "por quilo".
+  const divisor = pesoCaixaKg != null && pesoCaixaKg > 0 ? pesoCaixaKg : 1;
+
+  const precoKgBom = c.precoCaixaBom != null ? c.precoCaixaBom / divisor : null;
+  const precoKgRefugo = c.precoCaixaRefugo != null ? c.precoCaixaRefugo / divisor : null;
 
   const valorVendaBom =
     precoKgBom != null && pesoLiquidoKg != null
@@ -127,7 +149,9 @@ export function comDerivados<T extends ColheitaComRelacoes>(c: T) {
     valorVendaBom,
     valorVendaRefugo,
     valorVendaTotal,
-    pesoCaixaPadraoKg: PESO_CAIXA_PADRAO_KG,
+    // null = o preco desta colheita e por quilo. A tela usa isto para rotular
+    // o campo ("R$/cx de 27,2 kg" ou "R$/kg") sem precisar saber da cultura.
+    pesoCaixaKg,
     margem,
     caixasPorHectare,
   };

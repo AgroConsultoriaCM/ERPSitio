@@ -16,6 +16,12 @@ export interface Cultura {
   id: string;
   nome: string;
   variedade?: string | null;
+  /**
+   * Peso da caixa de venda, em quilos. Define em que unidade o preço da
+   * colheita é digitado: preenchido, o preço é por caixa (limão, 27,2 kg);
+   * vazio, o preço já é por quilo (abacate).
+   */
+  pesoCaixaKg?: number | null;
 }
 
 export interface Talhao {
@@ -312,7 +318,8 @@ export interface Colheita {
   valorVendaBom?: number | null;
   valorVendaRefugo?: number | null;
   valorVendaTotal?: number | null;
-  pesoCaixaPadraoKg?: number | null;
+  /** Peso da caixa da cultura deste talhão. `null` = o preço é por quilo. */
+  pesoCaixaKg?: number | null;
   classificacao?: string | null;
   observacoes?: string | null;
   // derivados calculados pelo servidor

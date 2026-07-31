@@ -94,9 +94,11 @@ export default function Colheitas() {
     { caixas: 0, custo: 0, vendaBom: 0, vendaRefugo: 0, receita: 0 },
   );
 
-  // Peso da caixa usado na conta. Vem da API para não haver dois números
-  // diferentes espalhados; 27,2 kg é só o alicerce enquanto nada chegou.
-  const pesoCaixa = colheitas?.find((c) => c.pesoCaixaPadraoKg != null)?.pesoCaixaPadraoKg ?? 27.2;
+  // A unidade do preço varia por linha, porque depende da cultura do talhão:
+  // limão vai por caixa de 27,2 kg, abacate vai por quilo. Quem decide é o
+  // cadastro da cultura — aqui só se traduz para o rótulo.
+  const unidadePreco = (c: Colheita) =>
+    c.pesoCaixaKg != null ? `R$/cx de ${c.pesoCaixaKg.toLocaleString("pt-BR")} kg` : "R$/kg";
 
   return (
     <div className="space-y-6">
@@ -104,9 +106,9 @@ export default function Colheitas() {
         <h1 className="text-2xl font-bold text-gray-800">Colheitas</h1>
         <p className="text-sm text-gray-500">
           O encarregado lança as caixas no campo. Aqui você complementa com o peso colhido, o refugo e o preço
-          pago por caixa de {pesoCaixa} kg — separado entre fruta boa e refugo. O sistema converte o preço da
-          caixa em preço do quilo, multiplica pelo peso de cada qualidade e calcula receita, kg/caixa e margem.
-          A receita não é digitada.
+          pago, separado entre fruta boa e refugo. <strong>A unidade do preço vem da cultura do talhão</strong>:
+          limão vai por caixa de 27,2 kg, abacate vai por quilo — cada linha mostra qual usar. O sistema
+          multiplica pelo peso de cada qualidade e calcula receita, kg/caixa e margem. A receita não é digitada.
         </p>
       </div>
 
@@ -233,13 +235,13 @@ export default function Colheitas() {
               <th className="px-3 py-2">
                 Venda · bom
                 <span className="block text-[10px] font-normal normal-case text-gray-400">
-                  R$/cx de {pesoCaixa} kg
+                  preço conforme a cultura
                 </span>
               </th>
               <th className="px-3 py-2">
                 Venda · refugo
                 <span className="block text-[10px] font-normal normal-case text-gray-400">
-                  R$/cx de {pesoCaixa} kg
+                  preço conforme a cultura
                 </span>
               </th>
               <th className="px-3 py-2">Margem</th>
@@ -296,22 +298,23 @@ export default function Colheitas() {
                       em dinheiro, para conferir a conta sem sair da tela. */}
                   <td className="px-3 py-2">
                     {editando ? (
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder={`R$/cx ${pesoCaixa}kg`}
-                        value={precoCaixaBom}
-                        onChange={(e) => setPrecoCaixaBom(e.target.value)}
-                        className="w-28 rounded border border-gray-300 px-2 py-1"
-                      />
+                      <>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={precoCaixaBom}
+                          onChange={(e) => setPrecoCaixaBom(e.target.value)}
+                          className="w-28 rounded border border-gray-300 px-2 py-1"
+                        />
+                        <span className="block text-[10px] text-gray-400">{unidadePreco(c)}</span>
+                      </>
                     ) : (
                       <>
-                        <span className="font-medium text-gray-800">
-                          {moeda(c.valorVendaBom)}
-                        </span>
+                        <span className="font-medium text-gray-800">{moeda(c.valorVendaBom)}</span>
                         {c.precoCaixaBom != null && (
                           <span className="block text-xs text-gray-400">
-                            {moeda(c.precoCaixaBom)}/cx · {num(c.pesoLiquidoKg)} kg
+                            {moeda(c.precoCaixaBom)}
+                            {c.pesoCaixaKg != null ? "/cx" : "/kg"} · {num(c.pesoLiquidoKg)} kg
                           </span>
                         )}
                       </>
@@ -319,14 +322,16 @@ export default function Colheitas() {
                   </td>
                   <td className="px-3 py-2">
                     {editando ? (
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder={`R$/cx ${pesoCaixa}kg`}
-                        value={precoCaixaRefugo}
-                        onChange={(e) => setPrecoCaixaRefugo(e.target.value)}
-                        className="w-28 rounded border border-gray-300 px-2 py-1"
-                      />
+                      <>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={precoCaixaRefugo}
+                          onChange={(e) => setPrecoCaixaRefugo(e.target.value)}
+                          className="w-28 rounded border border-gray-300 px-2 py-1"
+                        />
+                        <span className="block text-[10px] text-gray-400">{unidadePreco(c)}</span>
+                      </>
                     ) : (
                       <>
                         <span className="font-medium text-gray-800">
@@ -334,7 +339,8 @@ export default function Colheitas() {
                         </span>
                         {c.precoCaixaRefugo != null && (
                           <span className="block text-xs text-gray-400">
-                            {moeda(c.precoCaixaRefugo)}/cx · {num(c.pesoRefugoKg)} kg
+                            {moeda(c.precoCaixaRefugo)}
+                            {c.pesoCaixaKg != null ? "/cx" : "/kg"} · {num(c.pesoRefugoKg)} kg
                           </span>
                         )}
                       </>

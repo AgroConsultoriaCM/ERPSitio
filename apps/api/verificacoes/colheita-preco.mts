@@ -23,17 +23,23 @@ const base = {
   precoCaixaRefugo: null as number | null,
   valorTotalVenda: null as number | null,
   custoColheita: null as number | null,
-  talhao: { areaHa: null as number | null },
+  talhao: { areaHa: null as number | null, cultura: null as { pesoCaixaKg: number | null } | null },
 };
 const calcular = (dados: Partial<typeof base>) =>
   comDerivados({ ...base, ...dados } as never as never) as unknown as Record<string, number | null>;
 
-console.log(`\npeso da caixa padrao: ${PESO_CAIXA_PADRAO_KG} kg\n`);
+/** Cultura vendida por caixa, como o limao taiti. */
+const porCaixa = (kg: number) => ({ pesoCaixaKg: kg });
+/** Cultura vendida por quilo, como o abacate. */
+const porQuilo = { pesoCaixaKg: null };
 
-console.log("== exemplo combinado com o usuario ==");
+console.log(`\npeso de caixa usado quando o talhao nao tem cultura: ${PESO_CAIXA_PADRAO_KG} kg\n`);
+
+console.log("== LIMAO: preco por caixa de 27,2 kg (exemplo combinado) ==");
 {
   // 1000 kg, 150 de refugo, R$100/cx no bom e R$40/cx no refugo
   const r = calcular({
+    talhao: { areaHa: null, cultura: porCaixa(27.2) },
     quantidadeCaixas: 40,
     pesoTotalKg: 1000,
     pesoRefugoKg: 150,
@@ -48,9 +54,70 @@ console.log("== exemplo combinado com o usuario ==");
   conferir("kg por caixa colhida", r.kgPorCaixa, 25);
 }
 
+console.log("\n== ABACATE: preco ja vem por quilo, nao se divide nada ==");
+{
+  // Mesmos pesos, mas preco em R$/kg: 3,00 no bom e 1,00 no refugo
+  const r = calcular({
+    talhao: { areaHa: null, cultura: porQuilo },
+    quantidadeCaixas: 40,
+    pesoTotalKg: 1000,
+    pesoRefugoKg: 150,
+    precoCaixaBom: 3,
+    precoCaixaRefugo: 1,
+  });
+  conferir("preco do quilo e o proprio preco lancado", r.precoKgBom, 3);
+  conferir("receita boa = 850 kg x R$ 3,00", r.valorVendaBom, 2550);
+  conferir("receita refugo = 150 kg x R$ 1,00", r.valorVendaRefugo, 150);
+  conferir("total", r.valorVendaTotal, 2700);
+  conferir("unidade informada a tela e nula", r.pesoCaixaKg, null);
+}
+
+console.log("\n== a mesma propriedade com as duas unidades ao mesmo tempo ==");
+{
+  const limao = calcular({
+    talhao: { areaHa: null, cultura: porCaixa(27.2) },
+    quantidadeCaixas: 10,
+    pesoTotalKg: 272,
+    precoCaixaBom: 100,
+  });
+  const abacate = calcular({
+    talhao: { areaHa: null, cultura: porQuilo },
+    quantidadeCaixas: 10,
+    pesoTotalKg: 272,
+    precoCaixaBom: 100,
+  });
+  conferir("limao: 272 kg com R$100/cx = 10 caixas x 100", limao.valorVendaBom, 1000);
+  conferir("abacate: 272 kg com R$100/kg", abacate.valorVendaBom, 27200);
+  conferir("o mesmo numero digitado da resultados diferentes, e certo", true, true);
+}
+
+console.log("\n== talhao sem cultura cadastrada mantem o comportamento antigo ==");
+{
+  const r = calcular({
+    talhao: { areaHa: null, cultura: null },
+    quantidadeCaixas: 10,
+    pesoTotalKg: 272,
+    precoCaixaBom: 100,
+  });
+  conferir("cai no peso padrao de 27,2", r.valorVendaBom, 1000);
+  conferir("informa a unidade usada", r.pesoCaixaKg, PESO_CAIXA_PADRAO_KG);
+}
+
+console.log("\n== peso de caixa zerado no cadastro nao divide por zero ==");
+{
+  const r = calcular({
+    talhao: { areaHa: null, cultura: { pesoCaixaKg: 0 } },
+    quantidadeCaixas: 10,
+    pesoTotalKg: 100,
+    precoCaixaBom: 5,
+  });
+  conferir("trata como preco por quilo", r.valorVendaBom, 500);
+}
+
 console.log("\n== margem desconta o custo de colheita ==");
 {
   const r = calcular({
+    talhao: { areaHa: null, cultura: porCaixa(27.2) },
     quantidadeCaixas: 40,
     pesoTotalKg: 1000,
     pesoRefugoKg: 150,

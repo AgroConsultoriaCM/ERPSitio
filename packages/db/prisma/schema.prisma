@@ -111,6 +111,17 @@ model Cultura {
   id            String   @id @default(uuid())
   nome          String
   variedade     String?
+
+  // Peso da caixa de referencia usada na venda, em quilos.
+  //
+  // E o que diz em que unidade o preco da colheita e digitado:
+  //   preenchido (limao taiti, 27,2) -> o preco lancado e POR CAIXA e o
+  //     sistema converte para o quilo dividindo por este numero
+  //   vazio (abacate)                -> o preco lancado ja e POR QUILO
+  //
+  // Fica na cultura, e nao numa constante do codigo, porque a mesma
+  // propriedade vende limao por caixa e abacate por quilo.
+  pesoCaixaKg   Float?
   propriedadeId String
   propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
