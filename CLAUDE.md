@@ -197,6 +197,12 @@ fazia o cron das 02:00 disparar às 23:00 de Brasília. Se recriar a instância,
 rode `sudo timedatectl set-timezone America/Sao_Paulo` — senão os horários do
 cron e do log não significam o que dizem.
 
+> **Trocar o fuso não basta: reinicie o cron.** Ele lê o fuso ao iniciar e nunca
+> mais reconsulta. Depois do `set-timezone`, o backup continuou disparando em
+> UTC — só se percebeu porque o log marcava 23:00 e não 02:00. Sempre:
+> `sudo systemctl restart cron`, e confira com `ps -o lstart= -C cron` que o
+> processo é mais novo que a mudança.
+
 ## 2.2 Domínio — registro.br
 
 Painel: https://registro.br/painel/dominios → `sitiocostamello.com.br`
