@@ -43,6 +43,16 @@ export interface NotaLida {
   dataEmissao: Date;
   cnpjEmitente: string;
   nomeEmitente: string;
+  /**
+   * Para quem a nota foi emitida.
+   *
+   * Importa porque a mesma caixa de e-mail recebe notas de mais de uma pessoa
+   * juridica da familia. A tela precisa distinguir o que e da propriedade do
+   * que so passou por ali - importar nota alheia significa estoque e custo
+   * errados, em silencio.
+   */
+  documentoDestinatario: string;
+  nomeDestinatario: string;
   valorTotal: number;
   itens: ItemNota[];
 }
@@ -114,6 +124,7 @@ export function lerXmlNfe(xml: string): NotaLida {
 
   const ide = (inf.ide ?? {}) as Record<string, unknown>;
   const emit = (inf.emit ?? {}) as Record<string, unknown>;
+  const dest = (inf.dest ?? {}) as Record<string, unknown>;
   const total = ((inf.total as Record<string, unknown>)?.ICMSTot ?? {}) as Record<string, unknown>;
 
   const dataBruta = texto(ide.dhEmi) || texto(ide.dEmi);
@@ -165,6 +176,9 @@ export function lerXmlNfe(xml: string): NotaLida {
     dataEmissao,
     cnpjEmitente: texto(emit.CNPJ) || texto(emit.CPF),
     nomeEmitente: texto(emit.xNome),
+    // Produtor rural pode receber como pessoa fisica: aceita CPF tambem.
+    documentoDestinatario: texto(dest.CNPJ) || texto(dest.CPF),
+    nomeDestinatario: texto(dest.xNome),
     valorTotal: numero(total.vNF),
     itens,
   };

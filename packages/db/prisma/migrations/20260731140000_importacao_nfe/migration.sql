@@ -19,7 +19,10 @@ CREATE TABLE "NotaFiscalEntrada" (
     "dataEmissao" TIMESTAMP(3) NOT NULL,
     "cnpjEmitente" TEXT NOT NULL,
     "nomeEmitente" TEXT NOT NULL,
-    "cnpjDestinatario" TEXT,
+    -- CNPJ ou CPF: a mesma caixa recebe notas de mais de uma pessoa juridica
+    -- da familia, e so as da propriedade devem virar estoque.
+    "documentoDestinatario" TEXT,
+    "nomeDestinatario" TEXT,
     "valorTotal" DOUBLE PRECISION NOT NULL,
     "xmlOriginal" TEXT NOT NULL,
     "origem" "OrigemNota" NOT NULL DEFAULT 'ANEXO_MANUAL',

@@ -691,9 +691,13 @@ model NotaFiscalEntrada {
 
   cnpjEmitente String
   nomeEmitente String
-  /// Para quem a nota foi emitida. Se nao for o CNPJ da propriedade, a tela
-  /// avisa - nota de vizinho que caiu no mesmo e-mail e estrago silencioso.
-  cnpjDestinatario String?
+
+  /// Para quem a nota foi emitida. A mesma caixa de e-mail recebe notas de
+  /// mais de uma pessoa juridica da familia, e so as da propriedade devem
+  /// virar estoque. CNPJ ou CPF - produtor rural pode receber como pessoa
+  /// fisica.
+  documentoDestinatario String?
+  nomeDestinatario      String?
 
   valorTotal Float
   /// XML guardado inteiro: permite reprocessar se a leitura melhorar, e serve
