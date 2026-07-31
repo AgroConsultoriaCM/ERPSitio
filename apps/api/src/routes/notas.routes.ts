@@ -31,6 +31,7 @@ function soDigitos(valor: string | null | undefined): string {
 }
 
 export default async function notasRoutes(fastify: FastifyInstance) {
+  fastify.addHook("preHandler", fastify.authenticate);
   fastify.addHook("preHandler", fastify.requirePermissao("notas", "VER"));
 
   /**
