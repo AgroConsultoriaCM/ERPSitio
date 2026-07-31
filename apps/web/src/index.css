@@ -12,41 +12,70 @@ body {
   @apply bg-terra-100 font-sans text-terra-900 antialiased;
 }
 
-/* O encarregado usa o celular no sol, de luva, muitas vezes com a tela suja.
-   Alvo de toque grande e realce de foco visivel valem mais que sutileza. */
 @layer base {
+  /* O encarregado usa o celular no sol, de luva, muitas vezes com a tela suja.
+     Alvo de toque grande e realce de foco visível valem mais que sutileza. */
   :focus-visible {
     @apply outline-none ring-2 ring-mata-500 ring-offset-2 ring-offset-terra-50;
   }
 
-  /* Evita o zoom automatico do iOS/Android ao focar um campo: abaixo de 16px
-     o navegador amplia a pagina e o operador perde o contexto do formulario. */
+  /* Evita o zoom automático do iOS/Android ao focar um campo: abaixo de 16px
+     o navegador amplia a página e o operador perde o contexto do formulário. */
   input,
   select,
   textarea {
     font-size: max(16px, 1rem);
   }
+
+  /* Respeita quem pediu menos movimento no sistema operacional. Animação é
+     acabamento, não pode ser condição para usar o sistema. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
   .cartao {
-    @apply rounded-xl border border-terra-200/70 bg-white shadow-cartao;
+    @apply rounded-xl border border-terra-200/60 bg-white shadow-cartao;
   }
 
-  /* Numeros de caixa, area e dinheiro: largura fixa para as colunas nao
-     dancarem quando o valor muda. */
+  /* Cartão que reage ao mouse: sobe um fio e a sombra abre. O deslocamento é
+     de 2px de propósito — o suficiente para o olho perceber, pouco o bastante
+     para não empurrar o texto ao redor. */
+  .cartao-interativo {
+    @apply cartao transition duration-300 ease-suave hover:-translate-y-0.5 hover:shadow-cartao-alto;
+  }
+
+  /* Números de caixa, área e dinheiro: largura fixa para as colunas não
+     dançarem quando o valor muda. */
   .numero {
     @apply font-num tabular-nums tracking-tight;
   }
 
   .rotulo {
-    @apply text-xs font-medium uppercase tracking-wide text-terra-500;
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-terra-500;
+  }
+
+  /* Bloco cinza com faixa de luz atravessando, no lugar do conteúdo que ainda
+     não chegou. Melhor que tela vazia: mostra a forma do que vem. */
+  .esqueleto {
+    @apply relative overflow-hidden rounded-lg bg-terra-200/70;
+  }
+  .esqueleto::after {
+    @apply absolute inset-0 -translate-x-full animate-brilho bg-gradient-to-r from-transparent via-white/60 to-transparent;
+    content: "";
   }
 }
 
-/* Barras de rolagem discretas nas faixas horizontais (previsao do tempo,
-   listas de dias). No celular a barra grossa come area util. */
 @layer utilities {
+  /* Barras de rolagem discretas nas faixas horizontais (previsão do tempo,
+     listas de dias). No celular a barra grossa come área útil. */
   .rolagem-fina {
     scrollbar-width: thin;
     scrollbar-color: theme("colors.terra.300") transparent;
@@ -57,4 +86,17 @@ body {
   .rolagem-fina::-webkit-scrollbar-thumb {
     @apply rounded-full bg-terra-300;
   }
+
+  /* Entrada escalonada: os blocos do painel aparecem em sequência, de cima
+     para baixo, em vez de tudo de uma vez. Dá ritmo de leitura. */
+  .escalonar > * {
+    @apply animate-surgir-de-baixo;
+  }
+  .escalonar > *:nth-child(1) { animation-delay: 0ms; }
+  .escalonar > *:nth-child(2) { animation-delay: 60ms; }
+  .escalonar > *:nth-child(3) { animation-delay: 120ms; }
+  .escalonar > *:nth-child(4) { animation-delay: 180ms; }
+  .escalonar > *:nth-child(5) { animation-delay: 240ms; }
+  .escalonar > *:nth-child(6) { animation-delay: 300ms; }
+  .escalonar > *:nth-child(n + 7) { animation-delay: 360ms; }
 }

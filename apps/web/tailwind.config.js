@@ -76,12 +76,53 @@ export default {
         num: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       boxShadow: {
-        cartao: "0 1px 2px 0 rgb(24 54 40 / 0.04), 0 1px 3px 1px rgb(24 54 40 / 0.06)",
-        "cartao-alto": "0 2px 4px 0 rgb(24 54 40 / 0.06), 0 6px 16px 0 rgb(24 54 40 / 0.10)",
+        // Sombras em camadas: uma rente ao objeto, que dá a borda, e outra
+        // difusa, que dá a altura. Uma sombra só sempre parece adesivo colado.
+        cartao:
+          "0 1px 2px -1px rgb(24 54 40 / 0.08), 0 1px 3px 0 rgb(24 54 40 / 0.05), 0 0 0 1px rgb(24 54 40 / 0.03)",
+        "cartao-alto":
+          "0 2px 4px -2px rgb(24 54 40 / 0.10), 0 8px 20px -4px rgb(24 54 40 / 0.12), 0 0 0 1px rgb(24 54 40 / 0.04)",
+        interno: "inset 0 1px 2px 0 rgb(24 54 40 / 0.06)",
       },
       borderRadius: {
         xl: "0.875rem",
         "2xl": "1.125rem",
+      },
+      transitionTimingFunction: {
+        // Sai rápido, chega devagar: parece coisa física freando, não
+        // interpolação linear de software.
+        suave: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+      keyframes: {
+        "surgir-de-baixo": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        surgir: {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        // Usado no ponto de "sem conexão" e em alerta que precisa ser notado
+        // sem piscar na cara de quem está trabalhando.
+        pulsar: {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.45" },
+        },
+        // Faixa de carregamento (esqueleto) atravessando o bloco cinza.
+        brilho: {
+          "100%": { transform: "translateX(100%)" },
+        },
+        crescer: {
+          from: { transform: "scaleY(0)" },
+          to: { transform: "scaleY(1)" },
+        },
+      },
+      animation: {
+        "surgir-de-baixo": "surgir-de-baixo 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
+        surgir: "surgir 0.35s ease-out both",
+        pulsar: "pulsar 2s ease-in-out infinite",
+        brilho: "brilho 1.6s infinite",
+        crescer: "crescer 0.5s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },

@@ -1,3 +1,6 @@
+import { CalendarDays, CloudRain, Droplets, Scale, SprayCan, Sun } from "lucide-react";
+import type { ComponentType } from "react";
+import type { LucideProps } from "lucide-react";
 import type { RespostaClima } from "../lib/types";
 import {
   balancoHidrico,
@@ -10,10 +13,10 @@ import {
 } from "../lib/clima";
 import { numero } from "./ui";
 
-const CORES_JANELA: Record<QualidadeJanela, { barra: string; ponto: string; rotulo: string }> = {
-  boa: { barra: "bg-mata-100", ponto: "bg-mata-500", rotulo: "boa" },
-  atencao: { barra: "bg-amber-100", ponto: "bg-amber-500", rotulo: "atenção" },
-  ruim: { barra: "bg-red-100", ponto: "bg-red-500", rotulo: "evitar" },
+const CORES_JANELA: Record<QualidadeJanela, { trilho: string; ponto: string; rotulo: string }> = {
+  boa: { trilho: "bg-mata-100", ponto: "bg-mata-500", rotulo: "boa" },
+  atencao: { trilho: "bg-amber-100", ponto: "bg-amber-500", rotulo: "atenção" },
+  ruim: { trilho: "bg-red-100", ponto: "bg-red-500", rotulo: "evitar" },
 };
 
 /**
@@ -32,25 +35,40 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
 
   return (
     <div className="cartao overflow-hidden">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-terra-100 px-4 py-3 sm:px-5">
-        <div>
-          <h2 className="font-semibold text-terra-900">Clima e água</h2>
-          <p className="text-sm text-terra-500">{resumoClima(clima)}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-terra-100 bg-gradient-to-r from-agua-50/60 to-transparent px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-agua-100 text-agua-600 ring-1 ring-agua-200/60">
+            <CloudRain size={16} strokeWidth={2} />
+          </span>
+          <div>
+            <h2 className="font-semibold tracking-tight text-terra-900">Clima e água</h2>
+            <p className="text-sm leading-snug text-terra-500">{resumoClima(clima)}</p>
+          </div>
         </div>
-        <span className="text-xs text-terra-400">Open-Meteo</span>
+        <span className="rounded-full bg-terra-100 px-2 py-0.5 text-[11px] font-medium text-terra-500">
+          Open-Meteo
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-px bg-terra-100 sm:grid-cols-4">
-        <Numero titulo="Chuva 7 dias" valor={`${numero(clima.chuva7DiasMm)} mm`} />
-        <Numero titulo="Chuva 30 dias" valor={`${numero(clima.chuva30DiasMm)} mm`} />
+        <Numero titulo="Chuva 7 dias" valor={`${numero(clima.chuva7DiasMm)} mm`} icone={CloudRain} />
+        <Numero
+          titulo="Chuva 30 dias"
+          valor={`${numero(clima.chuva30DiasMm)} mm`}
+          icone={CalendarDays}
+        />
         <Numero
           titulo="Dias sem chuva"
           valor={clima.diasSemChuva != null ? String(clima.diasSemChuva) : "—"}
+          icone={Sun}
           alerta={(clima.diasSemChuva ?? 0) > 7}
         />
         <Numero
           titulo="Saldo hídrico 7d"
-          valor={balanco.temDados ? `${balanco.saldoMm > 0 ? "+" : ""}${numero(balanco.saldoMm)} mm` : "—"}
+          valor={
+            balanco.temDados ? `${balanco.saldoMm > 0 ? "+" : ""}${numero(balanco.saldoMm)} mm` : "—"
+          }
+          icone={Scale}
           alerta={balanco.temDados && balanco.deficit}
           ajuda={
             balanco.temDados
@@ -61,13 +79,20 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
       </div>
 
       <div className="px-4 py-4 sm:px-5">
-        <div className="mb-2 flex items-baseline justify-between">
-          <p className="text-sm font-medium text-terra-700">Próximos dias</p>
-          <p className="text-xs text-terra-500">
-            {boa
-              ? `melhor dia para pulverizar: ${diaCurto(boa.data)}`
-              : "sem dia livre de chuva na semana"}
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-terra-700">
+            <SprayCan size={15} strokeWidth={2} className="text-terra-400" />
+            Janela de pulverização
           </p>
+          {boa ? (
+            <span className="rounded-full bg-mata-50 px-2.5 py-1 text-xs font-semibold text-mata-700 ring-1 ring-mata-100">
+              melhor dia: {diaCurto(boa.data)}
+            </span>
+          ) : (
+            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
+              sem dia livre de chuva
+            </span>
+          )}
         </div>
 
         <div className="flex gap-1.5 overflow-x-auto rolagem-fina pb-1">
@@ -78,7 +103,7 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
             return (
               <div
                 key={d.data}
-                className="flex w-[3.25rem] shrink-0 flex-col items-center rounded-lg border border-terra-100 px-1 pb-1.5 pt-2"
+                className="flex w-[3.5rem] shrink-0 flex-col items-center rounded-xl border border-terra-100 px-1 pb-2 pt-2 transition duration-200 ease-suave hover:-translate-y-0.5 hover:border-terra-200 hover:shadow-cartao"
                 title={[
                   `${diaCurto(d.data)} — pulverização ${cor.rotulo}: ${j?.motivo ?? ""}`,
                   j?.avisoDiaSeguinte,
@@ -86,20 +111,24 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
                   .filter(Boolean)
                   .join(" · ")}
               >
-                <span className="text-[10px] font-medium uppercase text-terra-500">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-terra-500">
                   {diaSemana(d.data)}
                 </span>
                 <span className="numero text-[11px] text-terra-400">{diaCurto(d.data)}</span>
 
                 <div className="mt-1.5 flex h-12 w-full items-end justify-center">
                   <div
-                    className={`w-3.5 rounded-t ${(d.chuvaMm ?? 0) > 0 ? "bg-agua-400" : "bg-terra-200"}`}
+                    className={`w-3.5 origin-bottom animate-crescer rounded-t ${
+                      (d.chuvaMm ?? 0) > 0
+                        ? "bg-gradient-to-t from-agua-500 to-agua-300"
+                        : "bg-terra-200"
+                    }`}
                     style={{ height: `${altura}px` }}
                   />
                 </div>
 
-                <span className="numero mt-1 text-[11px] text-terra-600">
-                  {(d.chuvaMm ?? 0) > 0 ? `${numero(d.chuvaMm)}` : "0"}
+                <span className="numero mt-1 text-[11px] font-medium text-terra-600">
+                  {(d.chuvaMm ?? 0) > 0 ? numero(d.chuvaMm) : "0"}
                 </span>
                 <span className="numero text-[10px] text-terra-400">
                   {d.tempMin != null && d.tempMax != null
@@ -107,7 +136,7 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
                     : ""}
                 </span>
 
-                <span className={`mt-1.5 h-1.5 w-full rounded-full ${cor.barra}`}>
+                <span className={`mt-2 h-1.5 w-full overflow-hidden rounded-full ${cor.trilho}`}>
                   <span className={`block h-1.5 w-1/3 rounded-full ${cor.ponto}`} />
                 </span>
               </div>
@@ -115,15 +144,17 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
           })}
         </div>
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-terra-500">
-          <span>Barra azul = chuva prevista (mm)</span>
-          <span className="flex items-center gap-1">
-            <i className="h-2 w-2 rounded-full bg-mata-500" /> pulverização boa
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-terra-500">
+          <span className="flex items-center gap-1.5">
+            <Droplets size={12} className="text-agua-400" /> chuva prevista (mm)
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
+            <i className="h-2 w-2 rounded-full bg-mata-500" /> boa
+          </span>
+          <span className="flex items-center gap-1.5">
             <i className="h-2 w-2 rounded-full bg-amber-500" /> atenção
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             <i className="h-2 w-2 rounded-full bg-red-500" /> evitar
           </span>
         </div>
@@ -137,17 +168,26 @@ function Numero({
   valor,
   alerta,
   ajuda,
+  icone: Ico,
 }: {
   titulo: string;
   valor: string;
   alerta?: boolean;
   ajuda?: string;
+  icone: ComponentType<LucideProps>;
 }) {
   return (
-    <div className="bg-white px-4 py-3" title={ajuda}>
-      <p className="rotulo">{titulo}</p>
+    <div className="group bg-white px-4 py-3 transition-colors duration-200 hover:bg-terra-50/60" title={ajuda}>
+      <p className="flex items-center gap-1.5 rotulo">
+        <Ico
+          size={12}
+          strokeWidth={2.25}
+          className={alerta ? "text-amber-500" : "text-terra-400"}
+        />
+        {titulo}
+      </p>
       <p
-        className={`numero mt-0.5 text-xl font-bold ${alerta ? "text-amber-700" : "text-terra-800"}`}
+        className={`numero mt-1 text-xl font-bold ${alerta ? "text-amber-700" : "text-terra-800"}`}
       >
         {valor}
       </p>

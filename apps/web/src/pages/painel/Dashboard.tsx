@@ -1,5 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  Bug,
+  ChartColumn,
+  Citrus,
+  ClipboardList,
+  CloudOff,
+  Droplets,
+  Package,
+  Plus,
+  Sprout,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { ROTULO_FUNCAO_INSUMO } from "../../lib/types";
@@ -20,6 +34,7 @@ import {
   Aviso,
   Cartao,
   EstadoVazio,
+  EsqueletoIndicador,
   Etiqueta,
   Indicador,
   Tabela,
@@ -50,7 +65,7 @@ export default function Dashboard() {
     queryKey: ["atividades-recentes"],
     queryFn: () => api.get<Atividade[]>("/atividades"),
   });
-  const { data: colheitas } = useQuery({
+  const { data: colheitas, isLoading: carregandoColheitas } = useQuery({
     queryKey: ["colheitas-recentes"],
     queryFn: () => api.get<Colheita[]>("/colheitas"),
   });
@@ -98,89 +113,128 @@ export default function Dashboard() {
 
   const custoPorCaixa = caixasTotal > 0 ? custoTotal / caixasTotal : null;
   const semLancamento = caixasTotal === 0 && (atividades?.length ?? 0) === 0;
+  const temAlerta = alertas?.length || setoresAtrasados.length || insumosBaixos.length;
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-terra-900">
-            {saudacao()}
-            {usuario?.nome ? `, ${usuario.nome.split(" ")[0]}` : ""}
-          </h1>
-          <p className="text-sm text-terra-500">
-            {propriedade?.nome ?? "Propriedade"}
-            {areaTotal > 0 && ` · ${numero(areaTotal, 2)} ha em ${talhoes?.length ?? 0} talhões`}
-            {" · "}
-            {new Date().toLocaleDateString("pt-BR", {
-              weekday: "long",
-              day: "2-digit",
-              month: "long",
-            })}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            to="/painel/colheitas"
-            className="rounded-lg bg-limao-600 px-3.5 py-2 text-sm font-semibold text-white shadow-cartao transition hover:bg-limao-700"
-          >
-            Lançar colheita
-          </Link>
-          <Link
-            to="/painel/atividades"
-            className="rounded-lg border border-terra-300 bg-white px-3.5 py-2 text-sm font-semibold text-terra-700 transition hover:bg-terra-50"
-          >
-            Lançar operação
-          </Link>
+    <div className="escalonar space-y-4">
+      {/* Cabeçalho com faixa de marca: dá âncora visual ao topo da página sem
+          ocupar altura de conteúdo. */}
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-mata-700 via-mata-600 to-mata-800 px-5 py-5 text-white shadow-cartao-alto sm:px-6 sm:py-6">
+        <Sprout
+          size={150}
+          strokeWidth={1}
+          className="pointer-events-none absolute -right-6 -top-8 text-white/[0.07]"
+          aria-hidden
+        />
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              {saudacao()}
+              {usuario?.nome ? `, ${usuario.nome.split(" ")[0]}` : ""}
+            </h1>
+            <p className="mt-1 text-sm text-mata-100">
+              {propriedade?.nome ?? "Propriedade"}
+              {areaTotal > 0 && ` · ${numero(areaTotal, 2)} ha em ${talhoes?.length ?? 0} talhões`}
+              {" · "}
+              {new Date().toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+              })}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Link
+              to="/painel/colheitas"
+              className="flex items-center gap-1.5 rounded-lg bg-limao-400 px-3.5 py-2 text-sm font-semibold text-mata-900 shadow-cartao transition duration-200 ease-suave hover:-translate-y-0.5 hover:bg-limao-300 hover:shadow-cartao-alto"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              Colheita
+            </Link>
+            <Link
+              to="/painel/atividades"
+              className="flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white backdrop-blur transition duration-200 ease-suave hover:-translate-y-0.5 hover:bg-white/20"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              Operação
+            </Link>
+          </div>
         </div>
       </header>
 
       {semLancamento && (
-        <Aviso tom="mata" titulo="Cadastro pronto, operação ainda não começou">
+        <Aviso tom="mata" titulo="Cadastro pronto, operação ainda não começou" icone={Sprout}>
           Os {talhoes?.length ?? 0} talhões e {numero(areaTotal, 2)} ha já estão no sistema. Assim que
           o primeiro repique e as primeiras operações forem lançados, os números e o gráfico abaixo
           passam a se preencher sozinhos.
         </Aviso>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Indicador
-          titulo="Colhido hoje"
-          valor={numero(caixasHoje, 0)}
-          unidade="cx"
-          tom="limao"
-          detalhe={caixasHoje > 0 ? "repique em andamento" : "nenhum lançamento hoje"}
-          link="/painel/colheitas"
-        />
-        <Indicador
-          titulo="Colheita acumulada"
-          valor={numero(caixasTotal, 0)}
-          unidade="cx"
-          tom="limao"
-          detalhe={areaTotal > 0 ? `${numero(caixasTotal / areaTotal)} cx/ha` : undefined}
-          link="/painel/colheitas"
-        />
-        <Indicador
-          titulo="Custo por caixa"
-          valor={custoPorCaixa != null ? moeda(custoPorCaixa) : "—"}
-          tom="mata"
-          detalhe={custoPorCaixa != null ? "colheita + operações" : "sem colheita lançada"}
-          link="/painel/atividades"
-        />
-        <Indicador
-          titulo="Margem parcial"
-          valor={receita > 0 ? moeda(margem) : "—"}
-          tom={receita > 0 ? (margem >= 0 ? "mata" : "perigo") : "neutro"}
-          detalhe={receita > 0 ? `receita ${moeda(receita)}` : "sem venda lançada"}
-          link="/painel/colheitas"
-        />
-      </div>
+      {/* Grade assimétrica: o acumulado ocupa o dobro e ancora a leitura; os
+          demais orbitam em torno dele. */}
+      {carregandoColheitas ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <EsqueletoIndicador />
+          <EsqueletoIndicador />
+          <EsqueletoIndicador />
+          <EsqueletoIndicador />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Indicador
+            titulo="Colheita acumulada"
+            valor={numero(caixasTotal, 0)}
+            unidade="cx"
+            tom="limao"
+            icone={Citrus}
+            destaque
+            className="col-span-2 lg:row-span-2"
+            detalhe={
+              areaTotal > 0
+                ? `${numero(caixasTotal / areaTotal)} cx/ha em ${numero(areaTotal, 2)} ha`
+                : undefined
+            }
+            link="/painel/colheitas"
+          />
+          <Indicador
+            titulo="Colhido hoje"
+            valor={numero(caixasHoje, 0)}
+            unidade="cx"
+            tom="limao"
+            icone={TrendingUp}
+            detalhe={caixasHoje > 0 ? "repique em andamento" : "nenhum lançamento hoje"}
+            link="/painel/colheitas"
+          />
+          <Indicador
+            titulo="Custo por caixa"
+            valor={custoPorCaixa != null ? moeda(custoPorCaixa) : "—"}
+            tom="mata"
+            icone={Wallet}
+            detalhe={custoPorCaixa != null ? "colheita + operações" : "sem colheita lançada"}
+            link="/painel/atividades"
+          />
+          <Indicador
+            titulo="Margem parcial"
+            valor={receita > 0 ? moeda(margem) : "—"}
+            tom={receita > 0 ? (margem >= 0 ? "mata" : "perigo") : "neutro"}
+            icone={ChartColumn}
+            className="col-span-2"
+            detalhe={
+              receita > 0
+                ? `receita ${moeda(receita)} · custos ${moeda(custoTotal)}`
+                : "sem venda lançada"
+            }
+            link="/painel/colheitas"
+          />
+        </div>
+      )}
 
       {clima.data && <PainelClima clima={clima.data} />}
       {clima.isError && (
-        <Aviso tom="neutro" titulo="Clima indisponível">
+        <Aviso tom="neutro" titulo="Clima indisponível" icone={CloudOff}>
           Não foi possível consultar a previsão agora. Se isto persistir, confira se a propriedade
           tem latitude e longitude preenchidas em{" "}
-          <Link to="/painel/cadastros/propriedade" className="underline">
+          <Link to="/painel/cadastros/propriedade" className="font-medium underline">
             Cadastros
           </Link>
           .
@@ -189,10 +243,18 @@ export default function Dashboard() {
 
       <Cartao>
         <TituloSecao
+          icone={ChartColumn}
           descricao="Cada barra é uma semana — o vão entre elas mostra o intervalo entre repiques"
           acao={
-            <Link to="/painel/colheitas" className="text-sm font-medium text-mata-700 hover:underline">
+            <Link
+              to="/painel/colheitas"
+              className="group flex items-center gap-1 text-sm font-medium text-mata-700 transition hover:text-mata-900"
+            >
               ver colheitas
+              <ArrowRight
+                size={14}
+                className="transition-transform duration-200 ease-suave group-hover:translate-x-0.5"
+              />
             </Link>
           }
         >
@@ -201,14 +263,15 @@ export default function Dashboard() {
         <GraficoColheita colheitas={colheitas ?? []} />
       </Cartao>
 
-      {(alertas?.length || setoresAtrasados.length || insumosBaixos.length) > 0 && (
+      {!!temAlerta && (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           {!!alertas?.length && (
             <Aviso
               tom="perigo"
               titulo="Controle de pragas"
+              icone={Bug}
               acao={
-                <Link to="/painel/pragas" className="text-xs underline">
+                <Link to="/painel/pragas" className="text-xs font-medium underline">
                   ver todos
                 </Link>
               }
@@ -216,7 +279,7 @@ export default function Dashboard() {
               <ul className="space-y-1">
                 {alertas.slice(0, 4).map((a) => (
                   <li key={`${a.regraId}-${a.talhaoId}`}>
-                    <span className="font-medium">
+                    <span className="font-semibold">
                       {a.talhaoCodigo ? `${a.talhaoCodigo} · ` : ""}
                       {a.talhaoNome}
                     </span>{" "}
@@ -235,8 +298,9 @@ export default function Dashboard() {
             <Aviso
               tom="agua"
               titulo="Irrigação atrasada"
+              icone={Droplets}
               acao={
-                <Link to="/painel/irrigacao" className="text-xs underline">
+                <Link to="/painel/irrigacao" className="text-xs font-medium underline">
                   manejo hídrico
                 </Link>
               }
@@ -244,7 +308,7 @@ export default function Dashboard() {
               <ul className="space-y-1">
                 {setoresAtrasados.slice(0, 4).map((s) => (
                   <li key={s.setorId}>
-                    <span className="font-medium">
+                    <span className="font-semibold">
                       {s.codigo ? `${s.codigo} · ` : ""}
                       {s.nome}
                     </span>
@@ -259,8 +323,9 @@ export default function Dashboard() {
             <Aviso
               tom="alerta"
               titulo="Estoque abaixo do mínimo"
+              icone={Package}
               acao={
-                <Link to="/painel/estoque" className="text-xs underline">
+                <Link to="/painel/estoque" className="text-xs font-medium underline">
                   estoque
                 </Link>
               }
@@ -268,7 +333,7 @@ export default function Dashboard() {
               <ul className="space-y-1">
                 {insumosBaixos.slice(0, 4).map((i) => (
                   <li key={i.id}>
-                    <span className="font-medium">{i.nome}</span> — {numero(i.saldoAtual)}{" "}
+                    <span className="font-semibold">{i.nome}</span> — {numero(i.saldoAtual)}{" "}
                     {i.unidadeMedida} (mínimo {numero(i.estoqueMinimo)})
                   </li>
                 ))}
@@ -279,7 +344,7 @@ export default function Dashboard() {
       )}
 
       <div>
-        <TituloSecao descricao="Produtividade e custo por talhão, do que já foi lançado">
+        <TituloSecao icone={Citrus} descricao="Produtividade e custo por talhão, do que já foi lançado">
           Desempenho por talhão
         </TituloSecao>
         <Tabela
@@ -287,7 +352,8 @@ export default function Dashboard() {
           vazio={
             !resumo?.length ? (
               <EstadoVazio
-                icone="▦"
+                icone={Citrus}
+                tom="limao"
                 titulo="Nenhum talhão com colheita ainda"
                 descricao="A comparação entre talhões aparece assim que houver caixas lançadas em pelo menos um deles."
               />
@@ -297,16 +363,16 @@ export default function Dashboard() {
           {resumo?.map((r) => {
             const custoCaixa = r.caixas > 0 ? r.custoColheita / r.caixas : null;
             return (
-              <tr key={r.talhaoId} className="transition hover:bg-terra-50">
-                <td className="whitespace-nowrap px-4 py-2.5 font-medium text-terra-800">
+              <tr key={r.talhaoId} className="transition-colors duration-150 hover:bg-terra-50">
+                <td className="whitespace-nowrap px-4 py-3 font-medium text-terra-800">
                   {r.codigo ? `${r.codigo} · ` : ""}
                   {r.nome}
                 </td>
-                <td className="numero px-4 py-2.5">{numero(r.caixas, 0)}</td>
-                <td className="numero px-4 py-2.5">{numero(r.caixasPorHectare)}</td>
-                <td className="numero px-4 py-2.5">{moeda(r.custoColheita)}</td>
-                <td className="numero px-4 py-2.5">{custoCaixa != null ? moeda(custoCaixa) : "—"}</td>
-                <td className="numero px-4 py-2.5">
+                <td className="numero px-4 py-3">{numero(r.caixas, 0)}</td>
+                <td className="numero px-4 py-3">{numero(r.caixasPorHectare)}</td>
+                <td className="numero px-4 py-3">{moeda(r.custoColheita)}</td>
+                <td className="numero px-4 py-3">{custoCaixa != null ? moeda(custoCaixa) : "—"}</td>
+                <td className="numero px-4 py-3">
                   {r.receita > 0 ? (
                     <Etiqueta tom={r.margem >= 0 ? "mata" : "perigo"}>{moeda(r.margem)}</Etiqueta>
                   ) : (
@@ -321,9 +387,17 @@ export default function Dashboard() {
 
       <div>
         <TituloSecao
+          icone={ClipboardList}
           acao={
-            <Link to="/painel/atividades" className="text-sm font-medium text-mata-700 hover:underline">
+            <Link
+              to="/painel/atividades"
+              className="group flex items-center gap-1 text-sm font-medium text-mata-700 transition hover:text-mata-900"
+            >
               ver todas
+              <ArrowRight
+                size={14}
+                className="transition-transform duration-200 ease-suave group-hover:translate-x-0.5"
+              />
             </Link>
           }
         >
@@ -334,7 +408,7 @@ export default function Dashboard() {
           vazio={
             !atividades?.length ? (
               <EstadoVazio
-                icone="✓"
+                icone={ClipboardList}
                 titulo="Nenhuma operação lançada"
                 descricao="Pulverizações, adubações e tratos culturais lançados pelo celular aparecem aqui."
               />
@@ -342,18 +416,18 @@ export default function Dashboard() {
           }
         >
           {atividades?.slice(0, 8).map((a) => (
-            <tr key={a.id} className="transition hover:bg-terra-50">
-              <td className="numero whitespace-nowrap px-4 py-2.5 text-terra-600">
+            <tr key={a.id} className="transition-colors duration-150 hover:bg-terra-50">
+              <td className="numero whitespace-nowrap px-4 py-3 text-terra-600">
                 {new Date(a.data).toLocaleDateString("pt-BR")}
               </td>
-              <td className="px-4 py-2.5 font-medium text-terra-800">{a.tipoAtividade?.nome}</td>
-              <td className="px-4 py-2.5 text-terra-600">
+              <td className="px-4 py-3 font-medium text-terra-800">{a.tipoAtividade?.nome}</td>
+              <td className="px-4 py-3 text-terra-600">
                 {a.talhoes?.map((t) => t.talhao.nome).join(", ")}
               </td>
-              <td className="px-4 py-2.5 text-terra-600">
+              <td className="px-4 py-3 text-terra-600">
                 {a.executor?.nome ?? a.responsavel?.nome ?? "—"}
               </td>
-              <td className="numero px-4 py-2.5">
+              <td className="numero px-4 py-3">
                 {a.custoMaoDeObra != null ? moeda(a.custoMaoDeObra) : "—"}
               </td>
             </tr>

@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Citrus } from "lucide-react";
 import type { Colheita } from "../lib/types";
 import { EstadoVazio, numero } from "./ui";
 
@@ -71,6 +72,15 @@ export function agruparPorSemana(colheitas: Colheita[], semanas = 16): SemanaCol
   return [...mapa.values()];
 }
 
+function Legenda({ valor, rotulo }: { valor: string; rotulo: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="numero text-lg font-bold leading-none text-terra-800">{valor}</span>
+      <span className="text-xs text-terra-500">{rotulo}</span>
+    </div>
+  );
+}
+
 export default function GraficoColheita({
   colheitas,
   semanas = 16,
@@ -84,7 +94,8 @@ export default function GraficoColheita({
   if (totalCaixas === 0) {
     return (
       <EstadoVazio
-        icone="▤"
+        icone={Citrus}
+        tom="limao"
         titulo="Nenhuma colheita nas últimas semanas"
         descricao="Assim que os repiques forem lançados, o ritmo de colheita aparece aqui — cada barra é uma semana."
       />
@@ -93,13 +104,33 @@ export default function GraficoColheita({
 
   const semanasComColheita = dados.filter((d) => d.caixas > 0);
   const maior = Math.max(...dados.map((d) => d.caixas));
+  const media = totalCaixas / Math.max(1, semanasComColheita.length);
 
   return (
     <div>
-      <div className="h-56 w-full">
+      <div className="mb-4 flex flex-wrap gap-x-7 gap-y-2 border-b border-terra-100 pb-3">
+        <Legenda valor={numero(totalCaixas, 0)} rotulo={`caixas em ${semanas} semanas`} />
+        <Legenda valor={String(semanasComColheita.length)} rotulo="semanas com repique" />
+        <Legenda valor={numero(media, 0)} rotulo="média por repique" />
+        <Legenda valor={numero(maior, 0)} rotulo="maior semana" />
+      </div>
+
+      <div className="h-60 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={dados} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e7e3db" vertical={false} />
+            <defs>
+              {/* Gradiente vertical: a barra fica mais densa na base, o que dá
+                  peso visual e evita o aspecto chapado de bloco sólido. */}
+              <linearGradient id="barraColheita" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#dbed4c" />
+                <stop offset="100%" stopColor="#a8bd10" />
+              </linearGradient>
+              <linearGradient id="barraPico" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#a8bd10" />
+                <stop offset="100%" stopColor="#62730d" />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="2 5" stroke="#e7e3db" vertical={false} />
             <XAxis
               dataKey="rotulo"
               tick={{ fontSize: 11, fill: "#94886f" }}
@@ -115,44 +146,35 @@ export default function GraficoColheita({
               width={48}
             />
             <Tooltip
-              cursor={{ fill: "#f3f1ed" }}
+              cursor={{ fill: "rgba(168, 189, 16, 0.08)" }}
               contentStyle={{
                 borderRadius: 12,
                 border: "1px solid #e7e3db",
                 fontSize: 13,
-                boxShadow: "0 6px 16px rgb(24 54 40 / 0.10)",
+                padding: "8px 12px",
+                boxShadow: "0 8px 20px -4px rgb(24 54 40 / 0.12)",
               }}
-              formatter={(valor: number, nome) =>
-                nome === "caixas"
-                  ? [`${numero(valor, 0)} caixas`, "Colhido"]
-                  : [numero(valor, 2), String(nome)]
-              }
+              formatter={(valor: number) => [`${numero(valor, 0)} caixas`, "Colhido"]}
               labelFormatter={(r) => `Semana de ${r}`}
             />
-            <Bar dataKey="caixas" radius={[4, 4, 0, 0]} maxBarSize={26}>
+            <Bar
+              dataKey="caixas"
+              radius={[5, 5, 0, 0]}
+              maxBarSize={28}
+              animationDuration={700}
+              animationEasing="ease-out"
+            >
               {dados.map((d) => (
                 // A maior semana do período ganha destaque: é a referência de
                 // pico que o produtor usa para comparar os repiques seguintes.
-                <Cell key={d.chave} fill={d.caixas === maior ? "#82970b" : "#c9dd1c"} />
+                <Cell
+                  key={d.chave}
+                  fill={d.caixas === maior ? "url(#barraPico)" : "url(#barraColheita)"}
+                />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-terra-500">
-        <span>
-          <strong className="numero text-terra-700">{numero(totalCaixas, 0)}</strong> caixas em{" "}
-          {semanas} semanas
-        </span>
-        <span>
-          <strong className="numero text-terra-700">{semanasComColheita.length}</strong> semanas com
-          repique
-        </span>
-        <span>
-          pico de <strong className="numero text-terra-700">{numero(maior, 0)}</strong> cx numa
-          semana
-        </span>
       </div>
     </div>
   );

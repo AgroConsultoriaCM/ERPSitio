@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
+import {
+  AlertTriangle,
+  CloudUpload,
+  Citrus,
+  Download,
+  Loader2,
+  LogOut,
+  Wifi,
+  WifiOff,
+  X,
+} from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useOnline } from "../../lib/useOnline";
 import { useInstalarApp } from "../../lib/useInstalarApp";
@@ -38,7 +49,9 @@ export default function CampoLayout() {
       const r = reenviar ? await reenviarComErro() : await sincronizarPendentes();
       if (r.semRede) setRecado("Sem sinal agora — os lançamentos continuam guardados.");
       else if (r.enviados > 0)
-        setRecado(`${r.enviados} lançamento${r.enviados > 1 ? "s" : ""} enviado${r.enviados > 1 ? "s" : ""}.`);
+        setRecado(
+          `${r.enviados} lançamento${r.enviados > 1 ? "s" : ""} enviado${r.enviados > 1 ? "s" : ""}.`,
+        );
       else if (r.falhas > 0) setRecado(`${r.falhas} lançamento(s) recusado(s) pelo servidor.`);
       else setRecado("Nada para enviar.");
     } finally {
@@ -49,43 +62,53 @@ export default function CampoLayout() {
 
   return (
     <div className="min-h-screen bg-terra-100 pb-8">
-      <header className="sticky top-0 z-10 bg-mata-700 px-4 pb-2.5 pt-3 text-white shadow-cartao-alto">
+      <header className="sticky top-0 z-10 bg-gradient-to-b from-mata-700 to-mata-800 px-4 pb-2.5 pt-3 text-white shadow-cartao-alto">
         <div className="mx-auto flex max-w-md items-center justify-between">
-          <div className="min-w-0">
-            <Link to="/campo" className="text-lg font-bold leading-tight">
-              Sítio · Campo
-            </Link>
-            <p className="truncate text-xs text-mata-100">{usuario?.nome}</p>
-          </div>
+          <Link to="/campo" className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+              <Citrus size={18} strokeWidth={2} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-base font-bold leading-tight tracking-tight">
+                Sítio · Campo
+              </span>
+              <span className="block truncate text-xs text-mata-100">{usuario?.nome}</span>
+            </span>
+          </Link>
           <button
             onClick={() => {
               logout();
               navigate("/login");
             }}
-            className="shrink-0 rounded-lg bg-mata-800 px-3 py-1.5 text-sm font-medium"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-mata-900/40 transition active:scale-95"
+            aria-label="Sair"
           >
-            Sair
+            <LogOut size={17} />
           </button>
         </div>
 
-        <div className="mx-auto mt-2 flex max-w-md flex-wrap items-center gap-2 text-xs">
-          <span className="flex items-center gap-1.5">
-            <span
-              className={`h-2 w-2 rounded-full ${online ? "bg-limao-300" : "bg-amber-300"}`}
-              aria-hidden
-            />
-            {online ? "Conectado" : "Sem sinal — lançamentos ficam no aparelho"}
+        <div className="mx-auto mt-2.5 flex max-w-md flex-wrap items-center gap-2 text-xs">
+          <span className="flex items-center gap-1.5 font-medium">
+            {online ? (
+              <Wifi size={13} className="text-limao-300" />
+            ) : (
+              <WifiOff size={13} className="animate-pulsar text-amber-300" />
+            )}
+            {online ? "Conectado" : "Sem sinal — fica no aparelho"}
           </span>
 
           {!!pendentes && (
             <button
               onClick={() => sincronizarAgora()}
               disabled={sincronizando}
-              className="ml-auto rounded-full bg-amber-400 px-2.5 py-1 font-semibold text-amber-950 disabled:opacity-70"
+              className="ml-auto flex items-center gap-1.5 rounded-full bg-amber-400 px-2.5 py-1 font-semibold text-amber-950 transition active:scale-95 disabled:opacity-70"
             >
-              {sincronizando
-                ? "enviando…"
-                : `${pendentes} aguardando — enviar agora`}
+              {sincronizando ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <CloudUpload size={12} />
+              )}
+              {sincronizando ? "enviando…" : `${pendentes} aguardando`}
             </button>
           )}
 
@@ -93,15 +116,16 @@ export default function CampoLayout() {
             <button
               onClick={() => sincronizarAgora(true)}
               disabled={sincronizando}
-              className="rounded-full bg-red-500 px-2.5 py-1 font-semibold text-white disabled:opacity-70"
+              className="flex items-center gap-1.5 rounded-full bg-red-500 px-2.5 py-1 font-semibold text-white transition active:scale-95 disabled:opacity-70"
             >
-              {comErro} com erro — tentar de novo
+              <AlertTriangle size={12} />
+              {comErro} com erro — tentar
             </button>
           )}
         </div>
 
         {recado && (
-          <p className="mx-auto mt-1.5 max-w-md rounded-lg bg-mata-800/60 px-2.5 py-1 text-xs">
+          <p className="mx-auto mt-2 max-w-md animate-surgir rounded-lg bg-mata-900/50 px-2.5 py-1.5 text-xs">
             {recado}
           </p>
         )}
@@ -109,28 +133,29 @@ export default function CampoLayout() {
 
       <main className="mx-auto max-w-md px-4 py-4">
         {instalacao.instalavel && (
-          <div className="mb-4 flex items-center gap-3 rounded-xl border border-mata-200 bg-white p-3 shadow-cartao">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mata-600 text-lg font-bold text-white">
-              S
+          <div className="mb-4 flex animate-surgir-de-baixo items-center gap-3 rounded-2xl border border-mata-200 bg-white p-3 shadow-cartao">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-mata-500 to-mata-700 text-white">
+              <Download size={20} strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-terra-900">Instalar no celular</p>
-              <p className="text-xs text-terra-500">
+              <p className="text-xs leading-snug text-terra-500">
                 Abre como aplicativo e funciona sem sinal.
               </p>
             </div>
-            <div className="flex shrink-0 flex-col gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 onClick={() => instalacao.instalar()}
-                className="rounded-lg bg-mata-600 px-3 py-1.5 text-sm font-semibold text-white"
+                className="rounded-lg bg-mata-600 px-3 py-2 text-sm font-semibold text-white transition active:scale-95"
               >
                 Instalar
               </button>
               <button
                 onClick={instalacao.dispensar}
-                className="text-xs text-terra-400 underline"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-terra-400 transition active:scale-95"
+                aria-label="Agora não"
               >
-                agora não
+                <X size={16} />
               </button>
             </div>
           </div>

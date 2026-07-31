@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
+import { AlertCircle, Citrus, ClipboardList, Clock, Plus } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { db } from "../../offline/db";
@@ -9,6 +10,10 @@ import type { Atividade, Colheita } from "../../lib/types";
 
 function hojeISO() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function Secao({ children }: { children: string }) {
+  return <h2 className="mb-2 rotulo">{children}</h2>;
 }
 
 export default function CampoHome() {
@@ -63,26 +68,38 @@ export default function CampoHome() {
     (opsPendentes?.length ?? 0);
 
   return (
-    <div className="space-y-4">
+    <div className="escalonar space-y-4">
       <div className="grid grid-cols-1 gap-3">
         <Link
           to="/campo/colheita"
-          className="flex items-center justify-center gap-2 rounded-2xl bg-limao-500 py-6 text-lg font-bold text-mata-900 shadow-cartao transition active:scale-[0.99] active:bg-limao-600"
+          className="group flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-limao-400 to-limao-600 py-6 text-lg font-bold text-mata-900 shadow-cartao transition duration-200 ease-suave active:scale-[0.98] active:shadow-cartao"
         >
-          <span className="text-2xl leading-none">+</span> Registrar colheita
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mata-900/10 transition-transform duration-200 group-active:scale-90">
+            <Plus size={20} strokeWidth={3} />
+          </span>
+          Registrar colheita
         </Link>
         <Link
           to="/campo/nova"
-          className="flex items-center justify-center gap-2 rounded-2xl bg-mata-600 py-6 text-lg font-bold text-white shadow-cartao transition active:scale-[0.99] active:bg-mata-700"
+          className="group flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-mata-600 to-mata-800 py-6 text-lg font-bold text-white shadow-cartao transition duration-200 ease-suave active:scale-[0.98]"
         >
-          <span className="text-2xl leading-none">+</span> Nova operação
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition-transform duration-200 group-active:scale-90">
+            <Plus size={20} strokeWidth={3} />
+          </span>
+          Nova operação
         </Link>
       </div>
 
       {caixasHoje > 0 && (
-        <div className="rounded-2xl border border-limao-200 bg-limao-50 px-4 py-4 text-center">
-          <p className="rotulo text-limao-800">Colhido hoje</p>
-          <p className="numero mt-0.5 text-4xl font-bold text-limao-900">
+        <div className="relative overflow-hidden rounded-2xl border border-limao-200 bg-gradient-to-br from-limao-50 to-limao-100/60 px-4 py-4 text-center">
+          <Citrus
+            size={90}
+            strokeWidth={1}
+            className="pointer-events-none absolute -right-3 -top-4 text-limao-500/10"
+            aria-hidden
+          />
+          <p className="relative rotulo text-limao-800">Colhido hoje</p>
+          <p className="numero relative mt-1 text-4xl font-bold text-limao-900">
             {numero(caixasHoje, 0)}
             <span className="ml-1.5 text-lg font-semibold">caixas</span>
           </p>
@@ -91,26 +108,38 @@ export default function CampoHome() {
 
       {(!!opsPendentes?.length || !!colheitasPendentes?.length) && (
         <section>
-          <h2 className="mb-2 rotulo">Aguardando envio</h2>
+          <Secao>Aguardando envio</Secao>
           <ul className="space-y-2">
             {colheitasPendentes?.map((p) => (
-              <li key={p.clientId} className="cartao p-3">
+              <li key={p.clientId} className="cartao border-l-4 border-l-amber-400 p-3">
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-semibold text-terra-800">Colheita</p>
+                  <p className="flex items-center gap-1.5 font-semibold text-terra-800">
+                    <Clock size={14} className="text-amber-500" />
+                    Colheita
+                  </p>
                   <p className="numero font-bold text-limao-700">{p.quantidadeCaixas} cx</p>
                 </div>
-                <p className="text-sm text-terra-500">{p.talhaoNome}</p>
+                <p className="mt-0.5 text-sm text-terra-500">{p.talhaoNome}</p>
                 {p.status === "erro" && (
-                  <p className="mt-1 rounded bg-red-50 px-2 py-1 text-xs text-red-700">{p.erro}</p>
+                  <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-red-50 px-2 py-1.5 text-xs text-red-700">
+                    <AlertCircle size={13} className="mt-px shrink-0" />
+                    {p.erro}
+                  </p>
                 )}
               </li>
             ))}
             {opsPendentes?.map((p) => (
-              <li key={p.clientId} className="cartao p-3">
-                <p className="font-semibold text-terra-800">{p.tipoAtividadeNome}</p>
-                <p className="text-sm text-terra-500">{p.descricaoTalhoes}</p>
+              <li key={p.clientId} className="cartao border-l-4 border-l-amber-400 p-3">
+                <p className="flex items-center gap-1.5 font-semibold text-terra-800">
+                  <Clock size={14} className="text-amber-500" />
+                  {p.tipoAtividadeNome}
+                </p>
+                <p className="mt-0.5 text-sm text-terra-500">{p.descricaoTalhoes}</p>
                 {p.status === "erro" && (
-                  <p className="mt-1 rounded bg-red-50 px-2 py-1 text-xs text-red-700">{p.erro}</p>
+                  <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-red-50 px-2 py-1.5 text-xs text-red-700">
+                    <AlertCircle size={13} className="mt-px shrink-0" />
+                    {p.erro}
+                  </p>
                 )}
               </li>
             ))}
@@ -119,9 +148,12 @@ export default function CampoHome() {
       )}
 
       {totalLancamentos === 0 && !carregandoColheitas && !carregandoOps && (
-        <div className="cartao px-5 py-8 text-center">
-          <p className="font-medium text-terra-700">Nada lançado hoje ainda</p>
-          <p className="mt-1 text-sm text-terra-500">
+        <div className="cartao px-5 py-9 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-terra-100 text-terra-400">
+            <ClipboardList size={22} strokeWidth={1.75} />
+          </div>
+          <p className="font-semibold text-terra-700">Nada lançado hoje ainda</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-terra-500">
             Use os botões acima. Sem sinal também funciona — fica guardado e sobe sozinho quando a
             conexão voltar.
           </p>
@@ -130,15 +162,15 @@ export default function CampoHome() {
 
       {!!colheitasHoje?.length && (
         <section>
-          <h2 className="mb-2 rotulo">Colheitas de hoje</h2>
+          <Secao>Colheitas de hoje</Secao>
           <ul className="space-y-2">
             {colheitasHoje.map((c) => (
-              <li key={c.id} className="cartao p-3">
+              <li key={c.id} className="cartao p-3 transition duration-200 active:scale-[0.99]">
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="font-semibold text-terra-800">{c.talhao?.nome}</p>
                   <p className="numero text-lg font-bold text-limao-700">{c.quantidadeCaixas} cx</p>
                 </div>
-                <p className="text-sm text-terra-500">
+                <p className="mt-0.5 text-sm text-terra-500">
                   {c.executor?.nome ?? "sem executor"}
                   {c.valorPorCaixa != null && ` · R$ ${c.valorPorCaixa.toFixed(2)}/cx`}
                 </p>
@@ -150,17 +182,17 @@ export default function CampoHome() {
 
       {!!atividadesHoje?.length && (
         <section>
-          <h2 className="mb-2 rotulo">Operações de hoje</h2>
+          <Secao>Operações de hoje</Secao>
           <ul className="space-y-2">
             {atividadesHoje.map((a) => (
-              <li key={a.id} className="cartao p-3">
+              <li key={a.id} className="cartao p-3 transition duration-200 active:scale-[0.99]">
                 <p className="font-semibold text-terra-800">{a.tipoAtividade?.nome}</p>
-                <p className="text-sm text-terra-500">
+                <p className="mt-0.5 text-sm text-terra-500">
                   {a.talhoes?.map((t) => t.talhao.nome).join(", ")}
                 </p>
                 {a.executor && <p className="text-xs text-terra-400">{a.executor.nome}</p>}
                 {a.insumos.length > 0 && (
-                  <p className="mt-1 text-xs text-terra-400">
+                  <p className="mt-1.5 text-xs text-terra-400">
                     {a.insumos.map((i) => `${i.insumo.nome} (${i.quantidade}${i.unidade})`).join(", ")}
                   </p>
                 )}

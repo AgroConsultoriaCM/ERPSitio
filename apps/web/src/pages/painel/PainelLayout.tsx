@@ -1,46 +1,70 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Bug,
+  Citrus,
+  ClipboardList,
+  Droplets,
+  LayoutDashboard,
+  LogOut,
+  Map,
+  Menu,
+  Package,
+  SlidersHorizontal,
+  Users,
+  WifiOff,
+  X,
+  type LucideProps,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { useOnline } from "../../lib/useOnline";
 import { ROTAS } from "../../lib/rotas";
 import type { Propriedade } from "../../lib/types";
 
-const linkClasses = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-    isActive
-      ? "bg-mata-600 text-white shadow-cartao"
-      : "text-terra-700 hover:bg-mata-50 hover:text-mata-800"
-  }`;
+type Icone = ComponentType<LucideProps>;
 
-/** Ícones em SVG inline: sem dependência nova e sem requisição extra. */
-function Icone({ nome }: { nome: string }) {
-  const d: Record<string, string> = {
-    painel: "M3 12h7V3H3v9Zm0 9h7v-6H3v6Zm11 0h7V12h-7v9Zm0-18v6h7V3h-7Z",
-    mapa: "M9 3 3 5.5v16L9 19l6 2.5 6-2.5v-16L15 5.5 9 3Zm0 0v16m6-13.5v16",
-    colheita: "M12 21c-4 0-7-3-7-7 0-4 3-8 7-11 4 3 7 7 7 11 0 4-3 7-7 7Z",
-    operacao: "M4 7h16M4 12h16M4 17h10",
-    estoque: "M3 7l9-4 9 4v10l-9 4-9-4V7Zm9-4v18M3 7l9 4 9-4",
-    praga: "M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2m0-12-2 2M8 16l-2 2M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z",
-    agua: "M12 3c3.5 4 6 7 6 10a6 6 0 0 1-12 0c0-3 2.5-6 6-10Z",
-    cadastro: "M4 5h16v14H4V5Zm0 5h16M9 10v9",
-    usuarios: "M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM21 19v-1a4 4 0 0 0-3-3.9",
-  };
+function ItemMenu({ para, icone: Ico, children }: { para: string; icone: Icone; children: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[18px] w-[18px] shrink-0 opacity-90"
-      aria-hidden
+    <NavLink
+      to={para}
+      end={para === ROTAS.dashboard}
+      className={({ isActive }) =>
+        `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-suave ${
+          isActive
+            ? "bg-mata-600 text-white shadow-cartao"
+            : "text-terra-600 hover:bg-mata-50 hover:text-mata-800"
+        }`
+      }
     >
-      <path d={d[nome] ?? d.painel} />
-    </svg>
+      {({ isActive }) => (
+        <>
+          {/* Marca de seleção à esquerda: cresce a partir do centro quando o
+              item vira o ativo, em vez de simplesmente aparecer. */}
+          <span
+            className={`absolute -left-3 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-limao-400 transition-transform duration-300 ease-suave ${
+              isActive ? "scale-y-100" : "scale-y-0"
+            }`}
+            aria-hidden
+          />
+          <Ico
+            size={17}
+            strokeWidth={2}
+            className={`shrink-0 transition-transform duration-200 ease-suave ${
+              isActive ? "" : "group-hover:scale-110"
+            }`}
+          />
+          {children}
+        </>
+      )}
+    </NavLink>
   );
+}
+
+function GrupoMenu({ children }: { children: string }) {
+  return <p className="px-3 pb-1.5 pt-5 rotulo">{children}</p>;
 }
 
 export default function PainelLayout() {
@@ -66,87 +90,92 @@ export default function PainelLayout() {
   const navegacao = (
     <nav className="space-y-1">
       {podeVer("dashboard") && (
-        <NavLink to={ROTAS.dashboard} end className={linkClasses}>
-          <Icone nome="painel" />
+        <ItemMenu para={ROTAS.dashboard} icone={LayoutDashboard}>
           Painel
-        </NavLink>
+        </ItemMenu>
       )}
       {podeVer("mapa") && (
-        <NavLink to={ROTAS.mapa} className={linkClasses}>
-          <Icone nome="mapa" />
+        <ItemMenu para={ROTAS.mapa} icone={Map}>
           Mapa da propriedade
-        </NavLink>
+        </ItemMenu>
       )}
 
       {veDiaADia && (
         <>
-          <p className="px-3 pb-1 pt-4 rotulo">Dia a dia</p>
+          <GrupoMenu>Dia a dia</GrupoMenu>
           {podeVer("colheitas") && (
-            <NavLink to={ROTAS.colheitas} className={linkClasses}>
-              <Icone nome="colheita" />
+            <ItemMenu para={ROTAS.colheitas} icone={Citrus}>
               Colheitas
-            </NavLink>
+            </ItemMenu>
           )}
           {podeVer("operacoes") && (
-            <NavLink to={ROTAS.operacoes} className={linkClasses}>
-              <Icone nome="operacao" />
+            <ItemMenu para={ROTAS.operacoes} icone={ClipboardList}>
               Operações
-            </NavLink>
+            </ItemMenu>
           )}
           {podeVer("estoque") && (
-            <NavLink to={ROTAS.estoque} className={linkClasses}>
-              <Icone nome="estoque" />
+            <ItemMenu para={ROTAS.estoque} icone={Package}>
               Estoque
-            </NavLink>
+            </ItemMenu>
           )}
         </>
       )}
 
       {veAcompanhamento && (
         <>
-          <p className="px-3 pb-1 pt-4 rotulo">Acompanhamento</p>
+          <GrupoMenu>Acompanhamento</GrupoMenu>
           {podeVer("pragas") && (
-            <NavLink to={ROTAS.pragas} className={linkClasses}>
-              <Icone nome="praga" />
+            <ItemMenu para={ROTAS.pragas} icone={Bug}>
               Controle de pragas
-            </NavLink>
+            </ItemMenu>
           )}
           {podeVer("irrigacao") && (
-            <NavLink to={ROTAS.irrigacao} className={linkClasses}>
-              <Icone nome="agua" />
+            <ItemMenu para={ROTAS.irrigacao} icone={Droplets}>
               Manejo hídrico
-            </NavLink>
+            </ItemMenu>
           )}
         </>
       )}
 
       {veConfiguracao && (
         <>
-          <p className="px-3 pb-1 pt-4 rotulo">Configuração</p>
+          <GrupoMenu>Configuração</GrupoMenu>
           {(podeVer("cadastros") || podeVer("propriedade")) && (
-            <NavLink to={ROTAS.cadastros} className={() => linkClasses({ isActive: emCadastros })}>
-              <Icone nome="cadastro" />
+            <NavLink
+              to={ROTAS.cadastros}
+              className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-suave ${
+                emCadastros
+                  ? "bg-mata-600 text-white shadow-cartao"
+                  : "text-terra-600 hover:bg-mata-50 hover:text-mata-800"
+              }`}
+            >
+              <span
+                className={`absolute -left-3 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-limao-400 transition-transform duration-300 ease-suave ${
+                  emCadastros ? "scale-y-100" : "scale-y-0"
+                }`}
+                aria-hidden
+              />
+              <SlidersHorizontal size={17} strokeWidth={2} className="shrink-0" />
               Cadastros
             </NavLink>
           )}
           {podeVer("usuarios") && (
-            <NavLink to={ROTAS.usuarios} className={linkClasses}>
-              <Icone nome="usuarios" />
+            <ItemMenu para={ROTAS.usuarios} icone={Users}>
               Usuários
-            </NavLink>
+            </ItemMenu>
           )}
         </>
       )}
     </nav>
   );
 
-  const identidade = (
-    <div className="mb-5 flex items-center gap-3 px-2">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mata-600 text-lg font-bold text-white shadow-cartao">
-        S
+  const marca = (
+    <div className="flex items-center gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-mata-500 to-mata-700 text-white shadow-cartao">
+        <Citrus size={20} strokeWidth={2} />
       </div>
       <div className="min-w-0">
-        <p className="truncate font-semibold leading-tight text-terra-900">
+        <p className="truncate font-semibold leading-tight tracking-tight text-terra-900">
           {propriedade?.nome ?? "Sítio"}
         </p>
         <p className="truncate text-xs text-terra-500">
@@ -156,64 +185,66 @@ export default function PainelLayout() {
     </div>
   );
 
-  const rodape = (
-    <div className="mt-6 space-y-2 border-t border-terra-200 pt-4">
-      {!online && (
-        <p className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-          Sem conexão — mostrando dados salvos
-        </p>
-      )}
-      <button
-        onClick={() => {
-          logout();
-          navigate("/login");
-        }}
-        className="w-full rounded-lg border border-terra-300 px-3 py-2 text-sm font-medium text-terra-600 transition hover:bg-terra-50"
-      >
-        Sair
-      </button>
-    </div>
-  );
-
   return (
     <div className="flex min-h-screen bg-terra-100">
       {/* Barra superior só no celular */}
-      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-terra-200 bg-white px-4 py-3 lg:hidden">
+      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-terra-200 bg-white/90 px-4 py-2.5 backdrop-blur lg:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-mata-600 text-sm font-bold text-white">
-            S
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-mata-500 to-mata-700 text-white">
+            <Citrus size={16} strokeWidth={2} />
           </div>
-          <span className="font-semibold text-terra-900">{propriedade?.nome ?? "Sítio"}</span>
+          <span className="font-semibold tracking-tight text-terra-900">
+            {propriedade?.nome ?? "Sítio"}
+          </span>
         </div>
         <button
           onClick={() => setMenuAberto((v) => !v)}
-          className="rounded-lg border border-terra-300 px-3 py-1.5 text-sm font-medium text-terra-700"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-terra-300 text-terra-700 transition active:scale-95"
+          aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}
           aria-expanded={menuAberto}
         >
-          {menuAberto ? "Fechar" : "Menu"}
+          {menuAberto ? <X size={18} /> : <Menu size={18} />}
         </button>
       </header>
 
       {menuAberto && (
         <div
-          className="fixed inset-0 z-30 bg-terra-900/30 lg:hidden"
+          className="fixed inset-0 z-30 animate-surgir bg-terra-900/40 backdrop-blur-[2px] lg:hidden"
           onClick={() => setMenuAberto(false)}
           aria-hidden
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 overflow-y-auto border-r border-terra-200 bg-white px-3 py-4 transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto border-r border-terra-200 bg-white px-4 py-5 transition-transform duration-300 ease-suave lg:static lg:translate-x-0 ${
           menuAberto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {identidade}
-        {navegacao}
-        {rodape}
+        <div className="mb-6">{marca}</div>
+
+        <div className="flex-1">{navegacao}</div>
+
+        <div className="mt-6 space-y-2 border-t border-terra-200 pt-4">
+          {!online && (
+            <p className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              <WifiOff size={14} className="shrink-0 animate-pulsar" />
+              Sem conexão — dados salvos
+            </p>
+          )}
+          <button
+            onClick={() => {
+              logout();
+              navigate("/login");
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-terra-300 px-3 py-2 text-sm font-medium text-terra-600 transition duration-200 hover:border-terra-400 hover:bg-terra-50"
+          >
+            <LogOut size={15} />
+            Sair
+          </button>
+        </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto p-4 pt-20 sm:p-6 lg:pt-6">
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 pt-[4.5rem] sm:p-6 lg:pt-6">
         <Outlet />
       </main>
     </div>

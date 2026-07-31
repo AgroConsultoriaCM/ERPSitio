@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { AlertCircle, Citrus, Loader2, Lock, Mail, WifiOff } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
 import { useOnline } from "../lib/useOnline";
@@ -39,70 +40,100 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-mata-800 px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-limao-400 text-xl font-bold text-mata-900">
-            S
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-mata-800 via-mata-900 to-mata-800 px-4 py-10">
+      {/* Manchas de luz ao fundo: dão profundidade sem imagem para baixar. */}
+      <div
+        className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-mata-500/20 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -bottom-40 -right-24 h-[28rem] w-[28rem] rounded-full bg-limao-500/10 blur-3xl"
+        aria-hidden
+      />
+
+      <div className="relative w-full max-w-sm animate-surgir-de-baixo">
+        <div className="mb-7 flex items-center gap-3.5">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-limao-300 to-limao-500 text-mata-900 shadow-cartao-alto">
+            <Citrus size={28} strokeWidth={2} />
           </div>
           <div>
-            <h1 className="text-xl font-bold leading-tight text-white">Sítio</h1>
+            <h1 className="text-2xl font-bold leading-tight tracking-tight text-white">Sítio</h1>
             <p className="text-sm text-mata-200">Gestão de fruticultura</p>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-2xl bg-white p-6 shadow-cartao-alto">
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-2xl border border-white/10 bg-white p-6 shadow-cartao-alto"
+        >
           {!online && (
-            <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Sem conexão. O primeiro acesso precisa de internet.
+            <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+              <WifiOff size={16} className="mt-0.5 shrink-0" />
+              <span>Sem conexão. O primeiro acesso precisa de internet.</span>
             </div>
           )}
 
           {erro && (
             <div
               role="alert"
-              className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
+              className="mb-4 flex animate-surgir items-start gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700"
             >
-              {erro}
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              <span>{erro}</span>
             </div>
           )}
 
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-terra-700">
+          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-terra-700">
             E-mail
           </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="username"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mb-4 w-full rounded-lg border border-terra-300 px-3 py-2.5 text-base transition focus:border-mata-500 focus:outline-none"
-          />
+          <div className="relative mb-4">
+            <Mail
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-terra-400"
+              aria-hidden
+            />
+            <input
+              id="email"
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-lg border border-terra-300 py-2.5 pl-9 pr-3 text-base shadow-interno transition duration-200 focus:border-mata-500 focus:outline-none focus:ring-2 focus:ring-mata-500/20"
+            />
+          </div>
 
-          <label htmlFor="senha" className="mb-1 block text-sm font-medium text-terra-700">
+          <label htmlFor="senha" className="mb-1.5 block text-sm font-medium text-terra-700">
             Senha
           </label>
-          <input
-            id="senha"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            className="mb-6 w-full rounded-lg border border-terra-300 px-3 py-2.5 text-base transition focus:border-mata-500 focus:outline-none"
-          />
+          <div className="relative mb-6">
+            <Lock
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-terra-400"
+              aria-hidden
+            />
+            <input
+              id="senha"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className="w-full rounded-lg border border-terra-300 py-2.5 pl-9 pr-3 text-base shadow-interno transition duration-200 focus:border-mata-500 focus:outline-none focus:ring-2 focus:ring-mata-500/20"
+            />
+          </div>
 
           <button
             type="submit"
             disabled={enviando}
-            className="w-full rounded-lg bg-mata-600 py-3 font-semibold text-white transition hover:bg-mata-700 disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-mata-500 to-mata-700 py-3 font-semibold text-white shadow-cartao transition duration-200 ease-suave hover:-translate-y-0.5 hover:shadow-cartao-alto disabled:translate-y-0 disabled:opacity-60"
           >
+            {enviando && <Loader2 size={16} className="animate-spin" />}
             {enviando ? "Entrando…" : "Entrar"}
           </button>
         </form>
 
-        <p className="mt-5 text-center text-xs text-mata-300">
+        <p className="mt-6 text-center text-xs text-mata-300/80">
           Sítio Santo Antônio · Monte Alto, SP
         </p>
       </div>
