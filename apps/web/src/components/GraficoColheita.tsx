@@ -65,8 +65,10 @@ export function agruparPorSemana(colheitas: Colheita[], semanas = 16): SemanaCol
     const alvo = mapa.get(chave);
     if (!alvo) continue; // fora da janela mostrada
     alvo.caixas += c.quantidadeCaixas;
+    // valorVendaTotal já resolve preço por qualidade e valor fechado antigo;
+    // o valorPorCaixa é o último recurso, para lançamento só de campo.
     alvo.receita +=
-      c.valorTotalVenda ?? (c.valorPorCaixa != null ? c.valorPorCaixa * c.quantidadeCaixas : 0);
+      c.valorVendaTotal ?? (c.valorPorCaixa != null ? c.valorPorCaixa * c.quantidadeCaixas : 0);
   }
 
   return [...mapa.values()];

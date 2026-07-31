@@ -578,6 +578,17 @@ model Colheita {
   // --- complemento comercial (preenchido depois) ---
   pesoTotalKg     Float?
   pesoRefugoKg    Float?
+
+  // Preco pago por CAIXA PADRAO (27,2 kg), separado por qualidade. A receita
+  // nao e digitada: o sistema converte o preco da caixa em preco do quilo e
+  // multiplica pelos quilos de cada qualidade. Ver PESO_CAIXA_PADRAO_KG em
+  // apps/api/src/routes/colheitas.routes.ts.
+  precoCaixaBom    Float?
+  precoCaixaRefugo Float?
+
+  // Venda em valor fechado, como era lancado antes de existirem os precos por
+  // qualidade. Mantido para nao perder o historico: quando os precos acima
+  // estao preenchidos, eles mandam; senao, vale este.
   valorTotalVenda Float?
 
   classificacao  String?

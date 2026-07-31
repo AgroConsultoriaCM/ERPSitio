@@ -297,7 +297,22 @@ export interface Colheita {
   // complemento comercial
   pesoTotalKg?: number | null;
   pesoRefugoKg?: number | null;
+
+  // Preço pago por caixa padrão (27,2 kg), por qualidade. É o que se digita.
+  precoCaixaBom?: number | null;
+  precoCaixaRefugo?: number | null;
+
+  // Valor fechado, como era lançado antes dos preços por qualidade. Vale só
+  // para os lançamentos antigos, que não têm os preços acima.
   valorTotalVenda?: number | null;
+
+  // Calculados pela API a partir dos preços e dos pesos — nunca digitados.
+  precoKgBom?: number | null;
+  precoKgRefugo?: number | null;
+  valorVendaBom?: number | null;
+  valorVendaRefugo?: number | null;
+  valorVendaTotal?: number | null;
+  pesoCaixaPadraoKg?: number | null;
   classificacao?: string | null;
   observacoes?: string | null;
   // derivados calculados pelo servidor

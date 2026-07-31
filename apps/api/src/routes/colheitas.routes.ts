@@ -17,10 +17,25 @@ const colheitaCampoSchema = z.object({
   origem: z.enum(["WEB", "APP"]).default("WEB"),
 });
 
+/**
+ * Peso da caixa padrao de limao taiti, em quilos.
+ *
+ * O comprador negocia "R$ x a caixa", mas o que sai do sitio e pesado em
+ * quilos. Este numero e a ponte entre as duas unidades: divide-se o preco da
+ * caixa por ele para chegar ao preco do quilo.
+ *
+ * Esta como constante porque hoje e um so para a propriedade inteira. Se um dia
+ * variar por comprador ou por cultura, vira campo de cadastro - a conta abaixo
+ * nao muda, so passa a ler o valor de outro lugar.
+ */
+export const PESO_CAIXA_PADRAO_KG = 27.2;
+
 // Momento 2 - complemento comercial (gestor, depois)
 const colheitaComercialSchema = z.object({
   pesoTotalKg: z.number().min(0).optional().nullable(),
   pesoRefugoKg: z.number().min(0).optional().nullable(),
+  precoCaixaBom: z.number().min(0).optional().nullable(),
+  precoCaixaRefugo: z.number().min(0).optional().nullable(),
   valorTotalVenda: z.number().min(0).optional().nullable(),
   quantidadeCaixas: z.number().positive().optional(),
   valorPorCaixa: z.number().min(0).optional().nullable(),
@@ -53,7 +68,9 @@ type ColheitaComRelacoes = Awaited<
   talhao?: { areaHa: number | null } | null;
 };
 
-function comDerivados<T extends ColheitaComRelacoes>(c: T) {
+// Exportada para poder ser exercitada por fora (ver verificacoes/), sem subir
+// servidor nem banco. E conta de dinheiro do usuario: precisa de prova.
+export function comDerivados<T extends ColheitaComRelacoes>(c: T) {
   const kgPorCaixa =
     c.pesoTotalKg != null && c.quantidadeCaixas > 0
       ? arredondar(c.pesoTotalKg / c.quantidadeCaixas, 3)
@@ -67,8 +84,34 @@ function comDerivados<T extends ColheitaComRelacoes>(c: T) {
       ? arredondar((c.pesoRefugoKg / c.pesoTotalKg) * 100, 2)
       : null;
 
+  // Receita por qualidade. O preco chega por caixa padrao; a fruta e pesada em
+  // quilos. Converte-se o preco para o quilo e multiplica-se pelo peso de cada
+  // qualidade - o refugo sai do peso total, e o que sobra e fruta boa.
+  const precoKgBom =
+    c.precoCaixaBom != null ? c.precoCaixaBom / PESO_CAIXA_PADRAO_KG : null;
+  const precoKgRefugo =
+    c.precoCaixaRefugo != null ? c.precoCaixaRefugo / PESO_CAIXA_PADRAO_KG : null;
+
+  const valorVendaBom =
+    precoKgBom != null && pesoLiquidoKg != null
+      ? arredondar(pesoLiquidoKg * precoKgBom, 2)
+      : null;
+
+  const valorVendaRefugo =
+    precoKgRefugo != null && c.pesoRefugoKg != null
+      ? arredondar(c.pesoRefugoKg * precoKgRefugo, 2)
+      : null;
+
+  // Precos por qualidade mandam quando existem. Sem eles, vale o valor fechado
+  // que era digitado antes - e o que preserva a receita dos lancamentos
+  // antigos, em vez de zera-los.
+  const temPrecoPorQualidade = valorVendaBom != null || valorVendaRefugo != null;
+  const valorVendaTotal = temPrecoPorQualidade
+    ? arredondar((valorVendaBom ?? 0) + (valorVendaRefugo ?? 0), 2)
+    : (c.valorTotalVenda ?? null);
+
   const margem =
-    c.valorTotalVenda != null ? arredondar(c.valorTotalVenda - (c.custoColheita ?? 0), 2) : null;
+    valorVendaTotal != null ? arredondar(valorVendaTotal - (c.custoColheita ?? 0), 2) : null;
 
   const areaHa = c.talhao?.areaHa ?? null;
   const caixasPorHectare =
@@ -79,6 +122,12 @@ function comDerivados<T extends ColheitaComRelacoes>(c: T) {
     kgPorCaixa,
     pesoLiquidoKg,
     percentualRefugo,
+    precoKgBom: precoKgBom != null ? arredondar(precoKgBom, 4) : null,
+    precoKgRefugo: precoKgRefugo != null ? arredondar(precoKgRefugo, 4) : null,
+    valorVendaBom,
+    valorVendaRefugo,
+    valorVendaTotal,
+    pesoCaixaPadraoKg: PESO_CAIXA_PADRAO_KG,
     margem,
     caixasPorHectare,
   };
@@ -136,8 +185,13 @@ export default async function colheitasRoutes(fastify: FastifyInstance) {
         propriedadeId: request.user.propriedadeId,
         talhaoId: query.talhaoId ?? undefined,
         executorId: query.executorId ?? undefined,
-        // "pendentes" = ja colhidas mas ainda sem os dados de venda
-        valorTotalVenda: query.pendentesComercial === "true" ? null : undefined,
+        // "pendentes" = ja colhidas mas ainda sem venda lancada. Precisa cobrir
+        // as duas formas: os precos por qualidade (atual) e o valor fechado
+        // (como era antes) - senao lancamento antigo com venda apareceria como
+        // pendente, e vice-versa.
+        ...(query.pendentesComercial === "true"
+          ? { precoCaixaBom: null, precoCaixaRefugo: null, valorTotalVenda: null }
+          : {}),
         data: {
           gte: query.dataInicio ? new Date(query.dataInicio) : undefined,
           lte: query.dataFim ? new Date(query.dataFim) : undefined,
@@ -172,12 +226,16 @@ export default async function colheitasRoutes(fastify: FastifyInstance) {
       }
     >();
 
-    for (const c of colheitas) {
+    for (const bruta of colheitas) {
+      // Passa pelo mesmo calculo da listagem: a receita do resumo tem de ser a
+      // soma exata do que aparece linha a linha na tela, senao o total nao
+      // fecha com as partes e o usuario perde a confianca no numero.
+      const c = comDerivados(bruta);
       const atual = porTalhao.get(c.talhaoId) ?? {
         talhaoId: c.talhaoId,
-        nome: c.talhao.nome,
-        codigo: c.talhao.codigo,
-        areaHa: c.talhao.areaHa,
+        nome: bruta.talhao.nome,
+        codigo: bruta.talhao.codigo,
+        areaHa: bruta.talhao.areaHa,
         caixas: 0,
         custoColheita: 0,
         receita: 0,
@@ -185,7 +243,7 @@ export default async function colheitasRoutes(fastify: FastifyInstance) {
       };
       atual.caixas += c.quantidadeCaixas;
       atual.custoColheita += c.custoColheita ?? 0;
-      atual.receita += c.valorTotalVenda ?? 0;
+      atual.receita += c.valorVendaTotal ?? 0;
       atual.pesoTotalKg += c.pesoTotalKg ?? 0;
       porTalhao.set(c.talhaoId, atual);
     }

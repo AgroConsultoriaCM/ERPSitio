@@ -38,7 +38,8 @@ export default function Colheitas() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [pesoTotalKg, setPesoTotalKg] = useState("");
   const [pesoRefugoKg, setPesoRefugoKg] = useState("");
-  const [valorTotalVenda, setValorTotalVenda] = useState("");
+  const [precoCaixaBom, setPrecoCaixaBom] = useState("");
+  const [precoCaixaRefugo, setPrecoCaixaRefugo] = useState("");
 
   function invalidar() {
     qc.invalidateQueries({ queryKey: ["colheitas"] });
@@ -68,7 +69,8 @@ export default function Colheitas() {
       api.patch(`/colheitas/${id}`, {
         pesoTotalKg: pesoTotalKg ? Number(pesoTotalKg) : null,
         pesoRefugoKg: pesoRefugoKg ? Number(pesoRefugoKg) : null,
-        valorTotalVenda: valorTotalVenda ? Number(valorTotalVenda) : null,
+        precoCaixaBom: precoCaixaBom ? Number(precoCaixaBom) : null,
+        precoCaixaRefugo: precoCaixaRefugo ? Number(precoCaixaRefugo) : null,
       }),
     onSuccess: () => {
       invalidar();
@@ -85,18 +87,26 @@ export default function Colheitas() {
     (acc, c) => ({
       caixas: acc.caixas + c.quantidadeCaixas,
       custo: acc.custo + (c.custoColheita ?? 0),
-      receita: acc.receita + (c.valorTotalVenda ?? 0),
+      vendaBom: acc.vendaBom + (c.valorVendaBom ?? 0),
+      vendaRefugo: acc.vendaRefugo + (c.valorVendaRefugo ?? 0),
+      receita: acc.receita + (c.valorVendaTotal ?? 0),
     }),
-    { caixas: 0, custo: 0, receita: 0 },
+    { caixas: 0, custo: 0, vendaBom: 0, vendaRefugo: 0, receita: 0 },
   );
+
+  // Peso da caixa usado na conta. Vem da API para não haver dois números
+  // diferentes espalhados; 27,2 kg é só o alicerce enquanto nada chegou.
+  const pesoCaixa = colheitas?.find((c) => c.pesoCaixaPadraoKg != null)?.pesoCaixaPadraoKg ?? 27.2;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Colheitas</h1>
         <p className="text-sm text-gray-500">
-          O encarregado lança as caixas no campo. Aqui você complementa com o peso colhido, o refugo e o valor da
-          venda — o sistema calcula a média kg/caixa e a margem.
+          O encarregado lança as caixas no campo. Aqui você complementa com o peso colhido, o refugo e o preço
+          pago por caixa de {pesoCaixa} kg — separado entre fruta boa e refugo. O sistema converte o preço da
+          caixa em preço do quilo, multiplica pelo peso de cada qualidade e calcula receita, kg/caixa e margem.
+          A receita não é digitada.
         </p>
       </div>
 
@@ -220,7 +230,18 @@ export default function Colheitas() {
               <th className="px-3 py-2">Peso (kg)</th>
               <th className="px-3 py-2">Refugo</th>
               <th className="px-3 py-2">kg/cx</th>
-              <th className="px-3 py-2">Venda</th>
+              <th className="px-3 py-2">
+                Venda · bom
+                <span className="block text-[10px] font-normal normal-case text-gray-400">
+                  R$/cx de {pesoCaixa} kg
+                </span>
+              </th>
+              <th className="px-3 py-2">
+                Venda · refugo
+                <span className="block text-[10px] font-normal normal-case text-gray-400">
+                  R$/cx de {pesoCaixa} kg
+                </span>
+              </th>
               <th className="px-3 py-2">Margem</th>
               <th className="px-3 py-2" />
             </tr>
@@ -270,17 +291,53 @@ export default function Colheitas() {
                     )}
                   </td>
                   <td className="px-3 py-2 font-medium text-gray-700">{num(c.kgPorCaixa, 3)}</td>
+
+                  {/* Digita-se o preço da caixa; embaixo aparece o que isso deu
+                      em dinheiro, para conferir a conta sem sair da tela. */}
                   <td className="px-3 py-2">
                     {editando ? (
                       <input
                         type="number"
                         step="0.01"
-                        value={valorTotalVenda}
-                        onChange={(e) => setValorTotalVenda(e.target.value)}
+                        placeholder={`R$/cx ${pesoCaixa}kg`}
+                        value={precoCaixaBom}
+                        onChange={(e) => setPrecoCaixaBom(e.target.value)}
                         className="w-28 rounded border border-gray-300 px-2 py-1"
                       />
                     ) : (
-                      moeda(c.valorTotalVenda)
+                      <>
+                        <span className="font-medium text-gray-800">
+                          {moeda(c.valorVendaBom)}
+                        </span>
+                        {c.precoCaixaBom != null && (
+                          <span className="block text-xs text-gray-400">
+                            {moeda(c.precoCaixaBom)}/cx · {num(c.pesoLiquidoKg)} kg
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editando ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder={`R$/cx ${pesoCaixa}kg`}
+                        value={precoCaixaRefugo}
+                        onChange={(e) => setPrecoCaixaRefugo(e.target.value)}
+                        className="w-28 rounded border border-gray-300 px-2 py-1"
+                      />
+                    ) : (
+                      <>
+                        <span className="font-medium text-gray-800">
+                          {moeda(c.valorVendaRefugo)}
+                        </span>
+                        {c.precoCaixaRefugo != null && (
+                          <span className="block text-xs text-gray-400">
+                            {moeda(c.precoCaixaRefugo)}/cx · {num(c.pesoRefugoKg)} kg
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
                   <td
@@ -310,7 +367,8 @@ export default function Colheitas() {
                             setEditandoId(c.id);
                             setPesoTotalKg(c.pesoTotalKg?.toString() ?? "");
                             setPesoRefugoKg(c.pesoRefugoKg?.toString() ?? "");
-                            setValorTotalVenda(c.valorTotalVenda?.toString() ?? "");
+                            setPrecoCaixaBom(c.precoCaixaBom?.toString() ?? "");
+                            setPrecoCaixaRefugo(c.precoCaixaRefugo?.toString() ?? "");
                           }}
                           className="mr-2 text-green-700"
                         >
@@ -341,7 +399,8 @@ export default function Colheitas() {
                 <td className="px-3 py-2" colSpan={2} />
                 <td className="px-3 py-2">{moeda(totais.custo)}</td>
                 <td className="px-3 py-2" colSpan={3} />
-                <td className="px-3 py-2">{moeda(totais.receita)}</td>
+                <td className="px-3 py-2">{moeda(totais.vendaBom)}</td>
+                <td className="px-3 py-2">{moeda(totais.vendaRefugo)}</td>
                 <td className="px-3 py-2">{moeda(totais.receita - totais.custo)}</td>
                 <td />
               </tr>
