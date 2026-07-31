@@ -19,5 +19,15 @@ infra/certs/*.pem
 backups/
 *.sql.gz
 
-# Permissoes locais do Claude Code: especificas da maquina
+# Permissoes locais do Claude Code: especificas da maquina.
+# O arquivo na raiz existe por engano historico - o lugar certo e .claude/.
 .claude/settings.local.json
+settings.local.json
+
+# Cache incremental do TypeScript: muda a cada compilacao e nao diz nada a
+# quem le o historico. Estava versionado por engano.
+*.tsbuildinfo
+
+# Sobra de redirecionamento do Windows ("> NUL" dentro do Git Bash cria um
+# arquivo de verdade chamado NUL, em vez de descartar a saida).
+NUL
