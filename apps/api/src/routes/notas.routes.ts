@@ -13,6 +13,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { lerXmlNfe, conferirTotal, XmlInvalidoError } from "../services/nfe.js";
+import { lerEmbalagem, sugerirNome } from "../services/embalagem.js";
 import { AppError, NaoEncontradoError } from "../lib/errors.js";
 
 const receberSchema = z.object({
@@ -177,19 +178,31 @@ export default async function notasRoutes(fastify: FastifyInstance) {
       somaItens: total.somaItens,
       itens: lida.itens.map((item) => {
         const conhecido = porCodigo.get(item.codigo);
+        // Lido da propria descricao: "( BD 20 LT )" vira 20 litros. O gestor
+        // confere - por isso vai junto o trecho que gerou a leitura.
+        const embalagem = lerEmbalagem(item.descricao);
+
+        const fator = conhecido?.fatorConversao ?? embalagem?.quantidade ?? null;
+        const unidade =
+          conhecido?.insumo.unidadeMedida ??
+          (embalagem ? (embalagem.base === "L" ? "L" : "kg") : null);
+
         return {
           ...item,
-          /** Preenchido quando este produto ja foi mapeado antes. */
+          /** Preenchido quando este produto ja foi lancado antes. */
+          jaConhecido: Boolean(conhecido),
           insumoId: conhecido?.insumoId ?? null,
           insumoNome: conhecido?.insumo.nome ?? null,
-          insumoUnidade: conhecido?.insumo.unidadeMedida ?? null,
-          fatorConversao: conhecido?.fatorConversao ?? null,
-          /** Quanto entra de fato no estoque, na unidade do cadastro. */
-          quantidadeConvertida: conhecido ? item.quantidade * conhecido.fatorConversao : null,
+          insumoUnidade: unidade,
+          fatorConversao: fator,
+          /** De onde saiu a leitura automatica, para conferencia de relance. */
+          fatorSugerido: embalagem?.quantidade ?? null,
+          trechoEmbalagem: embalagem?.trecho ?? null,
+          nomeSugerido: conhecido?.insumo.nome ?? sugerirNome(item.descricao),
+          /** Quanto entra de fato no estoque, na unidade do produto. */
+          quantidadeConvertida: fator ? item.quantidade * fator : null,
           custoConvertido:
-            conhecido && conhecido.fatorConversao > 0
-              ? Math.round((item.custoUnitarioReal / conhecido.fatorConversao) * 100) / 100
-              : null,
+            fator && fator > 0 ? Math.round((item.custoUnitarioReal / fator) * 100) / 100 : null,
         };
       }),
     };
@@ -213,7 +226,31 @@ export default async function notasRoutes(fastify: FastifyInstance) {
             .array(
               z.object({
                 numeroItem: z.number().int().positive(),
-                insumoId: z.string().uuid(),
+                /**
+                 * Opcional de proposito: quando vem vazio, o produto nasce da
+                 * propria nota. Obrigar a apontar um cadastro anterior sig-
+                 * nificaria cadastrar tudo a mao antes da primeira importacao.
+                 */
+                insumoId: z.string().uuid().optional(),
+                /** Nome do produto novo. Sem ele, usa o sugerido da descricao. */
+                nomeNovoProduto: z.string().min(1).optional(),
+                /** Litro ou quilo - nunca embalagem, para a sobra do galao voltar. */
+                unidadeNovoProduto: z.string().min(1).optional(),
+                funcoesNovoProduto: z
+                  .array(
+                    z.enum([
+                      "INSETICIDA",
+                      "FUNGICIDA",
+                      "HERBICIDA",
+                      "ACARICIDA",
+                      "NEMATICIDA",
+                      "NUTRICAO_FOLIAR",
+                      "FERTILIZANTE_SOLO",
+                      "ADJUVANTE",
+                      "OUTRO",
+                    ]),
+                  )
+                  .optional(),
                 /** 1 balde de 20 L -> 20. Zero ou negativo nao faz sentido. */
                 fatorConversao: z.number().positive().default(1),
                 /** Guardar para reconhecer sozinho na proxima nota deste fornecedor. */
@@ -239,13 +276,17 @@ export default async function notasRoutes(fastify: FastifyInstance) {
 
       // Confere tudo ANTES de abrir a transacao: erro de referencia deve
       // aparecer como mensagem, nao como transacao abortada pela metade.
-      const insumosPedidos = [...new Set(itens.map((i) => i.insumoId))];
-      const insumos = await fastify.prisma.insumo.findMany({
-        where: { id: { in: insumosPedidos }, propriedadeId },
-        select: { id: true },
-      });
-      if (insumos.length !== insumosPedidos.length) {
-        throw new AppError("Algum insumo escolhido não existe nesta propriedade.", 400);
+      const insumosPedidos = [
+        ...new Set(itens.map((i) => i.insumoId).filter((v): v is string => Boolean(v))),
+      ];
+      if (insumosPedidos.length) {
+        const insumos = await fastify.prisma.insumo.findMany({
+          where: { id: { in: insumosPedidos }, propriedadeId },
+          select: { id: true },
+        });
+        if (insumos.length !== insumosPedidos.length) {
+          throw new AppError("Algum produto escolhido não existe nesta propriedade.", 400);
+        }
       }
       for (const escolha of itens) {
         if (!porNumero.has(escolha.numeroItem)) {
@@ -259,6 +300,30 @@ export default async function notasRoutes(fastify: FastifyInstance) {
         for (const escolha of itens) {
           const item = porNumero.get(escolha.numeroItem)!;
 
+          // Produto que ainda nao existe nasce aqui, da propria nota. Exigir
+          // um cadastro anterior significaria cadastrar tudo a mao antes da
+          // primeira importacao - trabalho que a nota ja fez.
+          let insumoId = escolha.insumoId;
+          if (!insumoId) {
+            const embalagem = lerEmbalagem(item.descricao);
+            const unidade =
+              escolha.unidadeNovoProduto ??
+              (embalagem ? (embalagem.base === "L" ? "L" : "kg") : item.unidade.toLowerCase());
+            const funcoes = escolha.funcoesNovoProduto ?? [];
+
+            const criado = await tx.insumo.create({
+              data: {
+                nome: escolha.nomeNovoProduto ?? sugerirNome(item.descricao),
+                unidadeMedida: unidade,
+                funcoes,
+                // Sem funcao declarada nao da para afirmar que e defensivo.
+                categoria: funcoes.length ? "DEFENSIVO" : "OUTRO",
+                propriedadeId,
+              },
+            });
+            insumoId = criado.id;
+          }
+
           // A nota diz "3 BD"; o estoque controla em litros. Sem converter,
           // o custo por talhao erraria pelo tamanho da embalagem.
           const quantidade = item.quantidade * escolha.fatorConversao;
@@ -269,7 +334,7 @@ export default async function notasRoutes(fastify: FastifyInstance) {
 
           const lote = await tx.loteInsumo.create({
             data: {
-              insumoId: escolha.insumoId,
+              insumoId,
               origem: "COMPRA",
               data: registro.dataEmissao,
               quantidade,
@@ -285,7 +350,7 @@ export default async function notasRoutes(fastify: FastifyInstance) {
 
           await tx.movimentacaoEstoque.create({
             data: {
-              insumoId: escolha.insumoId,
+              insumoId,
               propriedadeId,
               tipo: "ENTRADA",
               origem: "COMPRA",
@@ -313,13 +378,13 @@ export default async function notasRoutes(fastify: FastifyInstance) {
                 codigoProduto: item.codigo,
                 descricaoNota: item.descricao,
                 unidadeNota: item.unidade,
-                insumoId: escolha.insumoId,
+                insumoId,
                 fatorConversao: escolha.fatorConversao,
               },
               update: {
                 descricaoNota: item.descricao,
                 unidadeNota: item.unidade,
-                insumoId: escolha.insumoId,
+                insumoId,
                 fatorConversao: escolha.fatorConversao,
               },
             });

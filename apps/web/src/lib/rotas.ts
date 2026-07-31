@@ -40,7 +40,7 @@ export const ABAS_CADASTRO: AbaCadastro[] = [
   { rota: ROTAS.grupos, rotula: "Grupos de talhões", descricao: "Atalhos para lançar operações" },
   { rota: ROTAS.culturas, rotula: "Culturas", descricao: "Espécies e variedades" },
   { rota: ROTAS.executores, rotula: "Executores", descricao: "Equipe, empreiteiros e prestadores" },
-  { rota: ROTAS.insumos, rotula: "Insumos", descricao: "Produtos e sua função agronômica" },
+  { rota: ROTAS.insumos, rotula: "Produtos", descricao: "Preço médio, dose de bula e funções" },
   {
     rota: ROTAS.perfisCorrecao,
     rotula: "Perfis de correção",

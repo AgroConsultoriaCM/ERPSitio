@@ -220,7 +220,9 @@ export default function Estoque() {
                     </td>
                     <td className="px-3 py-2">{l.insumo?.nome ?? insumo?.nome}</td>
                     <td className="px-3 py-2 text-xs">
-                      {insumo?.funcao ? ROTULO_FUNCAO_INSUMO[insumo.funcao] : "-"}
+                      {insumo?.funcoes?.length
+                        ? insumo.funcoes.map((f) => ROTULO_FUNCAO_INSUMO[f]).join(", ")
+                        : "-"}
                     </td>
                     <td className="px-3 py-2 text-xs">
                       {l.origem === "INVENTARIO_INICIAL" ? "Inventário" : l.origem === "AJUSTE" ? "Ajuste" : "Compra"}

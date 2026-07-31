@@ -385,9 +385,27 @@ model Insumo {
   id             String   @id @default(uuid())
   nome           String
   categoria      CategoriaInsumo @default(OUTRO)
-  funcao         FuncaoInsumo?
+
+  /// Um produto pode ter mais de uma funcao - um mesmo defensivo age como
+  /// fungicida e acaricida, por exemplo. Isso importa no controle de pragas:
+  /// uma aplicacao zera o contador de TODAS as funcoes do produto.
+  funcoes        FuncaoInsumo[]
+
+  /// Litro ou quilo, nunca embalagem. E o que permite devolver ao estoque a
+  /// sobra do galao depois da pulverizacao.
   unidadeMedida  String
   estoqueMinimo  Float?
+
+  /// Dose de bula. A unidade acompanha a do produto: se o produto e medido em
+  /// litros, a dose por 100 L esta em mL e a por hectare em L; se em quilos,
+  /// em gramas e quilos. Guardar o numero puro evita campo de unidade que sai
+  /// de sincronia com o produto.
+  dosePor100L     Float?
+  dosePorHectare  Float?
+  observacoesDose String?
+
+  /// Codigo do produto no catalogo do fabricante, quando vier da nota.
+  fabricante     String?
   propriedadeId  String
   propriedade    Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())

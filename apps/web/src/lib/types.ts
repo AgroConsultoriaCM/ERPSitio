@@ -81,14 +81,33 @@ export const ROTULO_FUNCAO_INSUMO: Record<FuncaoInsumo, string> = {
   OUTRO: "Outro",
 };
 
+export interface CompraProduto {
+  data: string;
+  precoUnitario: number;
+  quantidade: number;
+  fornecedor: string | null;
+  numeroNota: string | null;
+}
+
 export interface Insumo {
   id: string;
   nome: string;
   categoria: "DEFENSIVO" | "FERTILIZANTE" | "EMBALAGEM" | "OUTRO";
-  funcao?: FuncaoInsumo | null;
+  /** Um produto pode ser fungicida E acaricida ao mesmo tempo. */
+  funcoes: FuncaoInsumo[];
+  /** Litro ou quilo, nunca embalagem: é o que permite lançar a sobra do galão. */
   unidadeMedida: string;
   estoqueMinimo?: number | null;
+  /** Dose de bula, na unidade do produto: L guarda mL/100L; kg guarda g/100L. */
+  dosePor100L?: number | null;
+  dosePorHectare?: number | null;
+  observacoesDose?: string | null;
+  fabricante?: string | null;
   saldoAtual?: number;
+  /** Média ponderada pela quantidade comprada, não média simples. */
+  precoMedio?: number | null;
+  totalComprado?: number;
+  ultimasCompras?: CompraProduto[];
 }
 
 export type TipoExecutor = "EQUIPE_PROPRIA" | "EMPREITEIRO" | "PRESTADOR_SERVICO";
@@ -448,17 +467,23 @@ export interface NotaResumo {
 
 export interface ItemNotaDetalhe {
   numero: number;
+  /** Código do produto no catálogo do fornecedor — a chave do reconhecimento. */
   codigo: string;
   descricao: string;
   unidade: string;
   quantidade: number;
   valorUnitario: number;
   custoUnitarioReal: number;
-  /** Preenchidos quando este produto ja foi mapeado numa nota anterior. */
+  /** true quando este produto já foi lançado antes, vindo deste fornecedor. */
+  jaConhecido: boolean;
   insumoId: string | null;
   insumoNome: string | null;
   insumoUnidade: string | null;
   fatorConversao: number | null;
+  /** Lido da descrição da nota; o trecho mostra de onde veio, para conferência. */
+  fatorSugerido: number | null;
+  trechoEmbalagem: string | null;
+  nomeSugerido: string;
   quantidadeConvertida: number | null;
   custoConvertido: number | null;
 }

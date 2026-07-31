@@ -39,10 +39,11 @@ export default async function pragasRoutes(fastify: FastifyInstance) {
     const usos = await fastify.prisma.atividadeInsumo.findMany({
       where: {
         atividade: { propriedadeId },
-        insumo: { funcao: { not: null } },
+        // isEmpty: false = o produto tem ao menos uma funcao declarada
+        insumo: { funcoes: { isEmpty: false } },
       },
       include: {
-        insumo: { select: { funcao: true, nome: true } },
+        insumo: { select: { funcoes: true, nome: true } },
         atividade: {
           select: {
             data: true,
@@ -56,13 +57,16 @@ export default async function pragasRoutes(fastify: FastifyInstance) {
     // chave: `${talhaoId}|${funcao}`
     const mapa = new Map<string, { data: Date; produto: string }>();
     for (const uso of usos) {
-      const funcao = uso.insumo.funcao;
-      if (!funcao) continue;
-      for (const t of uso.atividade.talhoes) {
-        const chave = `${t.talhaoId}|${funcao}`;
-        const atual = mapa.get(chave);
-        if (!atual || uso.atividade.data > atual.data) {
-          mapa.set(chave, { data: uso.atividade.data, produto: uso.insumo.nome });
+      // Um produto pode ser fungicida E acaricida. Aplicar uma vez conta para
+      // as duas funcoes - antes, com uma funcao so, o alerta da outra
+      // continuava vencido sem motivo.
+      for (const funcao of uso.insumo.funcoes) {
+        for (const t of uso.atividade.talhoes) {
+          const chave = `${t.talhaoId}|${funcao}`;
+          const atual = mapa.get(chave);
+          if (!atual || uso.atividade.data > atual.data) {
+            mapa.set(chave, { data: uso.atividade.data, produto: uso.insumo.nome });
+          }
         }
       }
     }
