@@ -1,3 +1,5 @@
+import { marcarFalhaDeRede, marcarRedeOk } from "./useOnline";
+
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333/api/v1";
 
 const ACCESS_KEY = "erpsitio_access_token";
@@ -98,7 +100,16 @@ export async function apiFetch<T>(
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...options, headers });
+    marcarRedeOk();
+  } catch (err) {
+    // fetch só rejeita quando a requisição não chegou ao servidor (sem sinal,
+    // DNS, timeout). Erro de aplicação vem como resposta com status.
+    marcarFalhaDeRede();
+    throw new ApiError("Sem conexão com o servidor", 0);
+  }
 
   if (res.status === 401 && _retry && getRefreshToken()) {
     const renovou = await tentarRenovarToken();

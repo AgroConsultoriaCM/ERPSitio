@@ -1,41 +1,51 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { ROTULO_FUNCAO_INSUMO } from "../../lib/types";
 import type {
   AlertaPraga,
   Atividade,
   Colheita,
   Insumo,
+  Propriedade,
   ResumoColheitaTalhao,
+  RespostaClima,
   SituacaoSetor,
   Talhao,
 } from "../../lib/types";
+import GraficoColheita from "../../components/GraficoColheita";
+import PainelClima from "../../components/PainelClima";
+import {
+  Aviso,
+  Cartao,
+  EstadoVazio,
+  Etiqueta,
+  Indicador,
+  Tabela,
+  TituloSecao,
+  moeda,
+  numero,
+} from "../../components/ui";
 
-const moeda = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-
-function Card({
-  titulo,
-  valor,
-  detalhe,
-  link,
-}: {
-  titulo: string;
-  valor: string | number;
-  detalhe?: string;
-  link: string;
-}) {
-  return (
-    <Link to={link} className="rounded-xl bg-white p-5 shadow-sm hover:shadow-md">
-      <p className="text-sm text-gray-500">{titulo}</p>
-      <p className="mt-1 text-3xl font-bold text-green-800">{valor}</p>
-      {detalhe && <p className="mt-1 text-xs text-gray-400">{detalhe}</p>}
-    </Link>
-  );
+function saudacao() {
+  const h = new Date().getHours();
+  if (h < 12) return "Bom dia";
+  if (h < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
 export default function Dashboard() {
-  const { data: talhoes } = useQuery({ queryKey: ["talhoes"], queryFn: () => api.get<Talhao[]>("/talhoes") });
+  const { usuario } = useAuth();
+
+  const { data: propriedade } = useQuery({
+    queryKey: ["propriedade"],
+    queryFn: () => api.get<Propriedade>("/propriedades/me"),
+  });
+  const { data: talhoes } = useQuery({
+    queryKey: ["talhoes"],
+    queryFn: () => api.get<Talhao[]>("/talhoes"),
+  });
   const { data: atividades } = useQuery({
     queryKey: ["atividades-recentes"],
     queryFn: () => api.get<Atividade[]>("/atividades"),
@@ -48,7 +58,10 @@ export default function Dashboard() {
     queryKey: ["colheitas-resumo"],
     queryFn: () => api.get<ResumoColheitaTalhao[]>("/colheitas/resumo"),
   });
-  const { data: insumos } = useQuery({ queryKey: ["insumos"], queryFn: () => api.get<Insumo[]>("/insumos") });
+  const { data: insumos } = useQuery({
+    queryKey: ["insumos"],
+    queryFn: () => api.get<Insumo[]>("/insumos"),
+  });
   const { data: alertas } = useQuery({
     queryKey: ["pragas-alertas"],
     queryFn: () => api.get<AlertaPraga[]>("/pragas/alertas"),
@@ -57,209 +70,295 @@ export default function Dashboard() {
     queryKey: ["irrigacao-situacao"],
     queryFn: () => api.get<SituacaoSetor[]>("/irrigacoes/situacao"),
   });
+  // O clima depende de coordenada cadastrada; falha dele não pode derrubar
+  // o resto do painel, por isso fica isolado num bloco condicional.
+  const clima = useQuery({
+    queryKey: ["clima"],
+    queryFn: () => api.get<RespostaClima>("/clima"),
+    retry: false,
+    staleTime: 30 * 60 * 1000,
+  });
 
-  // setores parados ha mais de 7 dias merecem olhada
   const setoresAtrasados = setores?.filter((s) => (s.diasDesdeUltima ?? 999) > 7) ?? [];
-
-  const insumosBaixos = insumos?.filter(
-    (i) => i.estoqueMinimo != null && (i.saldoAtual ?? 0) < i.estoqueMinimo,
-  );
+  const insumosBaixos =
+    insumos?.filter((i) => i.estoqueMinimo != null && (i.saldoAtual ?? 0) < i.estoqueMinimo) ?? [];
 
   const areaTotal = talhoes?.reduce((s, t) => s + (t.areaHa ?? 0), 0) ?? 0;
   const caixasTotal = resumo?.reduce((s, r) => s + r.caixas, 0) ?? 0;
   const custoColheita = resumo?.reduce((s, r) => s + r.custoColheita, 0) ?? 0;
   const custoOperacoes = atividades?.reduce((s, a) => s + (a.custoMaoDeObra ?? 0), 0) ?? 0;
   const receita = resumo?.reduce((s, r) => s + r.receita, 0) ?? 0;
+  const custoTotal = custoColheita + custoOperacoes;
+  const margem = receita - custoTotal;
 
   const hoje = new Date().toISOString().slice(0, 10);
   const caixasHoje =
-    colheitas
-      ?.filter((c) => c.data.slice(0, 10) === hoje)
-      .reduce((s, c) => s + c.quantidadeCaixas, 0) ?? 0;
+    colheitas?.filter((c) => c.data.slice(0, 10) === hoje).reduce((s, c) => s + c.quantidadeCaixas, 0) ??
+    0;
+
+  const custoPorCaixa = caixasTotal > 0 ? custoTotal / caixasTotal : null;
+  const semLancamento = caixasTotal === 0 && (atividades?.length ?? 0) === 0;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+    <div className="space-y-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-terra-900">
+            {saudacao()}
+            {usuario?.nome ? `, ${usuario.nome.split(" ")[0]}` : ""}
+          </h1>
+          <p className="text-sm text-terra-500">
+            {propriedade?.nome ?? "Propriedade"}
+            {areaTotal > 0 && ` · ${numero(areaTotal, 2)} ha em ${talhoes?.length ?? 0} talhões`}
+            {" · "}
+            {new Date().toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+            })}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            to="/painel/colheitas"
+            className="rounded-lg bg-limao-600 px-3.5 py-2 text-sm font-semibold text-white shadow-cartao transition hover:bg-limao-700"
+          >
+            Lançar colheita
+          </Link>
+          <Link
+            to="/painel/atividades"
+            className="rounded-lg border border-terra-300 bg-white px-3.5 py-2 text-sm font-semibold text-terra-700 transition hover:bg-terra-50"
+          >
+            Lançar operação
+          </Link>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card
+      {semLancamento && (
+        <Aviso tom="mata" titulo="Cadastro pronto, operação ainda não começou">
+          Os {talhoes?.length ?? 0} talhões e {numero(areaTotal, 2)} ha já estão no sistema. Assim que
+          o primeiro repique e as primeiras operações forem lançados, os números e o gráfico abaixo
+          passam a se preencher sozinhos.
+        </Aviso>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Indicador
           titulo="Colhido hoje"
-          valor={`${caixasHoje.toLocaleString("pt-BR")} cx`}
+          valor={numero(caixasHoje, 0)}
+          unidade="cx"
+          tom="limao"
+          detalhe={caixasHoje > 0 ? "repique em andamento" : "nenhum lançamento hoje"}
           link="/painel/colheitas"
         />
-        <Card
+        <Indicador
           titulo="Colheita acumulada"
-          valor={`${caixasTotal.toLocaleString("pt-BR")} cx`}
-          detalhe={areaTotal > 0 ? `${(caixasTotal / areaTotal).toFixed(1)} cx/ha` : undefined}
+          valor={numero(caixasTotal, 0)}
+          unidade="cx"
+          tom="limao"
+          detalhe={areaTotal > 0 ? `${numero(caixasTotal / areaTotal)} cx/ha` : undefined}
           link="/painel/colheitas"
         />
-        <Card
-          titulo="Custo de colheita"
-          valor={moeda(custoColheita)}
-          detalhe={caixasTotal > 0 ? `${moeda(custoColheita / caixasTotal)}/caixa` : undefined}
-          link="/painel/colheitas"
-        />
-        <Card
-          titulo="Custo de operações"
-          valor={moeda(custoOperacoes)}
-          detalhe={`${atividades?.length ?? 0} operações`}
+        <Indicador
+          titulo="Custo por caixa"
+          valor={custoPorCaixa != null ? moeda(custoPorCaixa) : "—"}
+          tom="mata"
+          detalhe={custoPorCaixa != null ? "colheita + operações" : "sem colheita lançada"}
           link="/painel/atividades"
+        />
+        <Indicador
+          titulo="Margem parcial"
+          valor={receita > 0 ? moeda(margem) : "—"}
+          tom={receita > 0 ? (margem >= 0 ? "mata" : "perigo") : "neutro"}
+          detalhe={receita > 0 ? `receita ${moeda(receita)}` : "sem venda lançada"}
+          link="/painel/colheitas"
         />
       </div>
 
-      {receita > 0 && (
-        <div className="rounded-xl bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">Resultado parcial (colheitas com venda lançada)</p>
-          <div className="mt-2 flex flex-wrap gap-8">
-            <div>
-              <p className="text-xs text-gray-400">Receita</p>
-              <p className="text-xl font-bold text-gray-800">{moeda(receita)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Custos lançados</p>
-              <p className="text-xl font-bold text-gray-800">{moeda(custoColheita + custoOperacoes)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Margem</p>
-              <p
-                className={`text-xl font-bold ${
-                  receita - custoColheita - custoOperacoes >= 0 ? "text-green-700" : "text-red-600"
-                }`}
-              >
-                {moeda(receita - custoColheita - custoOperacoes)}
-              </p>
-            </div>
-          </div>
-        </div>
+      {clima.data && <PainelClima clima={clima.data} />}
+      {clima.isError && (
+        <Aviso tom="neutro" titulo="Clima indisponível">
+          Não foi possível consultar a previsão agora. Se isto persistir, confira se a propriedade
+          tem latitude e longitude preenchidas em{" "}
+          <Link to="/painel/cadastros/propriedade" className="underline">
+            Cadastros
+          </Link>
+          .
+        </Aviso>
       )}
 
-      {(!!alertas?.length || !!setoresAtrasados.length) && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Cartao>
+        <TituloSecao
+          descricao="Cada barra é uma semana — o vão entre elas mostra o intervalo entre repiques"
+          acao={
+            <Link to="/painel/colheitas" className="text-sm font-medium text-mata-700 hover:underline">
+              ver colheitas
+            </Link>
+          }
+        >
+          Ritmo de colheita
+        </TituloSecao>
+        <GraficoColheita colheitas={colheitas ?? []} />
+      </Cartao>
+
+      {(alertas?.length || setoresAtrasados.length || insumosBaixos.length) > 0 && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           {!!alertas?.length && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="font-semibold text-red-800">Controle de pragas</p>
-                <Link to="/painel/pragas" className="text-xs text-red-700 underline">
+            <Aviso
+              tom="perigo"
+              titulo="Controle de pragas"
+              acao={
+                <Link to="/painel/pragas" className="text-xs underline">
                   ver todos
                 </Link>
-              </div>
-              <ul className="space-y-1 text-sm text-red-900">
-                {alertas.slice(0, 5).map((a) => (
+              }
+            >
+              <ul className="space-y-1">
+                {alertas.slice(0, 4).map((a) => (
                   <li key={`${a.regraId}-${a.talhaoId}`}>
                     <span className="font-medium">
                       {a.talhaoCodigo ? `${a.talhaoCodigo} · ` : ""}
                       {a.talhaoNome}
                     </span>{" "}
-                    precisa de {ROTULO_FUNCAO_INSUMO[a.funcao]}
-                    {a.nuncaAplicado ? " (nunca aplicado)" : ` (há ${a.diasDesdeUltima} dias)`}
+                    — {ROTULO_FUNCAO_INSUMO[a.funcao]}
+                    {a.nuncaAplicado ? " (nunca aplicado)" : ` há ${a.diasDesdeUltima} dias`}
                   </li>
                 ))}
               </ul>
-              {alertas.length > 5 && (
-                <p className="mt-2 text-xs text-red-700">e mais {alertas.length - 5}...</p>
+              {alertas.length > 4 && (
+                <p className="mt-1.5 text-xs opacity-80">e mais {alertas.length - 4}…</p>
               )}
-            </div>
+            </Aviso>
           )}
 
           {!!setoresAtrasados.length && (
-            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="font-semibold text-sky-800">Irrigação</p>
-                <Link to="/painel/irrigacao" className="text-xs text-sky-700 underline">
-                  ver manejo hídrico
+            <Aviso
+              tom="agua"
+              titulo="Irrigação atrasada"
+              acao={
+                <Link to="/painel/irrigacao" className="text-xs underline">
+                  manejo hídrico
                 </Link>
-              </div>
-              <ul className="space-y-1 text-sm text-sky-900">
-                {setoresAtrasados.slice(0, 5).map((s) => (
+              }
+            >
+              <ul className="space-y-1">
+                {setoresAtrasados.slice(0, 4).map((s) => (
                   <li key={s.setorId}>
                     <span className="font-medium">
                       {s.codigo ? `${s.codigo} · ` : ""}
                       {s.nome}
                     </span>
-                    {s.diasDesdeUltima != null
-                      ? ` — última irrigação há ${s.diasDesdeUltima} dias`
-                      : " — nunca irrigado"}
+                    {s.diasDesdeUltima != null ? ` — há ${s.diasDesdeUltima} dias` : " — nunca irrigado"}
                   </li>
                 ))}
               </ul>
-            </div>
+            </Aviso>
           )}
-        </div>
-      )}
 
-      {!!insumosBaixos?.length && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
-          <p className="mb-2 font-semibold text-amber-800">Atenção: estoque abaixo do mínimo</p>
-          <ul className="list-inside list-disc text-sm text-amber-800">
-            {insumosBaixos.map((i) => (
-              <li key={i.id}>
-                {i.nome}: {i.saldoAtual} {i.unidadeMedida} (mínimo {i.estoqueMinimo})
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {!!resumo?.length && (
-        <div>
-          <h2 className="mb-2 text-lg font-semibold text-gray-700">Produtividade por talhão</h2>
-          <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-100 text-gray-500">
-                <tr>
-                  <th className="px-4 py-2">Talhão</th>
-                  <th className="px-4 py-2">Caixas</th>
-                  <th className="px-4 py-2">Cx/ha</th>
-                  <th className="px-4 py-2">Custo colheita</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumo.map((r) => (
-                  <tr key={r.talhaoId} className="border-t">
-                    <td className="px-4 py-2">
-                      {r.codigo ? `${r.codigo} · ` : ""}
-                      {r.nome}
-                    </td>
-                    <td className="px-4 py-2">{r.caixas.toLocaleString("pt-BR")}</td>
-                    <td className="px-4 py-2">{r.caixasPorHectare ?? "-"}</td>
-                    <td className="px-4 py-2">{moeda(r.custoColheita)}</td>
-                  </tr>
+          {!!insumosBaixos.length && (
+            <Aviso
+              tom="alerta"
+              titulo="Estoque abaixo do mínimo"
+              acao={
+                <Link to="/painel/estoque" className="text-xs underline">
+                  estoque
+                </Link>
+              }
+            >
+              <ul className="space-y-1">
+                {insumosBaixos.slice(0, 4).map((i) => (
+                  <li key={i.id}>
+                    <span className="font-medium">{i.nome}</span> — {numero(i.saldoAtual)}{" "}
+                    {i.unidadeMedida} (mínimo {numero(i.estoqueMinimo)})
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </ul>
+            </Aviso>
+          )}
         </div>
       )}
 
       <div>
-        <h2 className="mb-2 text-lg font-semibold text-gray-700">Últimas operações</h2>
-        <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-100 text-gray-500">
-              <tr>
-                <th className="px-4 py-2">Data</th>
-                <th className="px-4 py-2">Operação</th>
-                <th className="px-4 py-2">Talhões</th>
-                <th className="px-4 py-2">Quem fez</th>
+        <TituloSecao descricao="Produtividade e custo por talhão, do que já foi lançado">
+          Desempenho por talhão
+        </TituloSecao>
+        <Tabela
+          cabecalho={["Talhão", "Caixas", "Cx/ha", "Custo colheita", "R$/cx", "Margem"]}
+          vazio={
+            !resumo?.length ? (
+              <EstadoVazio
+                icone="▦"
+                titulo="Nenhum talhão com colheita ainda"
+                descricao="A comparação entre talhões aparece assim que houver caixas lançadas em pelo menos um deles."
+              />
+            ) : undefined
+          }
+        >
+          {resumo?.map((r) => {
+            const custoCaixa = r.caixas > 0 ? r.custoColheita / r.caixas : null;
+            return (
+              <tr key={r.talhaoId} className="transition hover:bg-terra-50">
+                <td className="whitespace-nowrap px-4 py-2.5 font-medium text-terra-800">
+                  {r.codigo ? `${r.codigo} · ` : ""}
+                  {r.nome}
+                </td>
+                <td className="numero px-4 py-2.5">{numero(r.caixas, 0)}</td>
+                <td className="numero px-4 py-2.5">{numero(r.caixasPorHectare)}</td>
+                <td className="numero px-4 py-2.5">{moeda(r.custoColheita)}</td>
+                <td className="numero px-4 py-2.5">{custoCaixa != null ? moeda(custoCaixa) : "—"}</td>
+                <td className="numero px-4 py-2.5">
+                  {r.receita > 0 ? (
+                    <Etiqueta tom={r.margem >= 0 ? "mata" : "perigo"}>{moeda(r.margem)}</Etiqueta>
+                  ) : (
+                    <span className="text-terra-400">—</span>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {atividades?.slice(0, 8).map((a) => (
-                <tr key={a.id} className="border-t">
-                  <td className="px-4 py-2">{new Date(a.data).toLocaleDateString("pt-BR")}</td>
-                  <td className="px-4 py-2">{a.tipoAtividade?.nome}</td>
-                  <td className="px-4 py-2 text-gray-600">
-                    {a.talhoes?.map((t) => t.talhao.nome).join(", ")}
-                  </td>
-                  <td className="px-4 py-2">{a.executor?.nome ?? a.responsavel?.nome}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {atividades?.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma operação lançada ainda.</p>
-          )}
-        </div>
+            );
+          })}
+        </Tabela>
+      </div>
+
+      <div>
+        <TituloSecao
+          acao={
+            <Link to="/painel/atividades" className="text-sm font-medium text-mata-700 hover:underline">
+              ver todas
+            </Link>
+          }
+        >
+          Últimas operações
+        </TituloSecao>
+        <Tabela
+          cabecalho={["Data", "Operação", "Talhões", "Quem fez", "Custo"]}
+          vazio={
+            !atividades?.length ? (
+              <EstadoVazio
+                icone="✓"
+                titulo="Nenhuma operação lançada"
+                descricao="Pulverizações, adubações e tratos culturais lançados pelo celular aparecem aqui."
+              />
+            ) : undefined
+          }
+        >
+          {atividades?.slice(0, 8).map((a) => (
+            <tr key={a.id} className="transition hover:bg-terra-50">
+              <td className="numero whitespace-nowrap px-4 py-2.5 text-terra-600">
+                {new Date(a.data).toLocaleDateString("pt-BR")}
+              </td>
+              <td className="px-4 py-2.5 font-medium text-terra-800">{a.tipoAtividade?.nome}</td>
+              <td className="px-4 py-2.5 text-terra-600">
+                {a.talhoes?.map((t) => t.talhao.nome).join(", ")}
+              </td>
+              <td className="px-4 py-2.5 text-terra-600">
+                {a.executor?.nome ?? a.responsavel?.nome ?? "—"}
+              </td>
+              <td className="numero px-4 py-2.5">
+                {a.custoMaoDeObra != null ? moeda(a.custoMaoDeObra) : "—"}
+              </td>
+            </tr>
+          ))}
+        </Tabela>
       </div>
     </div>
   );
