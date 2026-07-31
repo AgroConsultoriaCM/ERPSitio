@@ -62,7 +62,10 @@ CREATE TABLE "MapeamentoProdutoNota" (
     CONSTRAINT "MapeamentoProdutoNota_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "MapeamentoProdutoNota_propriedadeId_cnpjEmitente_codigoProduto_key"
+-- Nome encurtado de proposito: o Postgres corta identificador em 63
+-- caracteres, e o nome "obvio" truncado nao bate com o que o Prisma espera -
+-- o que faz o banco divergir do schema logo na primeira migration.
+CREATE UNIQUE INDEX "MapeamentoProdutoNota_propriedadeId_cnpjEmitente_codigoProd_key"
     ON "MapeamentoProdutoNota"("propriedadeId", "cnpjEmitente", "codigoProduto");
 CREATE INDEX "MapeamentoProdutoNota_insumoId_idx" ON "MapeamentoProdutoNota"("insumoId");
 

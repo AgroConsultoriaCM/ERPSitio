@@ -435,6 +435,7 @@ model LoteInsumo {
   @@index([propriedadeId])
   @@index([insumoId])
   @@index([data])
+  @@index([notaFiscalId])
 }
 
 enum TipoMovimentacaoEstoque {
