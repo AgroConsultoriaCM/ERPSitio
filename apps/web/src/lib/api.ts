@@ -95,9 +95,14 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const accessToken = getAccessToken();
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
+  // Só declara JSON quando há corpo. Anunciar "application/json" e mandar
+  // nada faz o servidor recusar com "Body cannot be empty" - o que acontecia
+  // em toda ação sem corpo, como ignorar uma nota.
+  if (options.body !== undefined && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   let res: Response;
