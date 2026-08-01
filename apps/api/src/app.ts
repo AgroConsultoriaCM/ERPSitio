@@ -31,6 +31,7 @@ import permissoesRoutes from "./routes/permissoes.routes.js";
 import pragasRoutes from "./routes/pragas.routes.js";
 import irrigacaoRoutes from "./routes/irrigacao.routes.js";
 import notasRoutes from "./routes/notas.routes.js";
+import agrofitRoutes from "./routes/agrofit.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -86,6 +87,7 @@ export async function buildApp() {
       await api.register(pragasRoutes);
       await api.register(irrigacaoRoutes);
       await api.register(notasRoutes);
+      await api.register(agrofitRoutes);
     },
     { prefix: "/api/v1" },
   );

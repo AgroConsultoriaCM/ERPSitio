@@ -57,6 +57,10 @@ services:
       # Agora site e API vivem em origens diferentes: só quem estiver nesta
       # lista consegue falar com a API pelo navegador.
       CORS_ORIGIN: ${CORS_ORIGIN}
+      # Credenciais da API Agrofit (Embrapa). Vazias por padrão: sem elas a
+      # consulta ao cadastro do MAPA fica indisponível, e o resto roda igual.
+      AGROFIT_CONSUMER_KEY: ${AGROFIT_CONSUMER_KEY:-}
+      AGROFIT_CONSUMER_SECRET: ${AGROFIT_CONSUMER_SECRET:-}
       # Teto de heap abaixo do mem_limit: o Node precisa saber que tem pouco,
       # ou só descobre quando o container já morreu.
       NODE_OPTIONS: --max-old-space-size=256
