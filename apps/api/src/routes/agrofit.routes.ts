@@ -2,9 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   agrofitConfigurado,
-  buscarProdutosFormulados,
   listarCulturas,
+  listarIngredientesAtivos,
   listarPragas,
+  paginaDeProdutosFormulados,
   testarConexao,
 } from "../services/agrofit.js";
 
@@ -17,13 +18,11 @@ import {
  * cachear e nao estourar.
  */
 
-const filtrosSchema = z.object({
-  cultura: z.string().optional(),
-  praga: z.string().optional(),
-  ingredienteAtivo: z.string().optional(),
-  marcaComercial: z.string().optional(),
-  pagina: z.coerce.number().int().positive().optional(),
-  tamanho: z.coerce.number().int().positive().max(100).optional(),
+// A API da Embrapa so aceita `page` — nenhum filtro funciona (ver o comentario
+// em services/agrofit.ts). Por isso aqui nao ha parametro de busca: seria
+// prometer ao frontend algo que a fonte nao entrega.
+const paginaSchema = z.object({
+  pagina: z.coerce.number().int().positive().max(200).optional(),
 });
 
 export default async function agrofitRoutes(fastify: FastifyInstance) {
@@ -53,16 +52,16 @@ export default async function agrofitRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get("/agrofit/produtos", async (request) => {
-    const filtros = filtrosSchema.parse(request.query);
-    return buscarProdutosFormulados(filtros);
+    const { pagina } = paginaSchema.parse(request.query);
+    return paginaDeProdutosFormulados(pagina ?? 1);
   });
 
   fastify.get("/agrofit/culturas", async () => listarCulturas());
 
+  fastify.get("/agrofit/ingredientes-ativos", async () => listarIngredientesAtivos());
+
   fastify.get("/agrofit/pragas", async (request) => {
-    const { nome, pagina } = z
-      .object({ nome: z.string().optional(), pagina: z.coerce.number().int().positive().optional() })
-      .parse(request.query);
-    return listarPragas({ nome, pagina });
+    const { pagina } = paginaSchema.parse(request.query);
+    return listarPragas(pagina ?? 1);
   });
 }

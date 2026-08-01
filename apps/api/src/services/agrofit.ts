@@ -102,35 +102,69 @@ async function buscar<T>(caminho: string, parametros: Record<string, string | nu
 }
 
 /**
- * Produtos formulados registrados, com filtro.
+ * O QUE ESTA API ACEITA DE VERDADE — medido em 01/08/2026.
  *
- * Os nomes dos parametros seguem a documentacao da AgroAPI; o que o Agrofit
- * nao reconhecer, ele ignora — por isso mandamos apenas o que foi informado.
+ * Ela **nao filtra**. Testei 14 nomes de parametro (cultura, praga,
+ * marca_comercial, ingrediente_ativo, nome_comum, search, q...) e todos foram
+ * ignorados: a resposta vinha identica. As rotas /busca, /search e /filtro
+ * existem mas devolvem sempre lista vazia — sao tratadas como identificador,
+ * nao como pesquisa.
+ *
+ * O unico parametro que funciona e `page`, com 100 itens por pagina.
+ *
+ * Isso parece limitacao, mas nao e: o cadastro inteiro tem **43 paginas**
+ * (~4.252 produtos formulados). Espelhar tudo custa 43 requisicoes de um teto
+ * de 100 mil por mes. Ou seja, sai mais barato baixar o cadastro completo e
+ * pesquisar aqui dentro do que tentar consultar produto a produto.
+ *
+ * Vantagem sobre o CSV de dados abertos do MAPA (mesma informacao): la sao
+ * 372 MB e 279 mil linhas desnormalizadas, com aspas e `;` dentro dos campos
+ * que quebram leitor ingenuo. Aqui vem JSON estruturado, com as culturas e
+ * pragas ja em lista dentro de cada produto.
  */
-export async function buscarProdutosFormulados(filtros: {
-  cultura?: string;
-  praga?: string;
-  ingredienteAtivo?: string;
-  marcaComercial?: string;
-  pagina?: number;
-  tamanho?: number;
-}) {
-  return buscar<unknown>("/produtos-formulados", {
-    cultura: filtros.cultura,
-    praga: filtros.praga,
-    ingredienteAtivo: filtros.ingredienteAtivo,
-    marcaComercial: filtros.marcaComercial,
-    page: filtros.pagina ?? 1,
-    size: filtros.tamanho ?? 20,
-  });
+
+const ITENS_POR_PAGINA = 100;
+
+export async function paginaDeProdutosFormulados(pagina = 1) {
+  return buscar<ProdutoAgrofit[]>("/produtos-formulados", { page: pagina });
+}
+
+export async function paginaDeProdutosTecnicos(pagina = 1) {
+  return buscar<ProdutoAgrofit[]>("/produtos-tecnicos", { page: pagina });
+}
+
+/**
+ * Baixa o cadastro inteiro, pagina a pagina, ate vir uma vazia.
+ *
+ * `limitePaginas` existe como freio: se a API mudar e passar a devolver
+ * sempre a mesma pagina, o laco nao roda para sempre queimando a cota.
+ */
+export async function espelharProdutosFormulados(limitePaginas = 200) {
+  const todos: ProdutoAgrofit[] = [];
+  for (let pagina = 1; pagina <= limitePaginas; pagina++) {
+    const lote = await paginaDeProdutosFormulados(pagina);
+    if (!Array.isArray(lote) || lote.length === 0) break;
+    todos.push(...lote);
+    if (lote.length < ITENS_POR_PAGINA) break; // pagina incompleta = ultima
+  }
+  return todos;
 }
 
 export async function listarCulturas() {
-  return buscar<unknown>("/culturas", {});
+  return buscar<{ nome: string }[]>("/culturas", {});
 }
 
-export async function listarPragas(filtros: { nome?: string; pagina?: number } = {}) {
-  return buscar<unknown>("/pragas", { nome: filtros.nome, page: filtros.pagina ?? 1 });
+export async function listarPragas(pagina = 1) {
+  return buscar<
+    { classificacao: string; nome_cientifico: string; nome_comum: string[]; cultura: string[] }[]
+  >("/pragas", { page: pagina });
+}
+
+export async function listarIngredientesAtivos() {
+  return buscar<{ nome_comum: string; grupo_quimico: string; classe: string }[]>(
+    "/ingredientes-ativos",
+    {},
+  );
 }
 
 /** Chamada mínima só para provar que a credencial funciona. */
