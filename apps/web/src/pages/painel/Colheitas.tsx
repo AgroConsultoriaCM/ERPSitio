@@ -8,6 +8,17 @@ const moeda = (v: number | null | undefined) =>
 const num = (v: number | null | undefined, casas = 2) =>
   v == null ? "-" : v.toLocaleString("pt-BR", { maximumFractionDigits: casas });
 
+/**
+ * Preço do quilo com as 6 casas da packing house.
+ *
+ * Formatar como moeda comum mostraria R$ 3,68 e esconderia justamente o número
+ * que se quer conferir contra o romaneio deles.
+ */
+const precoKg = (v: number | null | undefined) =>
+  v == null
+    ? "-"
+    : `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 6, maximumFractionDigits: 6 })}`;
+
 export default function Colheitas() {
   const qc = useQueryClient();
   const [somentePendentes, setSomentePendentes] = useState(false);
@@ -110,14 +121,14 @@ export default function Colheitas() {
   const memoriaCalculo = (
     c: Colheita,
     preco: number | null | undefined,
-    precoKg: number | null | undefined,
+    precoKgUnitario: number | null | undefined,
     kg: number | null | undefined,
   ) => {
     if (preco == null) return null;
     const kgTexto = `${num(kg)} kg`;
     if (c.pesoCaixaKg == null) return `${moeda(preco)}/kg × ${kgTexto}`;
-    return `${moeda(preco)}/cx ÷ ${c.pesoCaixaKg.toLocaleString("pt-BR")} = ${moeda(
-      precoKg ?? 0,
+    return `${moeda(preco)}/cx ÷ ${c.pesoCaixaKg.toLocaleString("pt-BR")} = ${precoKg(
+      precoKgUnitario,
     )}/kg × ${kgTexto}`;
   };
 

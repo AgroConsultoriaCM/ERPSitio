@@ -111,8 +111,13 @@ export function comDerivados<T extends ColheitaComRelacoes>(c: T) {
   // zerado seria erro de cadastro, e tratamos como "por quilo".
   const divisor = pesoCaixaKg != null && pesoCaixaKg > 0 ? pesoCaixaKg : 1;
 
-  const precoKgBom = c.precoCaixaBom != null ? c.precoCaixaBom / divisor : null;
-  const precoKgRefugo = c.precoCaixaRefugo != null ? c.precoCaixaRefugo / divisor : null;
+  // Seis casas no preco do quilo: e a precisao com que a packing house
+  // trabalha, e o sistema precisa fechar com o papel dela. Usar a divisao
+  // inteira daria um numero mais "exato" que nao bate com a conferencia deles,
+  // e discussao de centavo com quem compra a fruta nao vale a precisao extra.
+  const precoKgBom = c.precoCaixaBom != null ? arredondar(c.precoCaixaBom / divisor, 6) : null;
+  const precoKgRefugo =
+    c.precoCaixaRefugo != null ? arredondar(c.precoCaixaRefugo / divisor, 6) : null;
 
   const valorVendaBom =
     precoKgBom != null && pesoLiquidoKg != null
@@ -144,8 +149,10 @@ export function comDerivados<T extends ColheitaComRelacoes>(c: T) {
     kgPorCaixa,
     pesoLiquidoKg,
     percentualRefugo,
-    precoKgBom: precoKgBom != null ? arredondar(precoKgBom, 4) : null,
-    precoKgRefugo: precoKgRefugo != null ? arredondar(precoKgRefugo, 4) : null,
+    // Ja vem com as 6 casas da packing house; arredondar de novo aqui
+    // esconderia justamente a precisao que o usuario quer conferir.
+    precoKgBom,
+    precoKgRefugo,
     valorVendaBom,
     valorVendaRefugo,
     valorVendaTotal,

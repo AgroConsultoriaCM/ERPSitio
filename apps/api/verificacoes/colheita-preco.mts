@@ -169,5 +169,42 @@ console.log("\n== preco zero e diferente de preco ausente ==");
   conferir("total reconhece o zero como venda lancada", r.valorVendaTotal, 0);
 }
 
+console.log("\n== PRECO DO QUILO COM 6 CASAS (padrao da packing house) ==");
+{
+  // 100 / 27,2 = 3,676470588...  ->  arredondado em 6 casas = 3,676471
+  const r = calcular({
+    talhao: { areaHa: null, cultura: porCaixa(27.2) },
+    quantidadeCaixas: 250,
+    pesoTotalKg: 5995,
+    pesoRefugoKg: 720,
+    precoCaixaBom: 100,
+    precoCaixaRefugo: 40,
+  });
+  conferir("preco do quilo do bom, 6 casas", r.precoKgBom, 3.676471);
+  // 40 / 27,2 = 1,470588235...  ->  1,470588
+  conferir("preco do quilo do refugo, 6 casas", r.precoKgRefugo, 1.470588);
+  // 3,676471 x 5275 = 19393,384525  ->  19393,38
+  conferir("receita do bom arredonda so no fim", r.valorVendaBom, 19393.38);
+  // 1,470588 x 720 = 1058,82336  ->  1058,82
+  conferir("receita do refugo arredonda so no fim", r.valorVendaRefugo, 1058.82);
+  conferir("total", r.valorVendaTotal, 20452.2);
+}
+
+console.log("\n== o arredondamento em 6 casas nao pode se propagar ==");
+{
+  // 1 / 3 = 0,333333...  ->  0,333333 em 6 casas
+  const r = calcular({
+    talhao: { areaHa: null, cultura: porCaixa(3) },
+    quantidadeCaixas: 1,
+    pesoTotalKg: 1000,
+    pesoRefugoKg: 0,
+    precoCaixaBom: 1,
+  });
+  conferir("preco do quilo", r.precoKgBom, 0.333333);
+  // 0,333333 x 1000 = 333,333  ->  333,33  (e nao 333,33 vindo de 1/3 exato)
+  conferir("receita usa o preco de 6 casas", r.valorVendaBom, 333.33);
+}
+
+
 console.log(falhas === 0 ? "\nTUDO OK\n" : `\n${falhas} FALHA(S)\n`);
 process.exit(falhas === 0 ? 0 : 1);
