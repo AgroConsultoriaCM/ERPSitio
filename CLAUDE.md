@@ -797,11 +797,22 @@ Nada disso está no Git. Roteiro para montar outra máquina:
    Só um processo do `tentar-instancia.ps1` por vez: dois disputam o mesmo
    stack e metade das tentativas vira "não consegui disparar o job".
 
-   Em 01/08/2026 a conta foi migrada para **Pay As You Go**, na expectativa de
-   prioridade na fila de capacidade — comportamento relatado, não prometido
-   pela Oracle. Os recursos Always Free seguem gratuitos; o risco é passar dos
-   limites sem perceber. **Confira se existe alerta de orçamento** em
-   Billing → Budgets antes de criar qualquer coisa.
+   Em 01/08/2026 o upgrade para **Pay As You Go** foi solicitado, mas em
+   01/08 12:30 UTC o console ainda mostrava a faixa "Você está em uma Avaliação
+   Grátis... Faça upgrade". **Confira o estado da conta antes de concluir
+   qualquer coisa a partir disso** — as 213 tentativas falhadas até aqui são
+   todas de conta gratuita, então a hipótese de que conta paga destrava
+   capacidade continua sem teste.
+
+   Se um dia concluir: os recursos Always Free seguem gratuitos, mas passar dos
+   limites vira cobrança de verdade. **Crie o alerta de orçamento** em
+   Billing → Budgets antes de criar qualquer instância.
+
+   **O `tentar-instancia.ps1` já morreu sozinho pelo menos uma vez**, ficando
+   72 minutos parado sem ninguém perceber. Para saber se está trabalhando, não
+   basta ver o processo vivo: confira se novos jobs aparecem no stack.
+   `oci resource-manager job list --stack-id <id> --all` e olhe o horário do
+   mais recente — o ciclo é de ~15 minutos.
 
 **Produto — precisam de decisão do Igor, mexem em estrutura**
 
