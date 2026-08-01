@@ -115,8 +115,8 @@ Painel: https://cloud.oracle.com — região **sa-saopaulo-1 (Brazil East)**
 | IP privado | `10.0.0.205` |
 | Usuário | `ubuntu` |
 
-> Escolhemos a Micro porque a ARM (`VM.Standard.A1.Flex`, 4 vCPU / 24 GB) vive
-> com "Out of capacity" em São Paulo. A Micro atende folgada: ~300 MB de uso
+> Escolhemos a Micro porque a ARM (`VM.Standard.A1.Flex`) vive com "Out of
+> capacity" em São Paulo. A Micro atende folgada: ~300 MB de uso
 > num total de 956 MB.
 
 ### Rede
@@ -458,7 +458,7 @@ Monorepo npm workspaces:
 | --- | --- |
 | `apps/api` | Fastify + TypeScript + Zod. Toda regra de negócio mora aqui. |
 | `apps/web` | React + Vite + Tailwind, PWA com service worker e fila offline (Dexie/IndexedDB) |
-| `packages/db` | Prisma + PostgreSQL, 25 tabelas, migrations escritas à mão |
+| `packages/db` | Prisma + PostgreSQL, 26 tabelas, 11 migrations escritas à mão |
 
 **Por que a regra de negócio fica no servidor:** o sistema calcula rateio de
 custo por área, consumo de estoque por lote (FIFO) com custo real e margem de
@@ -469,7 +469,104 @@ cada chamada, o que briga com pool de conexões do Prisma, cache em memória e
 transação de banco.
 
 Serviços centrais em `apps/api/src/services/`: `rateio.ts`, `estoque.ts`,
-`geoAreas.ts`, `permissoes.ts`, `clima.ts`.
+`geoAreas.ts`, `permissoes.ts`, `clima.ts`, `nfe.ts`, `embalagem.ts`.
+
+## Verificações: prova sem subir servidor nem banco
+
+`apps/api/verificacoes/*.mts` são scripts que exercitam a lógica de dinheiro
+direto, com `npx tsx`. Não há framework de teste no projeto — estes scripts
+existem porque **conta que mexe com dinheiro do usuário precisa de prova**, e
+foram eles que pegaram os erros mais caros até hoje.
+
+| Script | O que prova |
+| --- | --- |
+| `colheita-preco.mts` | receita por qualidade, unidade por cultura, 6 casas no preço do quilo |
+| `nfe.mts` | leitura do XML da NF-e, 22 casos |
+| `embalagem.mts` | quanto vem na embalagem, lido da descrição da nota |
+| `nfe-real.mts` | leitura de um XML de verdade (recebe o caminho como argumento) |
+| `caixa-notas.mts` | a caixa de e-mail das notas está acessível por IMAP |
+| `ler-notas-da-caixa.mts` | busca os XML da caixa e passa pelo leitor |
+| `enviar-caixa-para-api.mts` | leva os XML da caixa para a API |
+
+Rodar: `cd apps/api && npx tsx verificacoes/<arquivo>.mts`
+
+**Ao acrescentar casos, ponha-os ANTES do `process.exit` do arquivo.** Já
+aconteceu de um bloco novo ficar depois e nunca rodar — e o "TUDO OK" seguia
+verde, se referindo só aos casos antigos.
+
+## Colheita: como a receita é calculada
+
+A receita **não é digitada** — sai do preço por qualidade multiplicado pelos
+quilos de cada uma. O lote nunca é homogêneo: parte é fruta boa, parte é
+refugo, cada uma com seu preço.
+
+**A unidade do preço vem da cultura**, não de constante no código:
+
+| `Cultura.pesoCaixaKg` | Significado | Exemplo |
+| --- | --- | --- |
+| preenchido (27,2) | o preço lançado é **por caixa**, e vira preço do quilo dividindo | limão taiti |
+| vazio | o preço lançado **já é por quilo** | abacate |
+
+Talhão sem cultura cadastrada cai em `PESO_CAIXA_PADRAO_KG` (27,2), que é o
+comportamento anterior — assim nenhum lançamento antigo muda de valor.
+
+**O preço do quilo é arredondado em 6 casas decimais**, e só então multiplicado
+pelo peso; o resultado final vai para 2 casas. É a precisão com que a packing
+house trabalha, e o sistema precisa fechar com o romaneio dela. A divisão
+inteira daria um número mais exato que não bate com a conferência deles.
+
+A tela mostra a memória de cálculo com as 6 casas. Formatar como moeda comum
+esconderia justamente o número que se quer conferir.
+
+Cuidados que a verificação cobre: **preço zero é diferente de preço ausente**
+(refugo doado registra receita zero, não nula), e lançamento antigo com valor
+fechado preserva a receita em vez de zerar.
+
+## Notas fiscais de entrada e produtos
+
+Fluxo em dois tempos, de propósito: a nota **chega e fica pendurada**; só vira
+estoque quando o gestor confere e confirma. A mesma caixa de e-mail recebe
+notas de mais de uma pessoa jurídica da família, notas canceladas e compras que
+não viram insumo — entrada automática seria estoque errado que ninguém percebe.
+
+- **Só leitura do XML.** Nada é emitido, transmitido ou escriturado; a nota
+  segue o fluxo normal dela com o contador. O custo calculado é **gerencial**
+  (inclui frete e desconto), e pode divergir do fiscal se houver crédito de
+  imposto — são perguntas diferentes.
+- **Verde/amarelo/cinza** na primeira coluna: compara o documento do
+  destinatário da nota com o `documento` da propriedade. Cinza quando não há com
+  o que comparar — inventar cor seria pior que admitir dúvida.
+- **O produto nasce da nota.** Na primeira vez, o sistema cria com nome, unidade
+  e funções; da segunda nota do mesmo fornecedor em diante reconhece sozinho,
+  pela chave `(CNPJ do emitente, código do produto)`.
+- **Fator de embalagem lido da descrição** (`embalagem.ts`): `( BD 20 LT )`,
+  `1X20L`, `(250 GR)`. Ignora número seguido de código de formulação — em
+  `ZAPP QI 620` o 620 é concentração, e lê-lo daria fator 620 em vez de 20,
+  errando o custo por litro em 30 vezes. **Quando não dá para afirmar, devolve
+  nada em vez de chutar.**
+- **Estoque sempre em litro ou quilo, nunca em embalagem.** É o que permite
+  devolver a sobra do galão depois da pulverização.
+- Módulo de permissão `notas`, negado ao ENCARREGADO por padrão.
+
+Onde ficam as telas: **Notas fiscais** no menu lateral (Dia a dia) e
+**Cadastros → Produtos**. A antiga aba "Insumos" virou "Produtos", com saldo,
+preço médio, últimas cinco compras, dose e funções — e cadastro manual, para
+produto que não veio de nota.
+
+As notas chegam de duas formas: anexando o XML na tela, ou pelo e-mail. Os
+fornecedores mandam para uma caixa que encaminha (filtro do Gmail, anexo
+`.xml`) para `sitiocostamello@gmail.com`, lida por IMAP com senha de app
+(`EMAIL_NOTAS_USUARIO` e `EMAIL_NOTAS_SENHA`). A leitura automática ainda é
+manual, pelo script `enviar-caixa-para-api.mts` — virar rotina no servidor é
+trabalho pendente.
+
+Produto (`Insumo`) tem **lista** de funções: um defensivo é fungicida *e*
+acaricida, e a aplicação conta para as duas no controle de pragas. A dose de
+bula não tem campo de unidade — ela acompanha a do produto: litros guardam
+mL/100 L e L/ha; quilos guardam g/100 L e kg/ha.
+
+Preço médio é **ponderado pela quantidade** comprada: 60 L a R$ 28 e 2 L a
+R$ 50 dão R$ 28,71, não R$ 39.
 
 Serviços externos gratuitos: **Esri World Imagery** (satélite nos mapas,
 escolhido no lugar do Google Maps para não gerar mensalidade) e **Open-Meteo**
@@ -634,10 +731,41 @@ Nada disso está no Git. Roteiro para montar outra máquina:
 - **`CORS_ORIGIN`** precisa bater exatamente com o endereço do site, com
   `https://` e sem barra no fim.
 - **`VITE_API_URL` é lido na compilação.** Mudou, precisa de novo deploy.
+- **Espalhar variável com `...dados` desliga a checagem de campo extra do
+  TypeScript.** Ao renomear uma coluna, a rota que fazia `data: { ...dados }`
+  continuou mandando o campo antigo: compilava e quebrava só ao salvar. Rode a
+  rota, não confie na compilação.
+- **Faltar `fastify.authenticate` no `preHandler`** faz toda requisição
+  responder 401 sem explicação: `request.user` nunca é preenchido e a checagem
+  de permissão rejeita antes de chegar na rota. Compila perfeitamente.
+- **Para saber se a Vercel publicou, compare o nome do arquivo** do build local
+  com o servido, não procure texto no pacote principal. As telas são carregadas
+  sob demanda, então o texto delas está noutro arquivo — procurar no principal
+  dá falso negativo. `curl -s SITE | grep -oE 'index-[^"]+\.js'`.
+- **`prisma generate` falha com EPERM** se um `tsx` de teste ainda estiver
+  rodando: ele escreve os tipos mas não troca o motor. Compila e pode falhar em
+  execução. Encerre os processos antes.
+- **Arredondar valor intermediário espalha erro pelo total.** Em conta de
+  dinheiro, arredonde só no fim — exceto quando a precisão intermediária é
+  requisito, como as 6 casas do preço do quilo (ver seção da colheita).
 
 ---
 
 # 8. Pendências conhecidas (31/07/2026)
+
+**Trabalho começado e parado**
+
+0. **Branch `avisos-push`** — avisos no celular por Web Push. Só a modelagem
+   está feita (3 tabelas, migration testada): inscrição por aparelho,
+   preferências por usuário e memória do que já foi avisado. Falta o serviço de
+   envio, as regras (praga vencida, chuva prevista, irrigação atrasada), o
+   agendador e a tela.
+
+   Ficou em branch de propósito: no `main`, a migration aplicaria no servidor
+   criando tabelas que nada usa.
+
+   O usuário escolheu esses três avisos e descartou "resumo do dia". O celular
+   do encarregado é **Android**, então Web Push resolve — não precisa de APK.
 
 **Infraestrutura**
 
@@ -648,8 +776,32 @@ Nada disso está no Git. Roteiro para montar outra máquina:
 2. **Repositório público.** Não há segredo commitado, mas com o sistema em
    operação real vale torná-lo privado. Se fizer, o servidor precisará de
    `docker login ghcr.io` — passo em `infra/oracle/README-micro.md`.
-3. **Instância ARM.** `infra/oracle/tentar-instancia.ps1` tenta obter a máquina
-   maior sozinho. Migrar seria o mesmo compose mais restaurar um backup.
+3. **Instância ARM.** `infra/oracle/tentar-instancia.ps1` insiste;
+   `infra/oracle/vigiar-instancia.ps1` avisa quando aparecer. Migrar seria o
+   mesmo compose mais restaurar um backup.
+
+   Números conferidos na documentação em 01/08/2026, porque os antigos já
+   estavam errados aqui:
+
+   | Fato | Valor |
+   | --- | --- |
+   | Cota ARM Always Free | **2 OCPU e 12 GB** (1.500 OCPU-h e 9.000 GB-h por mês) |
+   | Domínios de disponibilidade em `sa-saopaulo-1` | **1 só** (`BpqJ:SA-SAOPAULO-1-AD-1`) |
+   | Disco Always Free | 200 GB somando tudo; a Micro já usa 50 |
+   | Boot volume mínimo | 50 GB por instância |
+
+   Consequências: o stack já pede o **teto** da cota, não um pedido grande;
+   **não existe alternar entre ADs** em São Paulo; e ao criar a ARM é preciso
+   pôr o boot volume em **100 GB ou menos**, senão passa dos 200 GB e cobra.
+
+   Só um processo do `tentar-instancia.ps1` por vez: dois disputam o mesmo
+   stack e metade das tentativas vira "não consegui disparar o job".
+
+   Em 01/08/2026 a conta foi migrada para **Pay As You Go**, na expectativa de
+   prioridade na fila de capacidade — comportamento relatado, não prometido
+   pela Oracle. Os recursos Always Free seguem gratuitos; o risco é passar dos
+   limites sem perceber. **Confira se existe alerta de orçamento** em
+   Billing → Budgets antes de criar qualquer coisa.
 
 **Produto — precisam de decisão do Igor, mexem em estrutura**
 
