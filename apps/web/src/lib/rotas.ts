@@ -7,6 +7,7 @@ export const ROTAS = {
   operacoes: "/painel/atividades",
   pragas: "/painel/pragas",
   irrigacao: "/painel/irrigacao",
+  manejoNutricional: "/painel/manejo-nutricional",
   estoque: "/painel/estoque",
   notas: "/painel/notas",
   usuarios: "/painel/usuarios",

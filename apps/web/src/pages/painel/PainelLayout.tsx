@@ -6,6 +6,7 @@ import {
   Citrus,
   ClipboardList,
   Droplets,
+  FlaskConical,
   LayoutDashboard,
   LogOut,
   Map,
@@ -85,7 +86,7 @@ export default function PainelLayout() {
 
   const emCadastros = pathname.startsWith(ROTAS.cadastros);
   const veDiaADia = podeVer("colheitas") || podeVer("operacoes") || podeVer("estoque") || podeVer("notas");
-  const veAcompanhamento = podeVer("pragas") || podeVer("irrigacao");
+  const veAcompanhamento = podeVer("pragas") || podeVer("irrigacao") || podeVer("analises");
   const veConfiguracao = podeVer("cadastros") || podeVer("propriedade") || podeVer("usuarios");
 
   const navegacao = (
@@ -138,6 +139,11 @@ export default function PainelLayout() {
           {podeVer("irrigacao") && (
             <ItemMenu para={ROTAS.irrigacao} icone={Droplets}>
               Manejo hídrico
+            </ItemMenu>
+          )}
+          {podeVer("analises") && (
+            <ItemMenu para={ROTAS.manejoNutricional} icone={FlaskConical}>
+              Manejo nutricional
             </ItemMenu>
           )}
         </>

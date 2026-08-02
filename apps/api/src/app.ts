@@ -33,6 +33,7 @@ import irrigacaoRoutes from "./routes/irrigacao.routes.js";
 import notasRoutes from "./routes/notas.routes.js";
 import agrofitRoutes from "./routes/agrofit.routes.js";
 import sateliteRoutes from "./routes/satelite.routes.js";
+import manejoNutricionalRoutes from "./routes/manejoNutricional.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -90,6 +91,7 @@ export async function buildApp() {
       await api.register(notasRoutes);
       await api.register(agrofitRoutes);
       await api.register(sateliteRoutes);
+      await api.register(manejoNutricionalRoutes);
     },
     { prefix: "/api/v1" },
   );

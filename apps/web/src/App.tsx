@@ -22,6 +22,7 @@ const Colheitas = lazy(() => import("./pages/painel/Colheitas"));
 const Atividades = lazy(() => import("./pages/painel/Atividades"));
 const Pragas = lazy(() => import("./pages/painel/Pragas"));
 const Irrigacao = lazy(() => import("./pages/painel/Irrigacao"));
+const ManejoNutricional = lazy(() => import("./pages/painel/ManejoNutricional"));
 const Estoque = lazy(() => import("./pages/painel/Estoque"));
 const Notas = lazy(() => import("./pages/painel/Notas"));
 const Usuarios = lazy(() => import("./pages/painel/Usuarios"));
@@ -88,6 +89,9 @@ export default function App() {
                 </Route>
                 <Route element={<ExigePermissao modulo="irrigacao" />}>
                   <Route path="irrigacao" element={<Irrigacao />} />
+                </Route>
+                <Route element={<ExigePermissao modulo="analises" />}>
+                  <Route path="manejo-nutricional" element={<ManejoNutricional />} />
                 </Route>
                 <Route element={<ExigePermissao modulo="estoque" />}>
                   <Route path="estoque" element={<Estoque />} />
