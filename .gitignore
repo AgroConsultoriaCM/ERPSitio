@@ -19,6 +19,12 @@ infra/certs/*.pem
 backups/
 *.sql.gz
 
+# Laudos de laboratorio usados para desenvolver o importador. Sao documentos
+# reais, com nome e endereco do proprietario, e o repositorio e publico.
+# Servem de referencia local; as verificacoes que dependem deles pulam
+# sozinhas quando a pasta nao existe.
+analises_sitio/
+
 # Permissoes locais do Claude Code: especificas da maquina.
 # O arquivo na raiz existe por engano historico - o lugar certo e .claude/.
 .claude/settings.local.json
