@@ -61,6 +61,10 @@ services:
       # consulta ao cadastro do MAPA fica indisponível, e o resto roda igual.
       AGROFIT_CONSUMER_KEY: ${AGROFIT_CONSUMER_KEY:-}
       AGROFIT_CONSUMER_SECRET: ${AGROFIT_CONSUMER_SECRET:-}
+      # Copernicus (Sentinel Hub): NDVI dos talhões. Mesma lógica — vazias por
+      # padrão, e sem elas apenas o bloco de satélite fica indisponível.
+      COPERNICUS_CLIENT_ID: ${COPERNICUS_CLIENT_ID:-}
+      COPERNICUS_CLIENT_SECRET: ${COPERNICUS_CLIENT_SECRET:-}
       # Teto de heap abaixo do mem_limit: o Node precisa saber que tem pouco,
       # ou só descobre quando o container já morreu.
       NODE_OPTIONS: --max-old-space-size=256

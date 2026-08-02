@@ -14,6 +14,12 @@ const envSchema = z.object({
   // em vez de derrubar a API inteira na subida.
   AGROFIT_CONSUMER_KEY: z.string().optional(),
   AGROFIT_CONSUMER_SECRET: z.string().optional(),
+
+  // Credenciais do Copernicus Data Space (Sentinel Hub) para NDVI dos talhoes.
+  // Opcionais pelo mesmo motivo das do Agrofit: sem elas o sistema sobe igual e
+  // so o bloco de satelite fica indisponivel.
+  COPERNICUS_CLIENT_ID: z.string().optional(),
+  COPERNICUS_CLIENT_SECRET: z.string().optional(),
 });
 
 export const env = envSchema.parse({
@@ -28,4 +34,6 @@ export const env = envSchema.parse({
   CORS_ORIGIN: process.env.CORS_ORIGIN,
   AGROFIT_CONSUMER_KEY: process.env.AGROFIT_CONSUMER_KEY,
   AGROFIT_CONSUMER_SECRET: process.env.AGROFIT_CONSUMER_SECRET,
+  COPERNICUS_CLIENT_ID: process.env.COPERNICUS_CLIENT_ID,
+  COPERNICUS_CLIENT_SECRET: process.env.COPERNICUS_CLIENT_SECRET,
 });
