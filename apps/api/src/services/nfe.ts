@@ -17,6 +17,16 @@ export interface ItemNota {
   codigo: string;
   descricao: string;
   ncm: string | null;
+  /** Texto livre do item na nota (`infAdProd`). */
+  infoAdicional: string | null;
+  /**
+   * Numero de registro do produto no MAPA, quando a nota informa.
+   *
+   * E a unica chave *exata* entre a nota e o cadastro oficial (Agrofit).
+   * Casar por nome comercial erra: a nota escreve "ZAPP QI 620" e o cadastro
+   * "Zapp QI", com acento, espaco e maiuscula diferentes.
+   */
+  registroMapa: string | null;
   unidade: string;
   quantidade: number;
   /** Preco unitario como veio na nota, sem rateio de despesas. */
@@ -86,6 +96,58 @@ function centavos(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Numero de registro do produto no MAPA, tirado do texto livre da nota.
+ *
+ * Por que isto importa: e a unica chave EXATA entre a nota fiscal e o cadastro
+ * oficial do Agrofit. Casar por nome comercial nao fecha - a nota escreve
+ * "ZAPP QI 620" e o cadastro tem "Zapp QI", com acento, espaco e caixa
+ * diferentes, e ha marcas homonimas de titulares distintos.
+ *
+ * O layout da NF-e nao tem campo proprio para agrotoxico (tem para veiculo,
+ * medicamento, arma e combustivel, mas nao para defensivo). Entao o registro
+ * vem no `infAdProd`, em texto livre, escrito de um jeito diferente por
+ * emitente.
+ *
+ * REGRA DE OURO, herdada do `embalagem.ts`: **so extrai quando o numero esta
+ * ancorado numa mencao explicita ao MAPA ou ao Ministerio da Agricultura.**
+ * Numero solto vira chute, e em "ZAPP QI 620" o 620 e concentracao, nao
+ * registro - trocar um pelo outro cadastraria o produto errado, com o modo de
+ * acao errado, no controle de pragas.
+ */
+export function extrairRegistroMapa(
+  infoAdicional: string | null,
+  descricao = "",
+): string | null {
+  const fonte = `${infoAdicional ?? ""} ${descricao}`;
+  if (!fonte.trim()) return null;
+
+  // Normaliza acento e espacos para a busca ficar previsivel.
+  const limpo = fonte
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ");
+
+  // "MAPA", "M.A.P.A." ou "Ministerio da Agricultura", seguido de rotulos
+  // opcionais (registro, sob, numero, n, no, nº) e entao os digitos.
+  const ancoras = [
+    /(?:REG(?:ISTRO)?\.?\s*(?:NO|N[°ºo]?)?\s*)?M\.?A\.?P\.?A\.?\s*(?:SOB)?\s*(?:N[°ºo]?|NUM(?:ERO)?)?\s*[:\-]?\s*(\d{3,7})/i,
+    /MINISTERIO\s+DA\s+AGRICULTURA[^0-9]{0,40}?(\d{3,7})/i,
+    /REG(?:ISTRO)?\.?\s*(?:N[°ºo]?)?\s*[:\-]?\s*(\d{3,7})\s*[-–]?\s*MAPA/i,
+  ];
+
+  for (const padrao of ancoras) {
+    const achado = limpo.match(padrao);
+    if (achado?.[1]) {
+      // O Agrofit devolve sem zeros a esquerda ("7208", nao "07208").
+      const semZeros = achado[1].replace(/^0+/, "");
+      if (semZeros.length >= 3) return semZeros;
+    }
+  }
+
+  return null;
+}
+
 export function lerXmlNfe(xml: string): NotaLida {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -136,6 +198,9 @@ export function lerXmlNfe(xml: string): NotaLida {
   const itens: ItemNota[] = comoLista(inf.det as unknown).map((det, indice) => {
     const d = det as Record<string, unknown>;
     const prod = (d.prod ?? {}) as Record<string, unknown>;
+    // Texto livre do item. E onde o registro do MAPA aparece nas notas de
+    // defensivo: o layout da NF-e nao tem campo proprio para agrotoxico.
+    const infoAdicional = texto(d.infAdProd) || null;
 
     const quantidade = numero(prod.qCom);
     const valorProduto = numero(prod.vProd);
@@ -162,6 +227,8 @@ export function lerXmlNfe(xml: string): NotaLida {
       // Quantidade zero existe em nota de brinde/bonificacao. Dividir ali
       // geraria Infinity e contaminaria o custo do estoque em silencio.
       custoUnitarioReal: quantidade > 0 ? centavos(custoTotalItem / quantidade) : 0,
+      infoAdicional,
+      registroMapa: extrairRegistroMapa(infoAdicional, texto(prod.xProd)),
     };
   });
 
