@@ -32,6 +32,7 @@ import pragasRoutes from "./routes/pragas.routes.js";
 import irrigacaoRoutes from "./routes/irrigacao.routes.js";
 import notasRoutes from "./routes/notas.routes.js";
 import agrofitRoutes from "./routes/agrofit.routes.js";
+import sateliteRoutes from "./routes/satelite.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -88,6 +89,7 @@ export async function buildApp() {
       await api.register(irrigacaoRoutes);
       await api.register(notasRoutes);
       await api.register(agrofitRoutes);
+      await api.register(sateliteRoutes);
     },
     { prefix: "/api/v1" },
   );

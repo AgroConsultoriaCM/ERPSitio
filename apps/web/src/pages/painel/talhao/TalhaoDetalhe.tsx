@@ -7,8 +7,9 @@ import type { Cultura, PoligonoGeoJSON, Talhao } from "../../../lib/types";
 import AbaMapa from "./AbaMapa";
 import AbaSafras from "./AbaSafras";
 import AbaAnalises from "./AbaAnalises";
+import AbaSatelite from "./AbaSatelite";
 
-type Aba = "dados" | "mapa" | "safras" | "analises";
+type Aba = "dados" | "mapa" | "safras" | "analises" | "satelite";
 
 export default function TalhaoDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -106,6 +107,7 @@ export default function TalhaoDetalhe() {
             ["mapa", "Mapa / Polígono"],
             ["safras", "Safras"],
             ["analises", "Análises de solo/folha"],
+            ["satelite", "Satélite"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
           <button
@@ -256,6 +258,8 @@ export default function TalhaoDetalhe() {
       {aba === "safras" && <AbaSafras talhaoId={id!} />}
 
       {aba === "analises" && <AbaAnalises talhaoId={id!} />}
+
+      {aba === "satelite" && <AbaSatelite talhaoId={id!} />}
     </div>
   );
 }
