@@ -51,6 +51,7 @@ model Propriedade {
   permissoes            PermissaoPapel[]
   notasEntrada          NotaFiscalEntrada[]
   mapeamentosProduto    MapeamentoProdutoNota[]
+  leiturasSatelite      LeituraSatelite[]
 }
 
 // Permissao de um papel sobre um modulo do sistema. Quando nao ha linha
@@ -165,6 +166,7 @@ model Talhao {
   analisesFoliar  AnaliseFoliar[]
   gruposItens     GrupoTalhaoItem[]
   atividadesItens AtividadeTalhao[]
+  leiturasSatelite LeituraSatelite[]
 
   @@index([propriedadeId])
   @@index([culturaId])
@@ -795,4 +797,39 @@ model MapeamentoProdutoNota {
 
   @@unique([propriedadeId, cnpjEmitente, codigoProduto])
   @@index([insumoId])
+}
+
+/// Leitura mensal de vigor por satelite, guardada no banco.
+///
+/// Antes, o Manejo Nutricional e a aba Satelite do talhao chamavam o
+/// Copernicus AO VIVO toda vez que a tela abria - sete requisicoes so para
+/// ver uma pagina, para um numero que so muda de mes em mes. Nunca ameacaria
+/// a cota gratuita (fracao de 1%), mas era espera e processamento a toa.
+///
+/// Agora existe uma sincronizacao (POST /satelite/sincronizar, ver
+/// services/sincronizacaoSatelite.ts) que busca a leitura recente de cada
+/// talhao e grava aqui. As telas passam a so ler o banco.
+model LeituraSatelite {
+  id            String      @id @default(uuid())
+  talhaoId      String
+  talhao        Talhao      @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  /// Primeiro dia do mes que esta leitura representa (sempre UTC, meia-noite).
+  /// Chave de deduplicacao: rodar a sincronizacao duas vezes no mesmo mes nao
+  /// gera duas linhas nem gasta cota do Copernicus de novo.
+  periodo DateTime
+
+  ndviMedio  Float?
+  osaviMedio Float?
+  desvio     Float?
+  pixels     Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([talhaoId, periodo])
+  @@index([propriedadeId])
+  @@index([talhaoId])
 }

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   CartesianGrid,
@@ -16,6 +16,8 @@ import {
   CloudOff,
   FlaskConical,
   Leaf,
+  Loader2,
+  RefreshCw,
   Satellite,
   Sprout,
   TestTube,
@@ -62,8 +64,21 @@ interface TalhaoNutricional {
 interface Resposta {
   talhoes: TalhaoNutricional[];
   satelite: boolean;
+  ultimaSincronizacao: string | null;
   fonte: string;
 }
+
+interface ResultadoSincronizacao {
+  talhaoId: string;
+  nome: string;
+  status: "backfill" | "gravado" | "ja_tinha" | "sem_cena_limpa" | "sem_poligono" | "erro";
+  leiturasGravadas?: number;
+  osaviMedio?: number | null;
+  mensagem?: string;
+}
+
+const mesAnoLongo = (iso: string) =>
+  new Date(iso).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
 const dataCurta = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
@@ -292,12 +307,24 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
 }
 
 export default function ManejoNutricional() {
+  const qc = useQueryClient();
   const consulta = useQuery({
     queryKey: ["manejo-nutricional"],
     queryFn: () => api.get<Resposta>("/manejo-nutricional"),
     retry: false,
-    // Sete consultas ao satélite não devem refazer a cada visita à tela.
+    // O relatorio so le o banco agora — nao ha motivo para refazer com
+    // frequencia, ja que a leitura de satelite so muda quando alguem
+    // sincroniza (uma vez por mes, tipicamente).
     staleTime: 6 * 60 * 60 * 1000,
+  });
+
+  // Dispara POST /satelite/sincronizar. E a UNICA chamada ao Copernicus desta
+  // tela inteira — abrir a pagina em si e so leitura de banco, instantanea.
+  const sincronizar = useMutation({
+    mutationFn: () => api.post<{ resultados: ResultadoSincronizacao[] }>("/satelite/sincronizar"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["manejo-nutricional"] });
+    },
   });
 
   if (consulta.isLoading) {
@@ -307,9 +334,7 @@ export default function ManejoNutricional() {
           Manejo nutricional
         </TituloSecao>
         <Cartao>
-          <p className="py-10 text-center text-sm text-terra-500">
-            Consultando o satélite talhão a talhão — isso leva alguns segundos.
-          </p>
+          <p className="py-10 text-center text-sm text-terra-500">Carregando o relatório…</p>
         </Cartao>
       </div>
     );
@@ -331,20 +356,74 @@ export default function ManejoNutricional() {
   ).length;
   const semAlerta = dados.talhoes.filter((t) => t.alertas.length === 0).length;
 
+  const r = sincronizar.data?.resultados;
+  const novas = r?.filter((x) => x.status === "backfill" || x.status === "gravado").length ?? 0;
+  const jaTinha = r?.filter((x) => x.status === "ja_tinha").length ?? 0;
+  const semCena = r?.filter((x) => x.status === "sem_cena_limpa").length ?? 0;
+  const semPoligono = r?.filter((x) => x.status === "sem_poligono").length ?? 0;
+
   return (
     <div className="escalonar space-y-4">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-terra-900">Manejo nutricional</h1>
-        <p className="mt-1 text-sm text-terra-500">
-          Um ano de vigor por satélite, as últimas análises de solo e folha e as adubações do período
-          — solo e foliar — na mesma linha do tempo, talhão a talhão.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-terra-900">Manejo nutricional</h1>
+          <p className="mt-1 text-sm text-terra-500">
+            Um ano de vigor por satélite, as últimas análises de solo e folha e as adubações do
+            período — solo e foliar — na mesma linha do tempo, talhão a talhão.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={() => sincronizar.mutate()}
+            disabled={!dados.satelite || sincronizar.isPending}
+            title={!dados.satelite ? "Satélite não configurado no servidor" : undefined}
+            className="flex items-center gap-2 rounded-lg border border-terra-300 bg-white px-3.5 py-2 text-sm font-medium text-terra-700 shadow-cartao transition hover:bg-terra-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {sincronizar.isPending ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <RefreshCw size={15} />
+            )}
+            {sincronizar.isPending ? "Sincronizando…" : "Sincronizar agora"}
+          </button>
+          <span className="text-xs text-terra-400">
+            {dados.ultimaSincronizacao
+              ? `última leitura: ${mesAnoLongo(dados.ultimaSincronizacao)}`
+              : "ainda sem leitura sincronizada"}
+          </span>
+        </div>
       </header>
+
+      {sincronizar.isError && (
+        <Aviso tom="perigo" titulo="Falha ao sincronizar" icone={CloudOff}>
+          {sincronizar.error instanceof ApiError
+            ? sincronizar.error.message
+            : "Não foi possível falar com o satélite agora."}
+        </Aviso>
+      )}
+
+      {r && (
+        <Aviso tom="mata" titulo="Sincronização concluída" icone={RefreshCw}>
+          {novas > 0 && `${novas} talhão${novas > 1 ? "ões" : ""} atualizado${novas > 1 ? "s" : ""}. `}
+          {jaTinha > 0 && `${jaTinha} já tinha leitura deste mês. `}
+          {semCena > 0 && `${semCena} sem cena limpa no momento. `}
+          {semPoligono > 0 && `${semPoligono} sem contorno desenhado.`}
+          {novas === 0 && jaTinha === 0 && semCena === 0 && semPoligono === 0 && "nada para atualizar."}
+        </Aviso>
+      )}
 
       {!dados.satelite && (
         <Aviso tom="alerta" titulo="Satélite não configurado" icone={Satellite}>
           As credenciais do Copernicus não estão no servidor, então a curva de vigor fica vazia. As
           análises e adubações continuam sendo mostradas.
+        </Aviso>
+      )}
+
+      {dados.satelite && !dados.ultimaSincronizacao && (
+        <Aviso tom="alerta" titulo="Nenhuma leitura sincronizada ainda" icone={RefreshCw}>
+          Clique em "Sincronizar agora" para trazer o histórico de vigor de cada talhão. Na primeira
+          vez, o sistema busca alguns anos de uma vez — nas próximas, só o mês atual.
         </Aviso>
       )}
 

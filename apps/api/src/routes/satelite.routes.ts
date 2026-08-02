@@ -1,34 +1,34 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { NaoEncontradoError, AppError } from "../lib/errors.js";
-import {
-  imagemNdvi,
-  sateliteConfigurado,
-  serieSatelite,
-  type PoligonoGeoJSON,
-} from "../services/satelite.js";
-import { calcularNota, type LeituraSatelite } from "../services/notaTalhao.js";
+import { imagemNdvi, sateliteConfigurado, type PoligonoGeoJSON } from "../services/satelite.js";
+import { leiturasArmazenadas } from "../services/leituraSatelite.js";
+import { sincronizarLeiturasSatelite } from "../services/sincronizacaoSatelite.js";
+import { calcularNota } from "../services/notaTalhao.js";
 
 /**
  * Satelite por talhao.
  *
- * Passa pelo servidor por tres motivos: a credencial do Copernicus nao pode
- * chegar ao navegador, a cota mensal e da propriedade inteira (controlar de um
- * lugar so e o que permite cachear), e o contorno do talhao ja esta aqui - o
- * frontend nao precisa saber de GeoJSON nem de evalscript.
+ * A curva de vigor e a nota NAO chamam o Copernicus mais - leem a tabela
+ * LeituraSatelite, alimentada por POST /satelite/sincronizar. Consulta ao
+ * banco e instantanea; a chamada externa so acontece quando alguem pede
+ * sincronizacao (pensado para rodar 1x por mes, nao a cada abertura de tela).
+ *
+ * A imagem NDVI (/ndvi.png) continua ao vivo de proposito: e visual, aberta
+ * deliberadamente por uma pessoa, nao um lote de sete chamadas automaticas -
+ * e ja tem 30 min de cache.
  */
 
-async function poligonoDoTalhao(
-  fastify: FastifyInstance,
-  talhaoId: string,
-  propriedadeId: string,
-) {
+async function buscarTalhao(fastify: FastifyInstance, talhaoId: string, propriedadeId: string) {
   const talhao = await fastify.prisma.talhao.findFirst({
     where: { id: talhaoId, propriedadeId },
     select: { id: true, nome: true, codigo: true, poligono: true },
   });
   if (!talhao) throw new NaoEncontradoError();
+  return talhao;
+}
 
+function exigirPoligono(talhao: { poligono: unknown }): PoligonoGeoJSON {
   const poligono = talhao.poligono as PoligonoGeoJSON | null;
   if (!poligono || poligono.type !== "Polygon" || !poligono.coordinates?.[0]?.length) {
     throw new AppError(
@@ -36,7 +36,7 @@ async function poligonoDoTalhao(
       422,
     );
   }
-  return { talhao, poligono };
+  return poligono;
 }
 
 export default async function sateliteRoutes(fastify: FastifyInstance) {
@@ -47,7 +47,20 @@ export default async function sateliteRoutes(fastify: FastifyInstance) {
     configurado: sateliteConfigurado(),
   }));
 
-  /** Imagem NDVI recortada no contorno, pronta para exibir. */
+  /**
+   * Dispara a sincronizacao: busca a leitura recente de cada talhao e grava
+   * no banco. E a UNICA rota deste arquivo que fala com o Copernicus.
+   */
+  fastify.post(
+    "/satelite/sincronizar",
+    { preHandler: fastify.requirePermissao("analises", "EDITAR") },
+    async (request) => {
+      const resultados = await sincronizarLeiturasSatelite(fastify.prisma, request.user.propriedadeId);
+      return { resultados };
+    },
+  );
+
+  /** Imagem NDVI recortada no contorno, pronta para exibir. Ao vivo. */
   fastify.get<{ Params: { id: string } }>("/talhoes/:id/ndvi.png", async (request, reply) => {
     const { dias, largura } = z
       .object({
@@ -56,28 +69,17 @@ export default async function sateliteRoutes(fastify: FastifyInstance) {
       })
       .parse(request.query);
 
-    const { poligono } = await poligonoDoTalhao(
-      fastify,
-      request.params.id,
-      request.user.propriedadeId,
-    );
+    const talhao = await buscarTalhao(fastify, request.params.id, request.user.propriedadeId);
+    const poligono = exigirPoligono(talhao);
     const png = await imagemNdvi(poligono, { dias, largura });
 
-    // Cena do Sentinel-2 muda a cada ~5 dias; meia hora de cache poupa
-    // requisicao sem atrasar nada que importe.
     return reply
       .header("Content-Type", "image/png")
       .header("Cache-Control", "private, max-age=1800")
       .send(png);
   });
 
-  /**
-   * Serie recente + historico do mesmo mes + a nota.
-   *
-   * Duas chamadas ao Copernicus por talhao: uma para os ultimos meses, outra
-   * para o mesmo mes dos anos anteriores. O arquivo do Sentinel-2 alcanca
-   * 2017, entao a linha de base ja nasce com varios anos.
-   */
+  /** Serie de vigor + nota, lidas do banco. Nenhuma chamada externa aqui. */
   fastify.get<{ Params: { id: string } }>("/talhoes/:id/satelite", async (request) => {
     const { meses, anosBase } = z
       .object({
@@ -86,36 +88,27 @@ export default async function sateliteRoutes(fastify: FastifyInstance) {
       })
       .parse(request.query);
 
-    const { talhao, poligono } = await poligonoDoTalhao(
-      fastify,
-      request.params.id,
-      request.user.propriedadeId,
-    );
+    const talhao = await buscarTalhao(fastify, request.params.id, request.user.propriedadeId);
+    exigirPoligono(talhao); // só para a mensagem de erro certa; a leitura em si não precisa do GeoJSON
 
     const hoje = new Date();
     const mesesRecentes = meses ?? 6;
     const anos = anosBase ?? 4;
 
-    const recentes = await serieSatelite(poligono, {
-      de: new Date(hoje.getTime() - mesesRecentes * 30 * 864e5),
-      ate: hoje,
-      intervalo: "P15D",
-    });
+    const desde = new Date(hoje);
+    desde.setFullYear(desde.getFullYear() - anos);
+    const todas = await leiturasArmazenadas(fastify.prisma, talhao.id, desde);
 
-    // Mesma janela do ano, nos anos anteriores. E o que responde "este talhao
-    // esta pior que o normal PARA ESTA EPOCA", em vez de comparar julho com
-    // janeiro e concluir bobagem.
-    const inicioBase = new Date(hoje);
-    inicioBase.setFullYear(inicioBase.getFullYear() - anos);
-    const historicoBruto = await serieSatelite(poligono, {
-      de: inicioBase,
-      ate: new Date(hoje.getTime() - 30 * 864e5),
-      intervalo: "P30D",
-    });
+    const limiteRecentes = new Date(hoje);
+    limiteRecentes.setMonth(limiteRecentes.getMonth() - mesesRecentes);
+    const recentes = todas.filter((l) => new Date(l.data) >= limiteRecentes);
 
+    // Mesmo mes, em anos ANTERIORES: e o que responde "este talhao esta pior
+    // que o normal PARA ESTA EPOCA", em vez de comparar julho com janeiro.
     const mesAtual = hoje.getMonth();
-    const historicoMesmoMes: LeituraSatelite[] = historicoBruto.filter(
-      (l) => new Date(l.data).getMonth() === mesAtual,
+    const anoAtual = hoje.getFullYear();
+    const historicoMesmoMes = todas.filter(
+      (l) => new Date(l.data).getMonth() === mesAtual && new Date(l.data).getFullYear() < anoAtual,
     );
 
     return {
@@ -123,6 +116,7 @@ export default async function sateliteRoutes(fastify: FastifyInstance) {
       nota: calcularNota(recentes, historicoMesmoMes),
       recentes,
       historicoMesmoMes,
+      ultimaSincronizacao: todas.length > 0 ? todas[todas.length - 1].data : null,
       fonte: "Contains modified Copernicus Sentinel data " + hoje.getFullYear(),
     };
   });

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@erpsitio/db";
-import { serieSatelite, sateliteConfigurado, type PoligonoGeoJSON } from "./satelite.js";
+import { sateliteConfigurado } from "./satelite.js";
+import { leiturasArmazenadas } from "./leituraSatelite.js";
 import { apenasValidas, type LeituraSatelite } from "./notaTalhao.js";
 
 /**
@@ -135,7 +136,12 @@ export function montarAlertas(dados: {
 export async function montarManejoNutricional(
   prisma: PrismaClient,
   propriedadeId: string,
-): Promise<{ talhoes: TalhaoNutricional[]; satelite: boolean; fonte: string }> {
+): Promise<{
+  talhoes: TalhaoNutricional[];
+  satelite: boolean;
+  ultimaSincronizacao: string | null;
+  fonte: string;
+}> {
   const desde = new Date(Date.now() - UM_ANO_MS);
 
   const talhoes = await prisma.talhao.findMany({
@@ -191,26 +197,20 @@ export async function montarManejoNutricional(
   const temSatelite = sateliteConfigurado();
   const agora = new Date();
 
+  // Ultima leitura gravada de QUALQUER talhao, para a tela mostrar "sincronizado
+  // em ...". null quando nunca rodou sincronizacao nenhuma.
+  const ultimaLeitura = await prisma.leituraSatelite.findFirst({
+    where: { propriedadeId },
+    orderBy: { periodo: "desc" },
+    select: { periodo: true },
+  });
+
   const resultado: TalhaoNutricional[] = [];
 
   for (const t of talhoes) {
-    // Uma chamada por talhao cobre o ano inteiro. Sequencial de proposito: a
-    // Micro tem 1 GB e sete respostas grandes ao mesmo tempo apertariam.
-    let serieOsavi: LeituraSatelite[] = [];
-    const poligono = t.poligono as PoligonoGeoJSON | null;
-    if (temSatelite && poligono?.coordinates?.[0]?.length) {
-      try {
-        serieOsavi = await serieSatelite(poligono, {
-          de: desde,
-          ate: agora,
-          intervalo: "P30D",
-        });
-      } catch {
-        // Satelite fora do ar nao pode derrubar o relatorio inteiro: o resto
-        // (analises e adubacoes) continua util sem ele.
-        serieOsavi = [];
-      }
-    }
+    // So le o banco - nao ha chamada externa aqui. Quem alimenta a tabela e
+    // POST /satelite/sincronizar, pensado para rodar cerca de 1x por mes.
+    const serieOsavi: LeituraSatelite[] = await leiturasArmazenadas(prisma, t.id, desde);
 
     const validas = apenasValidas(serieOsavi);
     const osaviMedioAno =
@@ -263,6 +263,7 @@ export async function montarManejoNutricional(
   return {
     talhoes: resultado,
     satelite: temSatelite,
+    ultimaSincronizacao: ultimaLeitura?.periodo.toISOString() ?? null,
     fonte: `Contains modified Copernicus Sentinel data ${agora.getFullYear()}`,
   };
 }
