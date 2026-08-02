@@ -34,6 +34,7 @@ import notasRoutes from "./routes/notas.routes.js";
 import agrofitRoutes from "./routes/agrofit.routes.js";
 import sateliteRoutes from "./routes/satelite.routes.js";
 import manejoNutricionalRoutes from "./routes/manejoNutricional.routes.js";
+import laudosRoutes from "./routes/laudos.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -92,6 +93,7 @@ export async function buildApp() {
       await api.register(agrofitRoutes);
       await api.register(sateliteRoutes);
       await api.register(manejoNutricionalRoutes);
+      await api.register(laudosRoutes);
     },
     { prefix: "/api/v1" },
   );

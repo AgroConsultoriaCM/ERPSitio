@@ -121,7 +121,12 @@ if (!existsSync(PASTA)) {
   console.log("\n(pasta analises_sitio/ ausente — verificação com arquivos reais pulada)");
 } else {
   console.log("\n== ARQUIVOS REAIS DO LABORATORIO ==");
-  const arquivos = readdirSync(PASTA).filter((f) => f.toLowerCase().endsWith(".xlsx"));
+  // "~$nome.xlsx" e o arquivo de bloqueio que o Excel cria enquanto a planilha
+  // esta aberta. Tem extensao .xlsx mas nao e laudo - entraria junto se o
+  // usuario arrastasse a pasta inteira.
+  const arquivos = readdirSync(PASTA).filter(
+    (f) => f.toLowerCase().endsWith(".xlsx") && !f.startsWith("~$"),
+  );
   const porTipo: Record<string, number> = {};
   let totalAmostras = 0;
   const naoReconhecidas = new Set<string>();

@@ -52,6 +52,10 @@ model Propriedade {
   notasEntrada          NotaFiscalEntrada[]
   mapeamentosProduto    MapeamentoProdutoNota[]
   leiturasSatelite      LeituraSatelite[]
+  laudosImportados      LaudoImportado[]
+  analisesFisicas       AnaliseFisicaSolo[]
+  lotesComposto         LoteComposto[]
+  analisesComposto      AnaliseComposto[]
 }
 
 // Permissao de um papel sobre um modulo do sistema. Quando nao ha linha
@@ -88,6 +92,7 @@ model Usuario {
   irrigacoes            Irrigacao[]      @relation("IrrigacaoResponsavel")
   refreshTokens         RefreshToken[]
   notasImportadas       NotaFiscalEntrada[] @relation("NotaImportadaPor")
+  laudosImportados      LaudoImportado[]    @relation("LaudoImportadoPor")
 
   @@index([propriedadeId])
 }
@@ -167,6 +172,8 @@ model Talhao {
   gruposItens     GrupoTalhaoItem[]
   atividadesItens AtividadeTalhao[]
   leiturasSatelite LeituraSatelite[]
+  analisesFisicas  AnaliseFisicaSolo[]
+  amostrasLaudo    AmostraLaudo[]
 
   @@index([propriedadeId])
   @@index([culturaId])
@@ -428,6 +435,7 @@ model Insumo {
   usosEmAtividades      AtividadeInsumo[]
   lotes                 LoteInsumo[]
   mapeamentosNota       MapeamentoProdutoNota[]
+  lotesComposto         LoteComposto[]
 
   @@index([propriedadeId])
 }
@@ -797,6 +805,214 @@ model MapeamentoProdutoNota {
 
   @@unique([propriedadeId, cnpjEmitente, codigoProduto])
   @@index([insumoId])
+}
+
+/// Tipo do laudo de laboratorio, detectado a partir do proprio arquivo.
+/// Ver services/analiseLaudo.ts - sao cinco layouts diferentes.
+enum TipoLaudo {
+  /// Fertilidade do solo: pH, M.O., P, K, Ca, Mg, CTC, V%...
+  QUIMICA
+  /// Granulometria: argila, silte, areia. Nao muda com o tempo.
+  FISICA
+  /// Micronutrientes do solo: B, Cu, Fe, Mn, Zn.
+  MICRO
+  /// Tecido vegetal (folha): N, P, K, Ca, Mg, S, B, Cu, Fe, Mn, Zn, Si.
+  FOLIAR
+  /// Composto ou esterco produzido na propriedade: %MO, %CO, %N, %P2O5...
+  ORGANICO
+}
+
+/// Mesmo ciclo das notas fiscais: chega, e conferido, so entao vale.
+enum SituacaoLaudo {
+  /// Lido, aguardando conferencia. Nao gravou analise nenhuma ainda.
+  PENDENTE
+  /// Conferido e confirmado: as analises existem nos talhoes/lotes.
+  IMPORTADO
+  /// Nao interessa (laudo de outra propriedade, duplicado, veio por engano).
+  IGNORADO
+}
+
+/// Arquivo de laudo enviado pelo usuario.
+///
+/// Um arquivo traz VARIAS amostras - o laudo de marco/2022 tem 4. Por isso a
+/// fila de conferencia lista amostras (AmostraLaudo), nao arquivos.
+model LaudoImportado {
+  id            String        @id @default(uuid())
+  nomeArquivo   String
+  tipo          TipoLaudo
+  situacao      SituacaoLaudo @default(PENDENTE)
+
+  /// Nome do laboratorio/cliente como veio no cabecalho, so para conferencia.
+  cliente     String?
+  material    String?
+  /// Data de recebimento da amostra pelo laboratorio - a mais proxima da
+  /// coleta que o laudo informa. O usuario pode corrigir na conferencia.
+  dataColeta  DateTime?
+
+  /// true quando veio de PDF: os valores NAO foram extraidos, so o texto, e o
+  /// usuario digita olhando o laudo. Extrair numero de PDF de laboratorio
+  /// junta valores ("23,7512,21" sao dois) e quebra numero entre linhas.
+  digitacaoManual Boolean @default(false)
+  /// Texto cru do PDF, mostrado ao lado dos campos para o usuario copiar.
+  textoExtraido   String?
+
+  importadoEm    DateTime?
+  importadoPorId String?
+  importadoPor   Usuario?  @relation("LaudoImportadoPor", fields: [importadoPorId], references: [id])
+  observacoes    String?
+
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  amostras AmostraLaudo[]
+
+  @@index([propriedadeId, situacao])
+  @@index([tipo])
+}
+
+/// Uma amostra dentro do laudo - e o que o usuario confere e referencia.
+model AmostraLaudo {
+  id      String         @id @default(uuid())
+  laudoId String
+  laudo   LaudoImportado @relation(fields: [laudoId], references: [id], onDelete: Cascade)
+
+  /// Codigo do laboratorio, ex "S26/89869".
+  codigoLaboratorio String?
+  /// Como o produtor identificou na coleta: "LIMAO NOVO", "SACOLA AMARELA".
+  /// E o que permite sugerir o talhao - mas a confirmacao e sempre do usuario.
+  identificacao     String?
+  profundidade      String?
+
+  /// Valores lidos, ja conferidos/corrigidos pelo usuario.
+  /// Json porque as chaves mudam por tipo de laudo (a fisica tem argila e
+  /// areia; a foliar tem N e Si) e criar coluna para cada uma multiplicaria
+  /// colunas nulas sem ganho - a conta que usa isso le pela chave.
+  valores Json
+
+  /// Colunas com numero que o leitor nao soube nomear. Aparecem na conferencia
+  /// em vez de sumirem: laudo novo com coluna nova fica visivel.
+  naoReconhecidas String[]
+
+  /// Onde esta amostra foi parar depois de confirmada. Nulo enquanto pendente,
+  /// e continua nulo se o usuario decidir arquivar.
+  talhaoId String?
+  talhao   Talhao? @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+  loteCompostoId String?
+  loteComposto   LoteComposto? @relation(fields: [loteCompostoId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([laudoId])
+  @@index([talhaoId])
+  @@index([loteCompostoId])
+}
+
+/// Fisica do solo do talhao.
+///
+/// Separada da analise quimica de proposito: granulometria NAO muda de ano
+/// para ano. Uma vez medida, vale para sempre naquele talhao - mas fica
+/// aberta a atualizacao, porque o produtor pode reamostrar ou corrigir.
+/// E entrada de calculo de adubacao, por isso tem coluna propria em vez de
+/// Json: argila entra em conta, e Json nao entra em conta nem em filtro.
+model AnaliseFisicaSolo {
+  id       String @id @default(uuid())
+  talhaoId String
+  talhao   Talhao @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+
+  dataColeta     DateTime
+  profundidadeCm String?
+  laboratorio    String?
+
+  /// Percentuais da granulometria.
+  argila     Float?
+  silte      Float?
+  areiaTotal Float?
+
+  /// Fracoes da areia, tambem em percentual.
+  areiaMuitoGrossa Float?
+  areiaGrossa      Float?
+  areiaMedia       Float?
+  areiaFina        Float?
+  areiaMuitoFina   Float?
+
+  argilaDispersaAgua Float?
+  grauFloculacao     Float?
+  grauDispersao      Float?
+
+  observacoes   String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([propriedadeId])
+  @@index([talhaoId])
+}
+
+/// Lote de composto ou esterco produzido na propriedade.
+///
+/// Dois caminhos, conforme a decisao do produtor:
+///   - vira INSUMO no estoque (insumoId preenchido): a partir dai a aplicacao
+///     no pomar segue o mesmo caminho de qualquer adubacao, sem nada novo
+///   - fica so como registro (insumoId nulo): a analise existe, mas nada e
+///     lancado no estoque nem em talhao nenhum
+model LoteComposto {
+  id            String   @id @default(uuid())
+  nome          String
+  dataProducao  DateTime?
+  origem        String?
+  observacoes   String?
+
+  /// Preenchido quando o lote foi levado ao estoque.
+  insumoId String?
+  insumo   Insumo? @relation(fields: [insumoId], references: [id], onDelete: SetNull)
+
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  analises AnaliseComposto[]
+  amostras AmostraLaudo[]
+
+  @@index([propriedadeId])
+  @@index([insumoId])
+}
+
+/// Analise de composto/esterco. Unidades em percentual, nao em mmolc/dm3:
+/// e material solido concentrado, nao solo.
+model AnaliseComposto {
+  id     String       @id @default(uuid())
+  loteId String
+  lote   LoteComposto @relation(fields: [loteId], references: [id], onDelete: Cascade)
+
+  dataColeta  DateTime
+  laboratorio String?
+
+  materiaOrganica  Float?
+  carbonoOrganico  Float?
+  nitrogenio       Float?
+  p2o5Total        Float?
+  k2o              Float?
+  calcio           Float?
+  magnesio         Float?
+  enxofre          Float?
+  ph               Float?
+  umidade          Float?
+  relacaoCN        Float?
+  micronutrientes  Json?
+
+  observacoes   String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([propriedadeId])
+  @@index([loteId])
 }
 
 /// Leitura mensal de vigor por satelite, guardada no banco.

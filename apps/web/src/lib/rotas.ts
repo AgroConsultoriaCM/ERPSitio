@@ -26,6 +26,7 @@ export const ROTAS = {
   executores: "/painel/cadastros/executores",
   insumos: "/painel/cadastros/insumos",
   perfisCorrecao: "/painel/cadastros/perfis-correcao",
+  adicionarAnalise: "/painel/cadastros/adicionar-analise",
 } as const;
 
 export interface AbaCadastro {
@@ -46,5 +47,10 @@ export const ABAS_CADASTRO: AbaCadastro[] = [
     rota: ROTAS.perfisCorrecao,
     rotula: "Perfis de correção",
     descricao: "Faixas ideais de solo por cultura",
+  },
+  {
+    rota: ROTAS.adicionarAnalise,
+    rotula: "Adicionar análise",
+    descricao: "Importar laudos de solo, folha e composto",
   },
 ];
