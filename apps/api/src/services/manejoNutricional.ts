@@ -19,11 +19,25 @@ import { apenasValidas, type LeituraSatelite } from "./notaTalhao.js";
  * A correlacao e apresentada para o agronomo julgar, nao concluida por conta.
  */
 
-const UM_ANO_MS = 365 * 864e5;
-
 /** Depois disso a analise de solo perde valor de decisao para citros. */
 const MESES_VALIDADE_SOLO = 18;
 const MESES_VALIDADE_FOLIAR = 12;
+
+function inicioDoMes(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+/**
+ * Inicio da janela do grafico: o MESMO MES do ano passado. Assim a janela tem
+ * sempre 13 meses (o mes vigente aparece nas duas pontas, este ano e no ano
+ * passado) e da para comparar agosto com agosto, nao agosto com um "12 meses
+ * atras" que desliza de dia em dia.
+ */
+function inicioJanelaTrezeMeses(agora: Date): Date {
+  const inicio = inicioDoMes(agora);
+  inicio.setUTCMonth(inicio.getUTCMonth() - 12);
+  return inicio;
+}
 
 export interface AdubacaoResumo {
   data: string;
@@ -49,6 +63,9 @@ export interface TalhaoNutricional {
   variacaoAnual: number | null;
   analiseSolo: Record<string, unknown> | null;
   analiseFoliar: Record<string, unknown> | null;
+  /** % de variação de cada nutriente frente à análise de ~1 ano antes. */
+  variacaoSolo: Record<string, number>;
+  variacaoFoliar: Record<string, number>;
   adubacoes: AdubacaoResumo[];
   alertas: AlertaNutricional[];
 }
@@ -63,24 +80,31 @@ function mesesDesde(data: Date): number {
 }
 
 /**
- * Variacao do vigor no ano: compara a media do primeiro terco das leituras
- * com a do ultimo terco.
+ * Variacao do vigor: compara a leitura mais recente com a do MESMO MES, um
+ * ano antes - nao a ponta esquerda da janela, que desliza a cada mes e faria
+ * o "resultado no periodo" comparar meses diferentes ao longo do ano.
  *
- * Comparar so a primeira leitura com a ultima seria fragil - uma cena com
- * nuvem residual na ponta inverteria o sinal do ano inteiro.
+ * Sem leitura para o mesmo mes do ano passado (talhao novo, ou mes sem cena
+ * limpa em nenhum dos dois anos), devolve null em vez de comparar com outro
+ * mes qualquer e chamar de "ano passado" o que nao e.
  */
 export function variacaoNoPeriodo(leituras: LeituraSatelite[]): number | null {
   const validas = apenasValidas(leituras);
-  if (validas.length < 6) return null;
+  if (validas.length === 0) return null;
 
-  const terco = Math.floor(validas.length / 3);
-  const media = (lista: LeituraSatelite[]) =>
-    lista.reduce((s, l) => s + (l.osaviMedio as number), 0) / lista.length;
+  const ultima = validas[validas.length - 1];
+  const mesUltima = inicioDoMes(new Date(ultima.data));
+  const mesAnoPassado = new Date(mesUltima);
+  mesAnoPassado.setUTCMonth(mesAnoPassado.getUTCMonth() - 12);
 
-  const inicio = media(validas.slice(0, terco));
-  const fim = media(validas.slice(-terco));
-  if (inicio === 0) return null;
-  return arred(((fim - inicio) / inicio) * 100, 1);
+  const anoPassado = validas.find(
+    (l) => inicioDoMes(new Date(l.data)).getTime() === mesAnoPassado.getTime(),
+  );
+  if (!anoPassado) return null;
+
+  const base = anoPassado.osaviMedio as number;
+  if (base === 0) return null;
+  return arred((((ultima.osaviMedio as number) - base) / base) * 100, 1);
 }
 
 export function montarAlertas(dados: {
@@ -133,6 +157,62 @@ export function montarAlertas(dados: {
   return alertas;
 }
 
+/** Nutrientes com % de variação anual mostrada em cada bloco da tela. */
+const NUTRIENTES_SOLO_COMPARADOS = [
+  "ph", "materiaOrganica", "fosforo", "potassio", "calcio", "magnesio", "ctc", "saturacaoBases",
+] as const;
+const NUTRIENTES_FOLIAR_COMPARADOS = [
+  "nitrogenio", "fosforo", "potassio", "calcio", "magnesio", "enxofre",
+] as const;
+
+/** Tolerância em torno de "1 ano antes da última coleta" para achar a análise comparável. */
+const JANELA_ANO_ANTERIOR_MS = 120 * 864e5;
+
+/**
+ * Entre as análises MAIS ANTIGAS que `atual`, acha a mais próxima de um ano
+ * antes dela. Coleta não é feita sempre no mesmo dia do ano — por isso a
+ * tolerância de 120 dias em vez de exigir a data exata. Fora da janela,
+ * devolve null: melhor não comparar do que comparar com um ano errado.
+ */
+function acharAnaliseAnoAnterior<T extends { dataColeta: Date }>(todas: T[], atual: T): T | null {
+  const alvo = new Date(atual.dataColeta);
+  alvo.setUTCFullYear(alvo.getUTCFullYear() - 1);
+
+  let melhor: T | null = null;
+  let melhorDistancia = Infinity;
+  for (const a of todas) {
+    if (a === atual || a.dataColeta.getTime() >= atual.dataColeta.getTime()) continue;
+    const distancia = Math.abs(a.dataColeta.getTime() - alvo.getTime());
+    if (distancia <= JANELA_ANO_ANTERIOR_MS && distancia < melhorDistancia) {
+      melhor = a;
+      melhorDistancia = distancia;
+    }
+  }
+  return melhor;
+}
+
+/**
+ * % de variação de cada nutriente frente à análise de ~1 ano antes. Vermelho
+ * na tela quando caiu, verde quando subiu — o sinal de que a fertilidade está
+ * melhorando (ou piorando) ano a ano, não só o número absoluto mais recente.
+ */
+function variacaoPorNutriente(
+  atual: Record<string, unknown> | null,
+  anterior: Record<string, unknown> | null,
+  chaves: readonly string[],
+): Record<string, number> {
+  const saida: Record<string, number> = {};
+  if (!atual || !anterior) return saida;
+  for (const chave of chaves) {
+    const a = atual[chave];
+    const b = anterior[chave];
+    if (typeof a === "number" && typeof b === "number" && b !== 0) {
+      saida[chave] = arred(((a - b) / b) * 100, 1);
+    }
+  }
+  return saida;
+}
+
 export async function montarManejoNutricional(
   prisma: PrismaClient,
   propriedadeId: string,
@@ -142,7 +222,8 @@ export async function montarManejoNutricional(
   ultimaSincronizacao: string | null;
   fonte: string;
 }> {
-  const desde = new Date(Date.now() - UM_ANO_MS);
+  const agora = new Date();
+  const desde = inicioJanelaTrezeMeses(agora);
 
   const talhoes = await prisma.talhao.findMany({
     where: { propriedadeId },
@@ -195,7 +276,6 @@ export async function montarManejoNutricional(
   ]);
 
   const temSatelite = sateliteConfigurado();
-  const agora = new Date();
 
   // Ultima leitura gravada de QUALQUER talhao, para a tela mostrar "sincronizado
   // em ...". null quando nunca rodou sincronizacao nenhuma.
@@ -208,8 +288,8 @@ export async function montarManejoNutricional(
   const resultado: TalhaoNutricional[] = [];
 
   for (const t of talhoes) {
-    // So le o banco - nao ha chamada externa aqui. Quem alimenta a tabela e
-    // POST /satelite/sincronizar, pensado para rodar cerca de 1x por mes.
+    // So le o banco - nao ha chamada externa aqui. Quem alimenta a tabela e o
+    // agendador semanal (domingo de madrugada, ver agendador.ts).
     const serieOsavi: LeituraSatelite[] = await leiturasArmazenadas(prisma, t.id, desde);
 
     const validas = apenasValidas(serieOsavi);
@@ -240,8 +320,15 @@ export async function montarManejoNutricional(
         };
       });
 
-    const analiseSolo = solos.find((s) => s.talhaoId === t.id) ?? null;
-    const analiseFoliar = foliares.find((f) => f.talhaoId === t.id) ?? null;
+    // Historico completo deste talhao, para achar tanto a mais recente quanto
+    // a de ~1 ano antes dela — as duas consultas la em cima ja trazem tudo,
+    // ordenado do mais novo para o mais velho.
+    const solosDoTalhao = solos.filter((s) => s.talhaoId === t.id);
+    const foliaresDoTalhao = foliares.filter((f) => f.talhaoId === t.id);
+    const analiseSolo = solosDoTalhao[0] ?? null;
+    const analiseFoliar = foliaresDoTalhao[0] ?? null;
+    const soloAnoPassado = analiseSolo ? acharAnaliseAnoAnterior(solosDoTalhao, analiseSolo) : null;
+    const foliarAnoPassado = analiseFoliar ? acharAnaliseAnoAnterior(foliaresDoTalhao, analiseFoliar) : null;
     const variacaoAnual = variacaoNoPeriodo(serieOsavi);
 
     resultado.push({
@@ -255,6 +342,16 @@ export async function montarManejoNutricional(
       variacaoAnual,
       analiseSolo: analiseSolo as unknown as Record<string, unknown> | null,
       analiseFoliar: analiseFoliar as unknown as Record<string, unknown> | null,
+      variacaoSolo: variacaoPorNutriente(
+        analiseSolo as unknown as Record<string, unknown> | null,
+        soloAnoPassado as unknown as Record<string, unknown> | null,
+        NUTRIENTES_SOLO_COMPARADOS,
+      ),
+      variacaoFoliar: variacaoPorNutriente(
+        analiseFoliar as unknown as Record<string, unknown> | null,
+        foliarAnoPassado as unknown as Record<string, unknown> | null,
+        NUTRIENTES_FOLIAR_COMPARADOS,
+      ),
       adubacoes,
       alertas: montarAlertas({ analiseSolo, analiseFoliar, adubacoes, variacaoAnual }),
     });

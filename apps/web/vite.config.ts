@@ -67,10 +67,12 @@ export default defineConfig({
       workbox: {
         navigateFallbackDenylist: [/^\/api/],
         // O celular do encarregado nunca abre o painel. Sem esta exclusão o
-        // service worker baixaria mapa e gráficos (≈630 kB) na instalação,
-        // gastando franquia de dados com tela que ele não usa. No navegador
-        // do escritório eles continuam carregando normalmente, pela rede.
-        globIgnores: ["**/mapa-*.js", "**/graficos-*.js"],
+        // service worker baixaria mapa, gráficos e o leitor de planilhas
+        // (≈975 kB) na instalação, gastando franquia de dados com tela que
+        // ele não usa — "Adicionar análise" é só de gestão (SomenteGestao) e
+        // carrega a biblioteca xlsx, pesada sozinha. No navegador do
+        // escritório eles continuam carregando normalmente, pela rede.
+        globIgnores: ["**/mapa-*.js", "**/graficos-*.js", "**/AdicionarAnalise-*.js"],
         runtimeCaching: [
           {
             urlPattern: PADRAO_API,

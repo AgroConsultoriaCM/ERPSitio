@@ -12,6 +12,14 @@ export interface DiaClima {
   tempMin: number | null;
   probabilidadeChuva: number | null;
   evapotranspiracaoMm: number | null;
+  /** Umidade relativa média do dia (%) — calda evapora rápido abaixo de ~50%. */
+  umidadeMediaPct: number | null;
+  /** Vento máximo do dia (km/h) — deriva acima de ~15, inversão térmica abaixo de ~3. */
+  ventoMaxKmh: number | null;
+  /** Rajada máxima do dia (km/h). */
+  rajadaMaxKmh: number | null;
+  /** Índice UV máximo do dia. */
+  indiceUv: number | null;
   passado: boolean;
 }
 
@@ -34,6 +42,10 @@ interface RespostaOpenMeteo {
     temperature_2m_min: (number | null)[];
     precipitation_probability_max?: (number | null)[];
     et0_fao_evapotranspiration?: (number | null)[];
+    relative_humidity_2m_mean?: (number | null)[];
+    wind_speed_10m_max?: (number | null)[];
+    wind_gusts_10m_max?: (number | null)[];
+    uv_index_max?: (number | null)[];
   };
 }
 
@@ -51,7 +63,7 @@ export async function buscarClima(latitude: number, longitude: number): Promise<
 
   const url =
     `${BASE}?latitude=${latitude}&longitude=${longitude}` +
-    `&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,precipitation_probability_max,et0_fao_evapotranspiration` +
+    `&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,precipitation_probability_max,et0_fao_evapotranspiration,relative_humidity_2m_mean,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max` +
     `&timezone=${encodeURIComponent(TIMEZONE)}&past_days=30&forecast_days=7`;
 
   let json: RespostaOpenMeteo;
@@ -79,6 +91,10 @@ export async function buscarClima(latitude: number, longitude: number): Promise<
     tempMin: json.daily.temperature_2m_min[i] ?? null,
     probabilidadeChuva: json.daily.precipitation_probability_max?.[i] ?? null,
     evapotranspiracaoMm: json.daily.et0_fao_evapotranspiration?.[i] ?? null,
+    umidadeMediaPct: json.daily.relative_humidity_2m_mean?.[i] ?? null,
+    ventoMaxKmh: json.daily.wind_speed_10m_max?.[i] ?? null,
+    rajadaMaxKmh: json.daily.wind_gusts_10m_max?.[i] ?? null,
+    indiceUv: json.daily.uv_index_max?.[i] ?? null,
     passado: data < hoje,
   }));
 

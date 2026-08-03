@@ -19,16 +19,24 @@ import { AppError } from "../lib/errors.js";
 const BASE = "https://api.cnptia.embrapa.br/agrofit/v1";
 const URL_TOKEN = "https://api.cnptia.embrapa.br/token";
 
+/**
+ * Formato de verdade da resposta — medido em 01/08/2026 batendo direto na
+ * API. Vem em snake_case, nao no camelCase que se esperaria de um JSON
+ * moderno. `classe_categoria_agronomica` e o campo que diz se e inseticida,
+ * fungicida etc — e o que alimenta a sugestao de Função na nota fiscal.
+ */
 export interface ProdutoAgrofit {
-  numeroRegistro?: string;
-  marcaComercial?: string;
-  titularRegistro?: string;
-  ingredienteAtivo?: string;
-  classeAgronomica?: string;
-  modoAcao?: string;
-  classificacaoToxicologica?: string;
-  classificacaoAmbiental?: string;
-  organico?: boolean;
+  numero_registro?: string;
+  marca_comercial?: string[];
+  titular_registro?: string;
+  produto_biologico?: boolean;
+  classe_categoria_agronomica?: string[];
+  formulacao?: string;
+  ingrediente_ativo?: string[];
+  modo_acao?: string[];
+  classificacao_toxicologica?: string;
+  classificacao_ambiental?: string;
+  produto_agricultura_organica?: boolean;
   [k: string]: unknown;
 }
 
@@ -171,4 +179,69 @@ export async function listarIngredientesAtivos() {
 export async function testarConexao() {
   const acesso = await obterToken();
   return { autenticado: true, tamanhoDoToken: acesso.length };
+}
+
+/**
+ * Produto por numero de registro — busca direta, testada e funcionando
+ * (`GET /produtos-formulados/{numero}`, devolve lista com 1 item). Diferente
+ * da paginacao, esta e a unica consulta que vale a pena fazer produto a
+ * produto: e exatamente o numero que `extrairRegistroMapa` (nfe.ts) tira do
+ * texto livre da nota, e e a UNICA chave exata entre a nota e o Agrofit.
+ *
+ * Cache em memoria, sem TTL: registro no MAPA nao muda a cada dia, e o
+ * processo reinicia a cada deploy de qualquer forma.
+ */
+const cacheProduto = new Map<string, ProdutoAgrofit | null>();
+
+export async function buscarProdutoPorRegistro(numeroRegistro: string): Promise<ProdutoAgrofit | null> {
+  if (cacheProduto.has(numeroRegistro)) return cacheProduto.get(numeroRegistro)!;
+
+  let produto: ProdutoAgrofit | null;
+  try {
+    const lista = await buscar<ProdutoAgrofit[]>(`/produtos-formulados/${numeroRegistro}`, {});
+    produto = Array.isArray(lista) && lista.length > 0 ? lista[0] : null;
+  } catch {
+    // Registro que a Embrapa nao reconhece, ou instabilidade momentanea: nao
+    // e erro fatal para quem so queria uma SUGESTAO de função. O usuario
+    // continua podendo marcar a mao.
+    produto = null;
+  }
+  cacheProduto.set(numeroRegistro, produto);
+  return produto;
+}
+
+/**
+ * Classe agronomica do Agrofit ("Inseticida", "Fungicida"...) -> função do
+ * nosso cadastro. So mapeia o que da para afirmar com confiança; classe sem
+ * correspondencia clara (ex. "Espalhante Adesivo" isolado) fica de fora em
+ * vez de virar um chute em "Outro".
+ */
+const MAPA_CLASSE_FUNCAO: Record<string, "INSETICIDA" | "FUNGICIDA" | "HERBICIDA" | "ACARICIDA" | "NEMATICIDA" | "ADJUVANTE"> = {
+  INSETICIDA: "INSETICIDA",
+  FUNGICIDA: "FUNGICIDA",
+  BACTERICIDA: "FUNGICIDA",
+  HERBICIDA: "HERBICIDA",
+  ACARICIDA: "ACARICIDA",
+  NEMATICIDA: "NEMATICIDA",
+  NEMATOCIDA: "NEMATICIDA",
+  ADJUVANTE: "ADJUVANTE",
+};
+
+/** Sem acento, sem caixa: "Adjuvante" e "ADJUVANTE" têm que casar igual. */
+function chaveClasse(v: string): string {
+  return v
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .trim();
+}
+
+export function funcoesSugeridasDoAgrofit(produto: ProdutoAgrofit): string[] {
+  const classes = produto.classe_categoria_agronomica ?? [];
+  const funcoes = new Set<string>();
+  for (const c of classes) {
+    const mapeada = MAPA_CLASSE_FUNCAO[chaveClasse(c)];
+    if (mapeada) funcoes.add(mapeada);
+  }
+  return [...funcoes];
 }

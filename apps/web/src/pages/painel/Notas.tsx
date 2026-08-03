@@ -276,7 +276,7 @@ function JanelaNota({
         insumoId: i.insumoId ?? "",
         nome: i.nomeSugerido,
         unidade: i.insumoUnidade ?? "L",
-        funcoes: [],
+        funcoes: i.funcoesSugeridas ?? [],
         fator: i.fatorConversao != null ? String(i.fatorConversao) : "",
       };
     }
@@ -485,7 +485,17 @@ function LinhaItem({
         {item.jaConhecido || escolha.insumoId ? (
           <span className="text-xs text-terra-500">definida no produto</span>
         ) : (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-col gap-1">
+            {item.funcoesSugeridas.length > 0 && (
+              <div
+                className="flex items-center gap-1 text-xs text-mata-700"
+                title="Lida do registro do MAPA no Agrofit — confira antes de lançar"
+              >
+                <Sparkles className="h-3 w-3" />
+                sugerido pelo Agrofit
+              </div>
+            )}
+            <div className="flex flex-wrap gap-1">
             {FUNCOES.map((f) => {
               const marcada = escolha.funcoes.includes(f);
               return (
@@ -510,6 +520,7 @@ function LinhaItem({
                 </button>
               );
             })}
+            </div>
           </div>
         )}
       </td>

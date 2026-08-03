@@ -895,6 +895,11 @@ model AmostraLaudo {
   /// em vez de sumirem: laudo novo com coluna nova fica visivel.
   naoReconhecidas String[]
 
+  /// Conversao de unidade aplicada (ou unidade estranha que nao deu para
+  /// converter), para o padrao do laboratorio Athenas. Vazio nos laudos que ja
+  /// vieram na unidade padrao - e o caso normal.
+  avisosUnidade String[] @default([])
+
   /// Onde esta amostra foi parar depois de confirmada. Nulo enquanto pendente,
   /// e continua nulo se o usuario decidir arquivar.
   talhaoId String?

@@ -234,6 +234,10 @@ export interface DiaClima {
   tempMin: number | null;
   probabilidadeChuva: number | null;
   evapotranspiracaoMm: number | null;
+  umidadeMediaPct: number | null;
+  ventoMaxKmh: number | null;
+  rajadaMaxKmh: number | null;
+  indiceUv: number | null;
   passado: boolean;
 }
 
@@ -513,6 +517,8 @@ export interface ItemNotaDetalhe {
   fatorSugerido: number | null;
   trechoEmbalagem: string | null;
   nomeSugerido: string;
+  /** Lida do registro do MAPA no Agrofit, quando a nota o informa. */
+  funcoesSugeridas: FuncaoInsumo[];
   quantidadeConvertida: number | null;
   custoConvertido: number | null;
 }

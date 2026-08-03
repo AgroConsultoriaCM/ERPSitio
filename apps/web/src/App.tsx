@@ -40,6 +40,7 @@ const Executores = lazy(() => import("./pages/painel/Executores"));
 const Insumos = lazy(() => import("./pages/painel/Insumos"));
 const PerfisCorrecao = lazy(() => import("./pages/painel/PerfisCorrecao"));
 const AdicionarAnalise = lazy(() => import("./pages/painel/AdicionarAnalise"));
+const TiposOperacao = lazy(() => import("./pages/painel/TiposOperacao"));
 
 function Carregando() {
   return (
@@ -118,6 +119,7 @@ export default function App() {
                   <Route path="insumos" element={<Insumos />} />
                   <Route path="perfis-correcao" element={<PerfisCorrecao />} />
                   <Route path="adicionar-analise" element={<AdicionarAnalise />} />
+                  <Route path="tipos-operacao" element={<TiposOperacao />} />
                 </Route>
 
                 {/* rotas antigas -> novo lugar, para links salvos continuarem valendo */}

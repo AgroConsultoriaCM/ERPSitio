@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   CartesianGrid,
@@ -16,8 +16,6 @@ import {
   CloudOff,
   FlaskConical,
   Leaf,
-  Loader2,
-  RefreshCw,
   Satellite,
   Sprout,
   TestTube,
@@ -57,6 +55,8 @@ interface TalhaoNutricional {
   variacaoAnual: number | null;
   analiseSolo: Record<string, number | string | null> | null;
   analiseFoliar: Record<string, number | string | null> | null;
+  variacaoSolo: Record<string, number>;
+  variacaoFoliar: Record<string, number>;
   adubacoes: Adubacao[];
   alertas: Alerta[];
 }
@@ -68,15 +68,6 @@ interface Resposta {
   fonte: string;
 }
 
-interface ResultadoSincronizacao {
-  talhaoId: string;
-  nome: string;
-  status: "backfill" | "gravado" | "ja_tinha" | "sem_cena_limpa" | "sem_poligono" | "erro";
-  leiturasGravadas?: number;
-  osaviMedio?: number | null;
-  mensagem?: string;
-}
-
 const mesAnoLongo = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
@@ -86,10 +77,30 @@ const dataCurta = (iso: string) =>
 const mesCurto = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }).replace(".", "");
 
-function Numero({ rotulo, valor }: { rotulo: string; valor: unknown }) {
+function Numero({
+  rotulo,
+  valor,
+  variacao,
+}: {
+  rotulo: string;
+  valor: unknown;
+  /** % frente à mesma análise de ~1 ano antes. Ausente quando não há com o que comparar. */
+  variacao?: number;
+}) {
   if (valor == null || valor === "") return null;
   return (
-    <div className="rounded-lg bg-terra-50 px-2.5 py-1.5">
+    <div className="relative rounded-lg bg-terra-50 px-2.5 py-1.5">
+      {variacao != null && (
+        <span
+          className={`absolute right-1 top-1 text-[9px] font-bold leading-none ${
+            variacao < 0 ? "text-red-600" : variacao > 0 ? "text-mata-600" : "text-terra-400"
+          }`}
+          title="Variação frente à mesma análise de cerca de 1 ano antes"
+        >
+          {variacao > 0 ? "+" : ""}
+          {numero(variacao, 0)}%
+        </span>
+      )}
       <p className="text-[10px] uppercase tracking-wide text-terra-400">{rotulo}</p>
       <p className="numero text-sm font-semibold text-terra-800">
         {typeof valor === "number" ? numero(valor, 2) : String(valor)}
@@ -152,10 +163,11 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
           <p className="mb-1.5 flex items-center justify-between text-xs font-semibold text-terra-600">
             <span className="flex items-center gap-1.5">
               <Satellite size={13} className="text-terra-400" />
-              Vigor (OSAVI) — 12 meses
+              Vigor (OSAVI) — 13 meses
             </span>
             {t.variacaoAnual != null && (
               <span
+                title="Frente ao mesmo mês, um ano antes"
                 className={
                   t.variacaoAnual <= -10
                     ? "text-red-700"
@@ -165,7 +177,7 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
                 }
               >
                 {t.variacaoAnual > 0 ? "+" : ""}
-                {t.variacaoAnual}% no período
+                {t.variacaoAnual}% vs. ano passado
               </span>
             )}
           </p>
@@ -228,14 +240,22 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
             </p>
             {t.analiseSolo ? (
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                <Numero rotulo="pH" valor={t.analiseSolo.ph} />
-                <Numero rotulo="M.O." valor={t.analiseSolo.materiaOrganica} />
-                <Numero rotulo="P" valor={t.analiseSolo.fosforo} />
-                <Numero rotulo="K" valor={t.analiseSolo.potassio} />
-                <Numero rotulo="Ca" valor={t.analiseSolo.calcio} />
-                <Numero rotulo="Mg" valor={t.analiseSolo.magnesio} />
-                <Numero rotulo="CTC" valor={t.analiseSolo.ctc} />
-                <Numero rotulo="V%" valor={t.analiseSolo.saturacaoBases} />
+                <Numero rotulo="pH" valor={t.analiseSolo.ph} variacao={t.variacaoSolo.ph} />
+                <Numero
+                  rotulo="M.O."
+                  valor={t.analiseSolo.materiaOrganica}
+                  variacao={t.variacaoSolo.materiaOrganica}
+                />
+                <Numero rotulo="P" valor={t.analiseSolo.fosforo} variacao={t.variacaoSolo.fosforo} />
+                <Numero rotulo="K" valor={t.analiseSolo.potassio} variacao={t.variacaoSolo.potassio} />
+                <Numero rotulo="Ca" valor={t.analiseSolo.calcio} variacao={t.variacaoSolo.calcio} />
+                <Numero rotulo="Mg" valor={t.analiseSolo.magnesio} variacao={t.variacaoSolo.magnesio} />
+                <Numero rotulo="CTC" valor={t.analiseSolo.ctc} variacao={t.variacaoSolo.ctc} />
+                <Numero
+                  rotulo="V%"
+                  valor={t.analiseSolo.saturacaoBases}
+                  variacao={t.variacaoSolo.saturacaoBases}
+                />
               </div>
             ) : (
               <p className="rounded-lg bg-terra-50 px-3 py-2 text-xs text-terra-400">
@@ -256,12 +276,12 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
             </p>
             {t.analiseFoliar ? (
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                <Numero rotulo="N" valor={t.analiseFoliar.nitrogenio} />
-                <Numero rotulo="P" valor={t.analiseFoliar.fosforo} />
-                <Numero rotulo="K" valor={t.analiseFoliar.potassio} />
-                <Numero rotulo="Ca" valor={t.analiseFoliar.calcio} />
-                <Numero rotulo="Mg" valor={t.analiseFoliar.magnesio} />
-                <Numero rotulo="S" valor={t.analiseFoliar.enxofre} />
+                <Numero rotulo="N" valor={t.analiseFoliar.nitrogenio} variacao={t.variacaoFoliar.nitrogenio} />
+                <Numero rotulo="P" valor={t.analiseFoliar.fosforo} variacao={t.variacaoFoliar.fosforo} />
+                <Numero rotulo="K" valor={t.analiseFoliar.potassio} variacao={t.variacaoFoliar.potassio} />
+                <Numero rotulo="Ca" valor={t.analiseFoliar.calcio} variacao={t.variacaoFoliar.calcio} />
+                <Numero rotulo="Mg" valor={t.analiseFoliar.magnesio} variacao={t.variacaoFoliar.magnesio} />
+                <Numero rotulo="S" valor={t.analiseFoliar.enxofre} variacao={t.variacaoFoliar.enxofre} />
               </div>
             ) : (
               <p className="rounded-lg bg-terra-50 px-3 py-2 text-xs text-terra-400">
@@ -307,24 +327,14 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
 }
 
 export default function ManejoNutricional() {
-  const qc = useQueryClient();
   const consulta = useQuery({
     queryKey: ["manejo-nutricional"],
     queryFn: () => api.get<Resposta>("/manejo-nutricional"),
     retry: false,
     // O relatorio so le o banco agora — nao ha motivo para refazer com
-    // frequencia, ja que a leitura de satelite so muda quando alguem
-    // sincroniza (uma vez por mes, tipicamente).
+    // frequencia. Quem alimenta a leitura de satelite e o agendador semanal
+    // (domingo de madrugada), nao mais um clique nesta tela.
     staleTime: 6 * 60 * 60 * 1000,
-  });
-
-  // Dispara POST /satelite/sincronizar. E a UNICA chamada ao Copernicus desta
-  // tela inteira — abrir a pagina em si e so leitura de banco, instantanea.
-  const sincronizar = useMutation({
-    mutationFn: () => api.post<{ resultados: ResultadoSincronizacao[] }>("/satelite/sincronizar"),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["manejo-nutricional"] });
-    },
   });
 
   if (consulta.isLoading) {
@@ -356,62 +366,26 @@ export default function ManejoNutricional() {
   ).length;
   const semAlerta = dados.talhoes.filter((t) => t.alertas.length === 0).length;
 
-  const r = sincronizar.data?.resultados;
-  const novas = r?.filter((x) => x.status === "backfill" || x.status === "gravado").length ?? 0;
-  const jaTinha = r?.filter((x) => x.status === "ja_tinha").length ?? 0;
-  const semCena = r?.filter((x) => x.status === "sem_cena_limpa").length ?? 0;
-  const semPoligono = r?.filter((x) => x.status === "sem_poligono").length ?? 0;
-
   return (
     <div className="escalonar space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-terra-900">Manejo nutricional</h1>
           <p className="mt-1 text-sm text-terra-500">
-            Um ano de vigor por satélite, as últimas análises de solo e folha e as adubações do
+            Treze meses de vigor por satélite, as últimas análises de solo e folha e as adubações do
             período — solo e foliar — na mesma linha do tempo, talhão a talhão.
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-1">
-          <button
-            onClick={() => sincronizar.mutate()}
-            disabled={!dados.satelite || sincronizar.isPending}
-            title={!dados.satelite ? "Satélite não configurado no servidor" : undefined}
-            className="flex items-center gap-2 rounded-lg border border-terra-300 bg-white px-3.5 py-2 text-sm font-medium text-terra-700 shadow-cartao transition hover:bg-terra-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {sincronizar.isPending ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <RefreshCw size={15} />
-            )}
-            {sincronizar.isPending ? "Sincronizando…" : "Sincronizar agora"}
-          </button>
           <span className="text-xs text-terra-400">
             {dados.ultimaSincronizacao
               ? `última leitura: ${mesAnoLongo(dados.ultimaSincronizacao)}`
               : "ainda sem leitura sincronizada"}
           </span>
+          <span className="text-[11px] text-terra-300">atualiza sozinho, todo domingo de madrugada</span>
         </div>
       </header>
-
-      {sincronizar.isError && (
-        <Aviso tom="perigo" titulo="Falha ao sincronizar" icone={CloudOff}>
-          {sincronizar.error instanceof ApiError
-            ? sincronizar.error.message
-            : "Não foi possível falar com o satélite agora."}
-        </Aviso>
-      )}
-
-      {r && (
-        <Aviso tom="mata" titulo="Sincronização concluída" icone={RefreshCw}>
-          {novas > 0 && `${novas} talhão${novas > 1 ? "ões" : ""} atualizado${novas > 1 ? "s" : ""}. `}
-          {jaTinha > 0 && `${jaTinha} já tinha leitura deste mês. `}
-          {semCena > 0 && `${semCena} sem cena limpa no momento. `}
-          {semPoligono > 0 && `${semPoligono} sem contorno desenhado.`}
-          {novas === 0 && jaTinha === 0 && semCena === 0 && semPoligono === 0 && "nada para atualizar."}
-        </Aviso>
-      )}
 
       {!dados.satelite && (
         <Aviso tom="alerta" titulo="Satélite não configurado" icone={Satellite}>
@@ -421,9 +395,9 @@ export default function ManejoNutricional() {
       )}
 
       {dados.satelite && !dados.ultimaSincronizacao && (
-        <Aviso tom="alerta" titulo="Nenhuma leitura sincronizada ainda" icone={RefreshCw}>
-          Clique em "Sincronizar agora" para trazer o histórico de vigor de cada talhão. Na primeira
-          vez, o sistema busca alguns anos de uma vez — nas próximas, só o mês atual.
+        <Aviso tom="alerta" titulo="Nenhuma leitura sincronizada ainda" icone={Satellite}>
+          O agendador ainda não rodou pela primeira vez. Na primeira sincronização o sistema busca
+          alguns anos de uma vez; depois disso, atualiza sozinho toda semana.
         </Aviso>
       )}
 

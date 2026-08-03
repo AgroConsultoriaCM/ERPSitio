@@ -76,6 +76,41 @@ console.log("\n== zero e resultado, ausencia nao ==");
   conferir("duas amostras lidas", l.amostras.length, 2);
 }
 
+console.log("\n== unidade diferente da padrao (Athenas) e convertida ==");
+{
+  // Mesmo layout da quimica real, mas o laboratorio fictício usa cmolc/dm3 em
+  // vez de mmolc/dm3 para Ca, e ppm em vez de mg/dm3 para P — as duas
+  // conversoes que o leitor deve saber fazer sozinho.
+  const planilha: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "pH", "M.O.", "P", "Ca", "CTC"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null, null, null, null],
+    [null, null, null, null, null, "CaCl2", "g dm-3", "ppm", "cmolc dm-3", "mmolc dm-3"],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 5.5, 20, 10, 4, 45],
+  ];
+  const a = lerLaudo(planilha).amostras[0];
+  conferir("P convertido de ppm para mg/dm3 (1:1, sem mudar o numero)", a.valores.fosforo, 10);
+  conferir("Ca convertido de cmolc para mmolc/dm3 (x10)", a.valores.calcio, 40);
+  conferir("pH e CTC ja na unidade padrao — passam direto", [a.valores.ph, a.valores.ctc], [5.5, 45]);
+  afirmar("avisa sobre a conversao do fosforo", a.avisosUnidade.some((m) => /PPM/i.test(m)));
+  afirmar("avisa sobre a conversao do calcio", a.avisosUnidade.some((m) => /CMOLC/i.test(m)));
+}
+
+console.log("\n== unidade desconhecida: mantem o valor e avisa, nao chuta ==");
+{
+  const planilha: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "pH", "Ca", "CTC"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null, null],
+    [null, null, null, null, null, "CaCl2", "meq/L", "mmolc dm-3"],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 5.5, 4, 45],
+  ];
+  const a = lerLaudo(planilha).amostras[0];
+  conferir("valor mantido sem conversao (unidade nao reconhecida)", a.valores.calcio, 4);
+  afirmar(
+    "avisa que a unidade nao foi reconhecida",
+    a.avisosUnidade.some((m) => m.includes("não reconhecida")),
+  );
+}
+
 console.log("\n== cabecalho de duas linhas com sentidos que se completam ==");
 {
   // Como vem na quimica real: "Sat." em cima, "Bases"/"Al" embaixo. Ler so uma
@@ -130,6 +165,7 @@ if (!existsSync(PASTA)) {
   const porTipo: Record<string, number> = {};
   let totalAmostras = 0;
   const naoReconhecidas = new Set<string>();
+  const avisosUnidade = new Set<string>();
 
   for (const nome of arquivos.sort()) {
     try {
@@ -137,6 +173,7 @@ if (!existsSync(PASTA)) {
       porTipo[laudo.tipo] = (porTipo[laudo.tipo] ?? 0) + 1;
       totalAmostras += laudo.amostras.length;
       laudo.amostras.forEach((a) => a.naoReconhecidas.forEach((r) => naoReconhecidas.add(r)));
+      laudo.amostras.forEach((a) => a.avisosUnidade.forEach((r) => avisosUnidade.add(r)));
 
       const ids = laudo.amostras.map((a) => a.identificacao ?? "?").join(", ");
       const nutrientes = laudo.amostras[0] ? Object.keys(laudo.amostras[0].valores).length : 0;
@@ -161,6 +198,16 @@ if (!existsSync(PASTA)) {
   } else {
     console.log("  todas as colunas com número foram reconhecidas");
   }
+  // Os 13 arquivos sao todos do laboratorio Athenas — que E o padrao adotado.
+  // Zero avisos aqui e o resultado esperado; se aparecer algum, ou a leitura
+  // da unidade quebrou, ou o laudo realmente veio em unidade diferente e
+  // precisa de olhar humano antes de gravar.
+  if (avisosUnidade.size > 0) {
+    console.log(`  avisos de unidade nos arquivos reais (confira!): ${[...avisosUnidade].join(" | ")}`);
+  } else {
+    console.log("  nenhum aviso de unidade — os 13 arquivos batem com o padrão Athenas");
+  }
+  afirmar("arquivos reais (todos Athenas) não geram aviso de unidade", avisosUnidade.size === 0);
   afirmar("detectou os cinco tipos de laudo", Object.keys(porTipo).length === 5,
     `achou ${Object.keys(porTipo).join(",")}`);
 }

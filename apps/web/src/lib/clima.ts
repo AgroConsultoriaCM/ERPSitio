@@ -33,13 +33,48 @@ export interface DiaJanela {
 
 const CLASSE_ORDEM: Record<QualidadeJanela, number> = { boa: 0, atencao: 1, ruim: 2 };
 
+interface Fator {
+  qualidade: QualidadeJanela;
+  motivo: string;
+}
+
+/** Chuva: o critério mais forte — lava a calda e o dinheiro vai junto. */
+function fatorChuva(chuva: number, prob: number | null): Fator | null {
+  if (chuva >= 5 || (prob != null && prob >= 70)) {
+    return { qualidade: "ruim", motivo: chuva >= 5 ? `${chuva.toFixed(0)} mm previstos` : `${prob}% de chance de chuva` };
+  }
+  if (chuva >= 1 || (prob != null && prob >= 40)) {
+    return { qualidade: "atencao", motivo: chuva >= 1 ? `${chuva.toFixed(1)} mm previstos` : `${prob}% de chance de chuva` };
+  }
+  return null;
+}
+
+/**
+ * Vento: faixa ideal é 3–10 km/h. Acima de 15 km/h a deriva leva o produto
+ * para fora do alvo; abaixo de 3 km/h o ar não se mistura (inversão térmica)
+ * e a nuvem de aplicação fica solta, sem destino previsível.
+ */
+function fatorVento(ventoKmh: number | null): Fator | null {
+  if (ventoKmh == null) return null;
+  if (ventoKmh >= 15) return { qualidade: "ruim", motivo: `vento de ${ventoKmh.toFixed(0)} km/h — risco de deriva` };
+  if (ventoKmh >= 10) return { qualidade: "atencao", motivo: `vento de ${ventoKmh.toFixed(0)} km/h` };
+  if (ventoKmh < 3) return { qualidade: "atencao", motivo: `vento fraco (${ventoKmh.toFixed(0)} km/h) — risco de inversão térmica` };
+  return null;
+}
+
+/** Umidade baixa evapora a gota antes de chegar no alvo. */
+function fatorUmidade(umidadePct: number | null): Fator | null {
+  if (umidadePct == null || umidadePct >= 50) return null;
+  return { qualidade: "atencao", motivo: `umidade baixa (${umidadePct.toFixed(0)}%) — a calda evapora rápido` };
+}
+
 /**
  * Classifica os próximos dias para pulverização.
  *
- * O critério é a lavagem da calda: chuva logo após a aplicação tira o produto
- * da folha e o dinheiro vai junto. Como a previsão diária não diz a hora da
- * chuva, o dia seguinte também pesa — chover de manhã depois de aplicar à
- * tarde dá no mesmo.
+ * Quatro critérios, o pior vence: chuva (lava a calda), vento (deriva ou
+ * inversão térmica) e umidade (evaporação da gota). Como a previsão diária
+ * não diz a hora da chuva, o dia seguinte também pesa — chover de manhã
+ * depois de aplicar à tarde dá no mesmo.
  */
 export function janelaPulverizacao(dias: DiaClima[]): DiaJanela[] {
   const futuros = dias.filter((d) => !d.passado);
@@ -53,15 +88,21 @@ export function janelaPulverizacao(dias: DiaClima[]): DiaJanela[] {
     // A qualidade olha só o próprio dia. Misturar o dia seguinte aqui fazia
     // um dia seco antes de uma frente virar "atenção", e a semana inteira
     // ficava sem nenhum dia bom — justamente quando havia um.
-    let qualidade: QualidadeJanela = "boa";
-    let motivo = "sem chuva prevista";
+    const fatores = [
+      fatorChuva(chuva, prob),
+      fatorVento(d.ventoMaxKmh),
+      fatorUmidade(d.umidadeMediaPct),
+    ].filter((f): f is Fator => f != null);
 
-    if (chuva >= 5 || (prob != null && prob >= 70)) {
-      qualidade = "ruim";
-      motivo = chuva >= 5 ? `${chuva.toFixed(0)} mm previstos` : `${prob}% de chance de chuva`;
-    } else if (chuva >= 1 || (prob != null && prob >= 40)) {
-      qualidade = "atencao";
-      motivo = chuva >= 1 ? `${chuva.toFixed(1)} mm previstos` : `${prob}% de chance de chuva`;
+    let qualidade: QualidadeJanela = "boa";
+    let motivo = "sem chuva prevista, vento e umidade dentro do esperado";
+    for (const f of fatores) {
+      if (CLASSE_ORDEM[f.qualidade] > CLASSE_ORDEM[qualidade]) {
+        qualidade = f.qualidade;
+        motivo = f.motivo;
+      } else if (CLASSE_ORDEM[f.qualidade] === CLASSE_ORDEM[qualidade] && qualidade !== "boa") {
+        motivo += ` · ${f.motivo}`;
+      }
     }
 
     const avisoDiaSeguinte =

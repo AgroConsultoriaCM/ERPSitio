@@ -14,6 +14,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { lerXmlNfe, conferirTotal, XmlInvalidoError } from "../services/nfe.js";
 import { lerEmbalagem, sugerirNome } from "../services/embalagem.js";
+import { agrofitConfigurado, buscarProdutoPorRegistro, funcoesSugeridasDoAgrofit } from "../services/agrofit.js";
 import { AppError, NaoEncontradoError } from "../lib/errors.js";
 
 const receberSchema = z.object({
@@ -166,6 +167,29 @@ export default async function notasRoutes(fastify: FastifyInstance) {
     });
     const nosso = soDigitos(propriedade?.documento);
 
+    // Função sugerida pelo Agrofit, so para itens NOVOS (produto ja conhecido
+    // ja tem função definida no proprio cadastro) que trazem o numero de
+    // registro do MAPA no texto da nota. Em paralelo e com cache em memoria
+    // (agrofit.ts) - o mesmo produto em notas diferentes so bate na Embrapa
+    // uma vez por vida do processo.
+    const registrosParaConsultar = [
+      ...new Set(
+        lida.itens
+          .filter((item) => !porCodigo.has(item.codigo) && item.registroMapa)
+          .map((item) => item.registroMapa as string),
+      ),
+    ];
+    const funcoesPorRegistro = new Map<string, string[]>();
+    if (agrofitConfigurado() && registrosParaConsultar.length > 0) {
+      const encontrados = await Promise.all(
+        registrosParaConsultar.map(async (registroMapa) => {
+          const produto = await buscarProdutoPorRegistro(registroMapa);
+          return [registroMapa, produto ? funcoesSugeridasDoAgrofit(produto) : []] as const;
+        }),
+      );
+      for (const [registroMapa, funcoes] of encontrados) funcoesPorRegistro.set(registroMapa, funcoes);
+    }
+
     return {
       ...registro,
       // O XML inteiro nao serve para a tela; quem quiser pode baixar depois.
@@ -203,6 +227,8 @@ export default async function notasRoutes(fastify: FastifyInstance) {
           quantidadeConvertida: fator ? item.quantidade * fator : null,
           custoConvertido:
             fator && fator > 0 ? Math.round((item.custoUnitarioReal / fator) * 100) / 100 : null,
+          /** Lida do registro do MAPA no Agrofit — o gestor confere antes de salvar. */
+          funcoesSugeridas: item.registroMapa ? (funcoesPorRegistro.get(item.registroMapa) ?? []) : [],
         };
       }),
     };

@@ -125,6 +125,7 @@ export default async function laudosRoutes(fastify: FastifyInstance) {
               profundidade: a.profundidade,
               valores: a.valores,
               naoReconhecidas: a.naoReconhecidas,
+              avisosUnidade: a.avisosUnidade,
             })),
           },
         },

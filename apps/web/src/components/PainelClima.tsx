@@ -1,4 +1,4 @@
-import { CalendarDays, CloudRain, Droplets, Scale, SprayCan, Sun } from "lucide-react";
+import { CalendarDays, CloudRain, Droplets, Scale, SprayCan, Sun, SunMedium, Wind } from "lucide-react";
 import type { ComponentType } from "react";
 import type { LucideProps } from "lucide-react";
 import type { RespostaClima } from "../lib/types";
@@ -78,10 +78,10 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
         />
       </div>
 
-      <div className="px-4 py-4 sm:px-5">
-        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+      <div className="px-4 py-5 sm:px-5">
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-terra-700">
-            <SprayCan size={15} strokeWidth={2} className="text-terra-400" />
+            <SprayCan size={16} strokeWidth={2} className="text-terra-400" />
             Janela de pulverização
           </p>
           {boa ? (
@@ -95,15 +95,15 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
           )}
         </div>
 
-        <div className="flex gap-1.5 overflow-x-auto rolagem-fina pb-1">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
           {previsao.map((d) => {
             const j = janela.find((x) => x.data === d.data);
             const cor = CORES_JANELA[j?.qualidade ?? "boa"];
-            const altura = Math.max(3, ((d.chuvaMm ?? 0) / maxChuva) * 44);
+            const altura = Math.max(4, ((d.chuvaMm ?? 0) / maxChuva) * 52);
             return (
               <div
                 key={d.data}
-                className="flex w-[3.5rem] shrink-0 flex-col items-center rounded-xl border border-terra-100 px-1 pb-2 pt-2 transition duration-200 ease-suave hover:-translate-y-0.5 hover:border-terra-200 hover:shadow-cartao"
+                className="flex flex-col items-center rounded-2xl border border-terra-100 px-2 pb-3 pt-3 transition duration-200 ease-suave hover:-translate-y-0.5 hover:border-terra-200 hover:shadow-cartao"
                 title={[
                   `${diaCurto(d.data)} — pulverização ${cor.rotulo}: ${j?.motivo ?? ""}`,
                   j?.avisoDiaSeguinte,
@@ -111,14 +111,14 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
                   .filter(Boolean)
                   .join(" · ")}
               >
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-terra-500">
+                <span className="text-xs font-semibold uppercase tracking-wide text-terra-500">
                   {diaSemana(d.data)}
                 </span>
-                <span className="numero text-[11px] text-terra-400">{diaCurto(d.data)}</span>
+                <span className="numero text-xs text-terra-400">{diaCurto(d.data)}</span>
 
-                <div className="mt-1.5 flex h-12 w-full items-end justify-center">
+                <div className="mt-2 flex h-14 w-full items-end justify-center">
                   <div
-                    className={`w-3.5 origin-bottom animate-crescer rounded-t ${
+                    className={`w-5 origin-bottom animate-crescer rounded-t ${
                       (d.chuvaMm ?? 0) > 0
                         ? "bg-gradient-to-t from-agua-500 to-agua-300"
                         : "bg-terra-200"
@@ -127,27 +127,55 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
                   />
                 </div>
 
-                <span className="numero mt-1 text-[11px] font-medium text-terra-600">
-                  {(d.chuvaMm ?? 0) > 0 ? numero(d.chuvaMm) : "0"}
+                <span className="numero mt-1.5 text-sm font-semibold text-terra-700">
+                  {(d.chuvaMm ?? 0) > 0 ? numero(d.chuvaMm) : "0"} mm
                 </span>
-                <span className="numero text-[10px] text-terra-400">
+                <span className="numero text-xs text-terra-400">
                   {d.tempMin != null && d.tempMax != null
-                    ? `${Math.round(d.tempMin)}/${Math.round(d.tempMax)}°`
+                    ? `${Math.round(d.tempMin)}° / ${Math.round(d.tempMax)}°`
                     : ""}
                 </span>
 
-                <span className={`mt-2 h-1.5 w-full overflow-hidden rounded-full ${cor.trilho}`}>
-                  <span className={`block h-1.5 w-1/3 rounded-full ${cor.ponto}`} />
+                <div className="mt-2 flex w-full items-center justify-center gap-2.5 border-t border-terra-100 pt-2 text-terra-500">
+                  <span className="flex items-center gap-1" title="Umidade relativa média">
+                    <Droplets size={11} className="text-agua-400" />
+                    <span className="numero text-[11px]">
+                      {d.umidadeMediaPct != null ? `${Math.round(d.umidadeMediaPct)}%` : "—"}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1" title="Vento máximo">
+                    <Wind size={11} className="text-terra-400" />
+                    <span className="numero text-[11px]">
+                      {d.ventoMaxKmh != null ? `${Math.round(d.ventoMaxKmh)}` : "—"}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1" title="Índice UV máximo">
+                    <SunMedium size={11} className="text-amber-400" />
+                    <span className="numero text-[11px]">
+                      {d.indiceUv != null ? numero(d.indiceUv, 0) : "—"}
+                    </span>
+                  </span>
+                </div>
+
+                <span className={`mt-2.5 h-2 w-full overflow-hidden rounded-full ${cor.trilho}`}>
+                  <span className={`block h-2 w-1/3 rounded-full ${cor.ponto}`} />
                 </span>
               </div>
             );
           })}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-terra-500">
+        <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-terra-500">
           <span className="flex items-center gap-1.5">
-            <Droplets size={12} className="text-agua-400" /> chuva prevista (mm)
+            <Droplets size={12} className="text-agua-400" /> chuva e umidade
           </span>
+          <span className="flex items-center gap-1.5">
+            <Wind size={12} className="text-terra-400" /> vento (km/h)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <SunMedium size={12} className="text-amber-400" /> índice UV
+          </span>
+          <span className="mx-1 h-3 w-px bg-terra-200" />
           <span className="flex items-center gap-1.5">
             <i className="h-2 w-2 rounded-full bg-mata-500" /> boa
           </span>
@@ -158,6 +186,11 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
             <i className="h-2 w-2 rounded-full bg-red-500" /> evitar
           </span>
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-terra-400">
+          Além da chuva, entram vento (deriva acima de 15 km/h, inversão térmica abaixo de 3 km/h) e
+          umidade (evaporação da calda abaixo de 50%) — passe o mouse sobre o dia para ver qual fator
+          pesou.
+        </p>
       </div>
     </div>
   );

@@ -45,35 +45,44 @@ console.log("\n== periodo normaliza para o primeiro dia do mes, em UTC ==");
   );
 }
 
-// A decisao real (backfill vs mes atual vs pular) e testada com um Prisma
+// A decisao real (backfill vs sincronizacao semanal) e testada com um Prisma
 // fake minimo, para provar a REGRA sem precisar de banco nem de credencial.
-console.log("\n== decisao: backfill so na primeira vez, deduplicacao dentro do mes ==");
+console.log("\n== decisao: backfill so na primeira vez, semanal dali em diante ==");
 {
-  type Chamada = { tipo: "backfill" | "mes-atual" };
-  const chamadas: Chamada[] = [];
-
   // Simula o que sincronizarLeiturasSatelite.ts faz: decide pela CONTAGEM de
   // linhas existentes, nao por uma flag separada — e o que evita divergencia
   // entre "achei que era a primeira vez" e o que o banco realmente tem.
-  function decidir(qtdLinhasExistentes: number): "backfill" | "mes-atual" {
-    return qtdLinhasExistentes > 0 ? "mes-atual" : "backfill";
+  function decidir(qtdLinhasExistentes: number): "backfill" | "semanal" {
+    return qtdLinhasExistentes > 0 ? "semanal" : "backfill";
   }
 
   conferir("talhao com 0 linhas -> backfill", decidir(0), "backfill");
-  conferir("talhao com 1 linha -> mes atual", decidir(1), "mes-atual");
-  conferir("talhao com 13 linhas (ja rodou varios meses) -> mes atual", decidir(13), "mes-atual");
+  conferir("talhao com 1 linha -> semanal", decidir(1), "semanal");
+  conferir("talhao com 13 linhas (ja rodou varios meses) -> semanal", decidir(13), "semanal");
 
-  // Depois do backfill, a proxima chamada no mesmo mes deve pular (nao gastar
-  // cota de novo) - simulado pela leitura ja ter osaviMedio preenchido.
-  function pulaMesAtual(existente: { osaviMedio: number | null } | null): boolean {
-    return existente?.osaviMedio != null;
+  // Chamado 1x por semana (agendador.ts, domingo de madrugada): SEMPRE busca
+  // a ultima semana e sobrescreve o mes vigente com o que vier — ao contrario
+  // do backfill mensal antigo, nao pula so porque ja tinha leitura. So NAO
+  // apaga um dado bom com "sem cena limpa": uma semana nublada preserva o
+  // valor que o mes ja tinha, em vez de zerar o grafico por causa da nuvem.
+  function valorAposSemana(
+    existente: { osaviMedio: number | null } | null,
+    semanaTemDado: boolean,
+    semanaOsavi: number | null,
+  ): number | null {
+    if (semanaTemDado) return semanaOsavi;
+    return existente?.osaviMedio ?? null;
   }
-  conferir("sem linha para este mes -> nao pula, busca", pulaMesAtual(null), false);
-  conferir("linha com dado real -> pula", pulaMesAtual({ osaviMedio: 0.45 }), true);
+  conferir("semana com cena limpa -> grava o novo valor", valorAposSemana(null, true, 0.5), 0.5);
   conferir(
-    "linha de tentativa anterior SEM dado (mes nublado) -> nao pula, tenta de novo",
-    pulaMesAtual({ osaviMedio: null }),
-    false,
+    "semana nublada, mes ja tinha leitura boa -> preserva a antiga",
+    valorAposSemana({ osaviMedio: 0.45 }, false, null),
+    0.45,
+  );
+  conferir(
+    "semana nublada, mes ainda sem nenhuma leitura -> continua sem dado",
+    valorAposSemana(null, false, null),
+    null,
   );
 }
 

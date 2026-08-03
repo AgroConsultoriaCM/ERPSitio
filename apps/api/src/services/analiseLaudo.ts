@@ -37,10 +37,12 @@ export interface AmostraLida {
   identificacao: string | null;
   propriedade: string | null;
   profundidade: string | null;
-  /** Nutriente -> valor. Chaves conforme o tipo do laudo. */
+  /** Nutriente -> valor, ja convertido para a unidade padrao (Athenas). */
   valores: Record<string, number>;
   /** Colunas que vieram no laudo mas nao foram reconhecidas. */
   naoReconhecidas: string[];
+  /** Conversao de unidade aplicada, ou unidade estranha que nao deu para converter. */
+  avisosUnidade: string[];
 }
 
 export interface LaudoLido {
@@ -167,6 +169,94 @@ const MAPA_COLUNAS: { chave: string; padrao: RegExp }[] = [
   { chave: "manganes", padrao: /\bMANGANES\b|^MN\b/ },
   { chave: "zinco", padrao: /\bZINCO\b|^ZN\b/ },
 ];
+
+/**
+ * Unidade padrao do sistema para cada chave, POR TIPO de laudo — o mesmo nome
+ * interno ("boro", por exemplo) significa coisas com unidade diferente no
+ * solo (mg/dm3), na folha (mg/kg) e no composto (%). Este e o formato do
+ * laboratorio Athenas, adotado aqui como referencia: um laudo de outro
+ * laboratorio, em unidade diferente, e convertido para esta antes de gravar -
+ * senao a conta de necessidade de adubacao mistura grandezas diferentes sem
+ * ninguem perceber.
+ */
+const UNIDADE_PADRAO: Partial<Record<TipoLaudo, Record<string, string>>> = {
+  QUIMICA: {
+    ph: "CACL2", materiaOrganica: "GDM3", fosforo: "MGDM3", enxofre: "MGDM3",
+    calcio: "MMOLCDM3", magnesio: "MMOLCDM3", sodio: "MMOLCDM3", potassio: "MMOLCDM3",
+    aluminio: "MMOLCDM3", hAl: "MMOLCDM3", somaBases: "MMOLCDM3", ctc: "MMOLCDM3",
+  },
+  MICRO: { boro: "MGDM3", cobre: "MGDM3", ferro: "MGDM3", manganes: "MGDM3", zinco: "MGDM3" },
+  FOLIAR: {
+    nitrogenio: "GKG", fosforo: "GKG", potassio: "GKG", calcio: "GKG", magnesio: "GKG",
+    enxofre: "GKG", boro: "MGKG", cobre: "MGKG", ferro: "MGKG", manganes: "MGKG",
+    zinco: "MGKG", silicio: "GKG",
+  },
+};
+
+/**
+ * Conversoes aceitas: so as que sao FATO dimensional (prefixo do SI) ou
+ * convencao de solo consagrada na literatura brasileira (Raij et al.) — nunca
+ * um fator estimado. Unidade fora daqui fica so sinalizada, nao convertida:
+ * melhor o usuario ver o aviso do que a conta sair errada em silencio.
+ *
+ *   cmolc/dm3, meq/100cm3 -> mmolc/dm3 : x10 (centi/mili-equivalente -> mili)
+ *   ppm                   -> mg/dm3    : 1:1, convencao padrao de solo
+ *                                        (densidade aparente = 1)
+ *   %                     -> g/dm3     : x10, mesma convencao (materia
+ *                                        organica)
+ */
+const CONVERSOES_UNIDADE: Record<string, Record<string, (v: number) => number>> = {
+  MMOLCDM3: { CMOLCDM3: (v) => v * 10, MEQ100CM3: (v) => v * 10, MEQ100G: (v) => v * 10 },
+  MGDM3: { PPM: (v) => v },
+  GDM3: { "%": (v) => v * 10 },
+};
+
+/** So letras, digitos e "%": "-----mg dm-3-----" vira "MGDM3". */
+function unidadeCompacta(bruto: string): string {
+  return bruto
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9%]/g, "");
+}
+
+const TOKENS_UNIDADE =
+  /CACL2|MMOLC|CMOLC|MEQ|MG\s?\/?\s?DM|G\s?\/?\s?DM|MG\s?\/?\s?KG|G\s?\/?\s?KG|\bPPM\b/;
+
+/**
+ * A linha de unidades, quando existe: e a primeira, entre o cabecalho e a
+ * 1a amostra, que traz um token de unidade reconhecivel ("mg dm-3", "CaCl2",
+ * "mmolc dm-3"...). Na fisica e no organico nao ha linha assim — a unidade
+ * (sempre %) ja vem colada no proprio rotulo da coluna — e a funcao devolve
+ * null, o que desliga a conversao para esses dois tipos.
+ */
+function acharLinhaUnidades(
+  planilha: Planilha,
+  linhasCabecalho: number[],
+  primeiraAmostra: number,
+): Celula[] | null {
+  const inicio = linhasCabecalho.length ? Math.min(...linhasCabecalho) : 0;
+  for (let i = inicio; i < primeiraAmostra; i++) {
+    const linha = planilha[i] ?? [];
+    if (linha.some((c) => TOKENS_UNIDADE.test(normalizar(c)))) return linha;
+  }
+  return null;
+}
+
+/**
+ * Unidade da coluna C. O Excel so preenche a PRIMEIRA celula de um bloco
+ * mesclado ("-----------mg dm-3-----------" cobrindo P e S, por exemplo) e
+ * deixa as demais vazias — por isso procura a esquerda ate achar o texto que
+ * vale para o bloco inteiro, do mesmo jeito que uma celula mesclada de verdade
+ * se comporta.
+ */
+function unidadeDaColuna(linhaUnidades: Celula[], coluna: number): string | null {
+  for (let c = coluna; c >= 0; c--) {
+    const t = texto(linhaUnidades[c]);
+    if (t) return unidadeCompacta(t);
+  }
+  return null;
+}
 
 export type PapelColuna =
   | { papel: "propriedade" }
@@ -358,6 +448,8 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
     );
   }
   const rotulos = montarRotulos(planilha, linhasCabecalho);
+  const linhaUnidades = acharLinhaUnidades(planilha, linhasCabecalho, primeiraAmostra);
+  const padroesUnidade = UNIDADE_PADRAO[tipo] ?? null;
 
   const amostras: AmostraLida[] = [];
   for (let i = primeiraAmostra; i < planilha.length; i++) {
@@ -371,6 +463,7 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
 
     const valores: Record<string, number> = {};
     const naoReconhecidas: string[] = [];
+    const avisosUnidade: string[] = [];
     const partesIdentificacao: string[] = [];
     let propriedade: string | null = null;
     let profundidade: string | null = null;
@@ -397,7 +490,27 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
 
       const n = numero(linha[c]);
       if (papel?.papel === "valor") {
-        if (n != null) valores[papel.chave] = n;
+        if (n == null) continue;
+
+        let valorFinal = n;
+        const esperada = padroesUnidade?.[papel.chave];
+        if (linhaUnidades && esperada) {
+          const lida = unidadeDaColuna(linhaUnidades, c);
+          if (lida && lida !== esperada) {
+            const conversor = CONVERSOES_UNIDADE[esperada]?.[lida];
+            if (conversor) {
+              valorFinal = conversor(n);
+              avisosUnidade.push(
+                `${rotulo}: lido em ${lida}, convertido para ${esperada} (padrão Athenas)`,
+              );
+            } else {
+              avisosUnidade.push(
+                `${rotulo}: unidade "${lida}" não reconhecida — valor mantido sem conversão, confira`,
+              );
+            }
+          }
+        }
+        valores[papel.chave] = valorFinal;
       } else if (n != null) {
         // Coluna com numero que nao soubemos nomear: avisa em vez de descartar
         // calado. Laudo novo com coluna nova aparece aqui, e o usuario ve.
@@ -413,6 +526,7 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
       profundidade,
       valores,
       naoReconhecidas,
+      avisosUnidade,
     });
   }
 

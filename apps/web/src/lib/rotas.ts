@@ -27,6 +27,7 @@ export const ROTAS = {
   insumos: "/painel/cadastros/insumos",
   perfisCorrecao: "/painel/cadastros/perfis-correcao",
   adicionarAnalise: "/painel/cadastros/adicionar-analise",
+  tiposOperacao: "/painel/cadastros/tipos-operacao",
 } as const;
 
 export interface AbaCadastro {
@@ -43,6 +44,11 @@ export const ABAS_CADASTRO: AbaCadastro[] = [
   { rota: ROTAS.culturas, rotula: "Culturas", descricao: "Espécies e variedades" },
   { rota: ROTAS.executores, rotula: "Executores", descricao: "Equipe, empreiteiros e prestadores" },
   { rota: ROTAS.insumos, rotula: "Produtos", descricao: "Preço médio, dose de bula e funções" },
+  {
+    rota: ROTAS.tiposOperacao,
+    rotula: "Cadastrar operações",
+    descricao: "Tipos de manejo para escolher ao lançar uma operação",
+  },
   {
     rota: ROTAS.perfisCorrecao,
     rotula: "Perfis de correção",

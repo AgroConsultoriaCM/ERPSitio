@@ -10,18 +10,55 @@
 //
 // NAO imprime a credencial nem o token em momento algum.
 
+import { funcoesSugeridasDoAgrofit, type ProdutoAgrofit } from "../src/services/agrofit.js";
+
+let falhas = 0;
+function conferir(nome: string, obtido: unknown, esperado: unknown) {
+  const ok = JSON.stringify(obtido) === JSON.stringify(esperado);
+  console.log(
+    `  ${ok ? "ok   " : "FALHA"} ${nome}${ok ? "" : `\n         obtido:   ${JSON.stringify(obtido)}\n         esperado: ${JSON.stringify(esperado)}`}`,
+  );
+  if (!ok) falhas++;
+}
+
+// Mapeamento classe -> Função: nao precisa de credencial, roda sempre. E o
+// que decide qual Função vem pre-marcada na nota fiscal quando o produto
+// tras o registro do MAPA (ver notas.routes.ts).
+console.log("\n== mapeamento classe agronomica -> Funcao do cadastro ==");
+{
+  const inseticida: ProdutoAgrofit = { classe_categoria_agronomica: ["Inseticida"] };
+  conferir("Inseticida -> INSETICIDA", funcoesSugeridasDoAgrofit(inseticida), ["INSETICIDA"]);
+
+  const duasClasses: ProdutoAgrofit = {
+    classe_categoria_agronomica: ["Inseticida", "Acaricida"],
+  };
+  conferir(
+    "produto com duas classes -> duas funcoes",
+    funcoesSugeridasDoAgrofit(duasClasses).sort(),
+    ["ACARICIDA", "INSETICIDA"],
+  );
+
+  const semAcento: ProdutoAgrofit = { classe_categoria_agronomica: ["FUNGICIDA"] };
+  conferir("maiuscula sem acento tambem casa", funcoesSugeridasDoAgrofit(semAcento), ["FUNGICIDA"]);
+
+  const desconhecida: ProdutoAgrofit = { classe_categoria_agronomica: ["Espalhante Adesivo"] };
+  conferir("classe sem correspondencia -> nao chuta, fica vazio", funcoesSugeridasDoAgrofit(desconhecida), []);
+
+  const semClasse: ProdutoAgrofit = {};
+  conferir("produto sem a classe -> vazio, sem quebrar", funcoesSugeridasDoAgrofit(semClasse), []);
+}
+console.log(falhas === 0 ? "  (mapeamento) TUDO OK" : `  (mapeamento) ${falhas} FALHA(S)`);
+
 const CHAVE = process.env.AGROFIT_CONSUMER_KEY;
 const SEGREDO = process.env.AGROFIT_CONSUMER_SECRET;
 const BASE = "https://api.cnptia.embrapa.br/agrofit/v1";
 
 if (!CHAVE || !SEGREDO) {
-  console.error(
-    "\nFaltam AGROFIT_CONSUMER_KEY e AGROFIT_CONSUMER_SECRET no ambiente.\n" +
-      "Pegue os dois em agroapi.cnptia.embrapa.br -> Applications -> AgroFIT -> Production Keys.\n",
+  console.log(
+    "\n(sem AGROFIT_CONSUMER_KEY/SECRET no ambiente — parte ao vivo pulada, só o mapeamento acima rodou)\n",
   );
-  process.exit(1);
+  process.exit(falhas === 0 ? 0 : 1);
 }
-
 async function obterToken(): Promise<string> {
   const basico = Buffer.from(`${CHAVE}:${SEGREDO}`).toString("base64");
   const res = await fetch("https://api.cnptia.embrapa.br/token", {
@@ -116,3 +153,5 @@ for (const q of ["cultura=Citros", "cultura=Limão", "cultura=Abacate"]) {
   }
 }
 console.log("");
+console.log(falhas === 0 ? "TUDO OK\n" : `${falhas} FALHA(S) no mapeamento classe->Função\n`);
+process.exit(falhas === 0 ? 0 : 1);

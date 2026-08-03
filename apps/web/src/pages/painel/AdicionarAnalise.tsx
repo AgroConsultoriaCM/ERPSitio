@@ -27,6 +27,7 @@ interface Amostra {
   profundidade: string | null;
   valores: Record<string, number>;
   naoReconhecidas: string[];
+  avisosUnidade: string[];
   talhaoId: string | null;
   loteCompostoId: string | null;
   sugestao: { talhaoId: string; nome: string; confianca: number } | null;
@@ -208,6 +209,11 @@ function LinhaAmostra({
                 </label>
               ))}
             </div>
+          )}
+          {amostra.avisosUnidade.length > 0 && (
+            <p className="mb-1 text-xs text-amber-700">
+              Unidade: {amostra.avisosUnidade.join(" · ")}
+            </p>
           )}
           {amostra.naoReconhecidas.length > 0 && (
             <p className="text-xs text-amber-700">
