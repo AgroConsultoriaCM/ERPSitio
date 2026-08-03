@@ -246,7 +246,7 @@ async function main() {
         talhaoId: talhaoCitros.id,
         propriedadeId: propriedade.id,
         dataColeta: new Date(),
-        profundidadeCm: 20,
+        profundidadeCm: "0-20",
         laboratorio: "Laboratório Exemplo",
         ph: 5.1,
         materiaOrganica: 18,

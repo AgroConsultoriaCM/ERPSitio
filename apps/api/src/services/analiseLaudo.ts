@@ -309,11 +309,9 @@ export function unidadeDoValor(tipo: TipoLaudo, chave: string): string | null {
 
 /**
  * Colunas CALCULADAS a partir de outras (V% = 100xSB/CTC, CTC = SB+H+Al...),
- * nao medidas direto. O leitor sabe o nome delas, mas NAO pre-preenche: o
- * usuario digita olhando o laudo em papel, e essa digitacao vira uma
- * conferencia independente de que os valores medidos (Ca, Mg, K...) foram
- * lidos certo - se o que ele digitar nao bater com o que da pra esperar,
- * algo saiu errado antes.
+ * nao medidas direto - so informativo (o frontend mostra um sinal de
+ * "calculado" em vez de "medido"). O valor em si e preenchido por
+ * `calcularDerivadosQuimica`.
  */
 const CAMPOS_DERIVADOS: Partial<Record<TipoLaudo, string[]>> = {
   QUIMICA: ["somaBases", "ctc", "saturacaoBases", "saturacaoAluminio"],
@@ -325,6 +323,78 @@ export function chaveEhDerivada(tipo: TipoLaudo, chave: string): boolean {
 }
 
 const arred2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * Formulas da quimica do solo. Fonte: SOBRAL, L. F. et al. Guia Prático para
+ * Interpretação de Resultados de Análises de Solo. Embrapa Tabuleiros
+ * Costeiros, Documentos 206, 2015; e conferido contra os laudos reais do
+ * Athenas (bate com o que o proprio laboratorio imprime, a menos de
+ * arredondamento de centesimos).
+ *
+ *   SB  = Ca + Mg + K + Na          (Na entra so quando o laudo o mediu)
+ *   CTC = SB + H+Al
+ *   V%  = 100 x SB / CTC
+ *   m%  = 100 x Al / (SB + Al)
+ *
+ * So calcula quando TODOS os insumos de uma formula estao presentes - nunca
+ * chuta com um valor faltando.
+ */
+export function calcularDerivadosQuimica(
+  v: Readonly<Record<string, number>>,
+): Partial<Record<"somaBases" | "ctc" | "saturacaoBases" | "saturacaoAluminio", number>> {
+  const saida: Partial<Record<"somaBases" | "ctc" | "saturacaoBases" | "saturacaoAluminio", number>> = {};
+  if (v.calcio == null || v.magnesio == null || v.potassio == null) return saida;
+
+  const somaBases = v.calcio + v.magnesio + v.potassio + (v.sodio ?? 0);
+  saida.somaBases = arred2(somaBases);
+
+  if (v.hAl != null) {
+    const ctc = somaBases + v.hAl;
+    saida.ctc = arred2(ctc);
+    if (ctc !== 0) saida.saturacaoBases = arred2((somaBases / ctc) * 100);
+  }
+
+  if (v.aluminio != null) {
+    const base = somaBases + v.aluminio;
+    if (base !== 0) saida.saturacaoAluminio = arred2((100 * v.aluminio) / base);
+  }
+
+  return saida;
+}
+
+/**
+ * Preenche SB/CTC/V%/m% quando o laudo nao trouxe, e confere quando trouxe.
+ *
+ * O laboratorio quase sempre imprime esses 4 numeros, e o valor impresso e
+ * mantido (e o que esta no papel) - calcular so serve para CONFERIR contra
+ * ele. Divergencia real (nao so arredondamento) vira aviso: geralmente
+ * significa que Ca, Mg, K ou H+Al foram lidos errado antes.
+ */
+function preencherDerivadosQuimica(valores: Record<string, number>, avisos: string[]): void {
+  const calculado = calcularDerivadosQuimica(valores);
+  for (const [chave, valor] of Object.entries(calculado)) {
+    const impresso = valores[chave];
+    if (impresso == null) {
+      valores[chave] = valor;
+      continue;
+    }
+    // Tolerancia de 0,3 (absoluto) cobre o arredondamento em cascata de
+    // somar numeros ja arredondados em 2 casas; divergencia maior aponta
+    // erro de leitura em algum dos valores medidos.
+    if (Math.abs(impresso - valor) > 0.3) {
+      avisos.push(
+        `${ROTULOS_DERIVADOS[chave] ?? chave}: laudo mostra ${impresso}, calculado a partir de Ca+Mg+K+Na e H+Al dá ${valor} — confira os valores medidos`,
+      );
+    }
+  }
+}
+
+const ROTULOS_DERIVADOS: Record<string, string> = {
+  somaBases: "S.B.",
+  ctc: "CTC",
+  saturacaoBases: "V%",
+  saturacaoAluminio: "m%",
+};
 
 export type PapelColuna =
   | { papel: "propriedade" }
@@ -590,6 +660,9 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
       }
     }
 
+    const avisosCalculo: string[] = [];
+    if (tipo === "QUIMICA") preencherDerivadosQuimica(valores, avisosCalculo);
+
     const colCodigo = colunaDoCodigo(linha);
     amostras.push({
       codigoLaboratorio: colCodigo >= 0 ? texto(linha[colCodigo]) : null,
@@ -598,7 +671,7 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
       profundidade,
       valores,
       naoReconhecidas,
-      avisosUnidade,
+      avisosUnidade: [...avisosUnidade, ...avisosCalculo],
       camposDerivados: Object.keys(valores).filter((c) => chaveEhDerivada(tipo, c)),
     });
   }

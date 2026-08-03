@@ -80,6 +80,7 @@ export function sugerirTalhao(
 const CAMPOS_QUIMICA = [
   "ph", "materiaOrganica", "fosforo", "enxofre", "calcio", "magnesio",
   "potassio", "aluminio", "hAl", "somaBases", "ctc", "saturacaoBases",
+  "saturacaoAluminio",
 ] as const;
 
 const CAMPOS_FOLIAR = [
@@ -173,12 +174,23 @@ async function gravarAnaliseNoTalhao(
       });
     } else {
       await prisma.analiseSolo.create({
-        data: { ...base, talhaoId, profundidadeCm: undefined, micronutrientes: micros(valores) ?? undefined },
+        data: {
+          ...base,
+          talhaoId,
+          profundidadeCm: profundidade ?? undefined,
+          micronutrientes: micros(valores) ?? undefined,
+        },
       });
     }
   } else {
     await prisma.analiseSolo.create({
-      data: { ...base, talhaoId, ...apenas(valores, CAMPOS_QUIMICA), micronutrientes: micros(valores) ?? undefined },
+      data: {
+        ...base,
+        talhaoId,
+        profundidadeCm: profundidade ?? undefined,
+        ...apenas(valores, CAMPOS_QUIMICA),
+        micronutrientes: micros(valores) ?? undefined,
+      },
     });
   }
 }

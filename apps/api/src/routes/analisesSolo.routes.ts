@@ -5,11 +5,12 @@ import { NaoEncontradoError } from "../lib/errors.js";
 const analiseSoloSchema = z.object({
   talhaoId: z.string().uuid(),
   dataColeta: z.coerce.date(),
-  profundidadeCm: z.number().optional().nullable(),
+  profundidadeCm: z.string().optional().nullable(),
   laboratorio: z.string().optional(),
   ph: z.number().optional().nullable(),
   materiaOrganica: z.number().optional().nullable(),
   fosforo: z.number().optional().nullable(),
+  enxofre: z.number().optional().nullable(),
   potassio: z.number().optional().nullable(),
   calcio: z.number().optional().nullable(),
   magnesio: z.number().optional().nullable(),
@@ -18,6 +19,7 @@ const analiseSoloSchema = z.object({
   somaBases: z.number().optional().nullable(),
   ctc: z.number().optional().nullable(),
   saturacaoBases: z.number().optional().nullable(),
+  saturacaoAluminio: z.number().optional().nullable(),
   micronutrientes: z
     .record(z.number())
     .optional()

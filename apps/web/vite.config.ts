@@ -121,5 +121,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Docker Desktop no Windows não propaga eventos nativos de arquivo do
+    // host para dentro do container (o volume "../:/repo" é montado, mas o
+    // watcher do Vite nunca é avisado de uma mudança) — sem "polling" o HMR
+    // fica mudo e a única forma de ver uma edição é derrubar e subir o
+    // container de novo. Custo de CPU do polling é irrelevante para um
+    // servidor de dev.
+    watch: { usePolling: true, interval: 300 },
   },
 });

@@ -126,6 +126,60 @@ console.log("\n== potassio em mg/dm3 (metodo antigo): fator /39,1 e' especifico 
   );
 }
 
+console.log("\n== SB/CTC/V%/m% sao calculados quando faltam, conferidos quando vem ==");
+{
+  // Mesmos numeros de uma amostra real (S26/89869, DANIEL): a formula bate
+  // com o que o Athenas imprime, a menos de arredondamento de centesimos.
+  const planilha: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "Ca", "Mg", "K", "H+Al", "Al"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null, null, null, null],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 18.43, 7.05, 3.69, 16.39, 0],
+  ];
+  const a = lerLaudo(planilha).amostras[0];
+  conferir("S.B. calculada (Ca+Mg+K+Na)", a.valores.somaBases, 29.17);
+  conferir("CTC calculada (SB+H+Al)", a.valores.ctc, 45.56);
+  conferir("V% calculada (100xSB/CTC)", a.valores.saturacaoBases, 64.03);
+  conferir("m% calculada (100xAl/(SB+Al))", a.valores.saturacaoAluminio, 0);
+  afirmar("nao ha aviso quando nao ha nada impresso para conferir", a.avisosUnidade.length === 0);
+}
+{
+  // O laudo ja trouxe CTC impressa, e ela BATE com o calculo -> mantem a
+  // impressa, sem aviso (arredondamento de 0,01 nao deve disparar alarme).
+  const planilhaBate: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "Ca", "Mg", "K", "H+Al", "CTC"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null, null, null, null],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 18.43, 7.05, 3.69, 16.39, 45.57],
+  ];
+  const b = lerLaudo(planilhaBate).amostras[0];
+  conferir("CTC impressa e mantida (nao substitui pela calculada)", b.valores.ctc, 45.57);
+  afirmar("sem aviso quando a diferenca e so arredondamento", b.avisosUnidade.length === 0);
+}
+{
+  // O laudo trouxe uma CTC bem diferente do que Ca+Mg+K+H+Al dao - sinal de
+  // que algum desses foi lido errado. Mantem o valor impresso, mas avisa.
+  const planilhaDiverge: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "Ca", "Mg", "K", "H+Al", "CTC"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null, null, null, null],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 18.43, 7.05, 3.69, 16.39, 90],
+  ];
+  const c = lerLaudo(planilhaDiverge).amostras[0];
+  conferir("CTC impressa (90) e mantida mesmo divergindo", c.valores.ctc, 90);
+  afirmar(
+    "avisa da divergencia entre impresso e calculado",
+    c.avisosUnidade.some((m) => m.includes("CTC") && m.includes("90")),
+  );
+}
+{
+  // Faltando Ca, Mg ou K nao da pra calcular nada - fica ausente, sem chutar.
+  const planilhaIncompleta: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "Mg", "K", "H+Al"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null, null],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 7.05, 3.69, 16.39],
+  ];
+  const d = lerLaudo(planilhaIncompleta).amostras[0];
+  afirmar("sem Ca, nao calcula SB/CTC/V%/m%", d.valores.ctc === undefined && d.valores.somaBases === undefined);
+}
+
 console.log("\n== unidade desconhecida: mantem o valor e avisa, nao chuta ==");
 {
   const planilha: Planilha = [

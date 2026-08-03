@@ -53,6 +53,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
     ph: "",
     materiaOrganica: "",
     fosforo: "",
+    enxofre: "",
     potassio: "",
     calcio: "",
     magnesio: "",
@@ -61,6 +62,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
     somaBases: "",
     ctc: "",
     saturacaoBases: "",
+    saturacaoAluminio: "",
   });
 
   const salvarSolo = useMutation({
@@ -69,11 +71,12 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
       return api.post("/analises-solo", {
         talhaoId,
         dataColeta: soloForm.dataColeta,
-        profundidadeCm: n(soloForm.profundidadeCm),
+        profundidadeCm: soloForm.profundidadeCm || null,
         laboratorio: soloForm.laboratorio || undefined,
         ph: n(soloForm.ph),
         materiaOrganica: n(soloForm.materiaOrganica),
         fosforo: n(soloForm.fosforo),
+        enxofre: n(soloForm.enxofre),
         potassio: n(soloForm.potassio),
         calcio: n(soloForm.calcio),
         magnesio: n(soloForm.magnesio),
@@ -82,6 +85,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
         somaBases: n(soloForm.somaBases),
         ctc: n(soloForm.ctc),
         saturacaoBases: n(soloForm.saturacaoBases),
+        saturacaoAluminio: n(soloForm.saturacaoAluminio),
       });
     },
     onSuccess: () => {
@@ -200,7 +204,15 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
-            {campoNum("Profundidade (cm)", soloForm.profundidadeCm, (v) => setSoloForm((f) => ({ ...f, profundidadeCm: v })))}
+            <div>
+              <label className="mb-1 block text-xs text-gray-500">Profundidade (cm)</label>
+              <input
+                value={soloForm.profundidadeCm}
+                onChange={(e) => setSoloForm((f) => ({ ...f, profundidadeCm: e.target.value }))}
+                placeholder="ex.: 0-20"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
             <div>
               <label className="mb-1 block text-xs text-gray-500">Laboratório</label>
               <input
@@ -212,6 +224,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
             {campoNum("pH", soloForm.ph, (v) => setSoloForm((f) => ({ ...f, ph: v })))}
             {campoNum("Matéria orgânica", soloForm.materiaOrganica, (v) => setSoloForm((f) => ({ ...f, materiaOrganica: v })))}
             {campoNum("Fósforo (P)", soloForm.fosforo, (v) => setSoloForm((f) => ({ ...f, fosforo: v })))}
+            {campoNum("Enxofre (S)", soloForm.enxofre, (v) => setSoloForm((f) => ({ ...f, enxofre: v })))}
             {campoNum("Potássio (K)", soloForm.potassio, (v) => setSoloForm((f) => ({ ...f, potassio: v })))}
             {campoNum("Cálcio (Ca)", soloForm.calcio, (v) => setSoloForm((f) => ({ ...f, calcio: v })))}
             {campoNum("Magnésio (Mg)", soloForm.magnesio, (v) => setSoloForm((f) => ({ ...f, magnesio: v })))}
@@ -220,6 +233,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
             {campoNum("Soma de bases (SB)", soloForm.somaBases, (v) => setSoloForm((f) => ({ ...f, somaBases: v })))}
             {campoNum("CTC", soloForm.ctc, (v) => setSoloForm((f) => ({ ...f, ctc: v })))}
             {campoNum("Saturação por bases (V%)", soloForm.saturacaoBases, (v) => setSoloForm((f) => ({ ...f, saturacaoBases: v })))}
+            {campoNum("Saturação por alumínio (m%)", soloForm.saturacaoAluminio, (v) => setSoloForm((f) => ({ ...f, saturacaoAluminio: v })))}
           </div>
           <button
             onClick={() => salvarSolo.mutate()}

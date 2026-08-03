@@ -658,7 +658,9 @@ model AnaliseSolo {
   talhaoId         String
   talhao           Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
   dataColeta       DateTime
-  profundidadeCm   Float?
+  /// Texto, nao numero: todo laudo real usa faixa ("0-20"), nunca um valor
+  /// unico - igual a AnaliseFisicaSolo.profundidadeCm.
+  profundidadeCm   String?
   laboratorio      String?
   ph               Float?
   materiaOrganica  Float?
@@ -672,6 +674,10 @@ model AnaliseSolo {
   somaBases        Float?
   ctc              Float?
   saturacaoBases   Float?
+  /// m% - saturacao por aluminio. Pedido explicito do usuario junto com CTC e
+  /// V%; faltava a coluna, entao o valor calculado/digitado era descartado ao
+  /// confirmar mesmo aparecendo certo na tela.
+  saturacaoAluminio Float?
   micronutrientes  Json?
   observacoes      String?
   propriedadeId    String

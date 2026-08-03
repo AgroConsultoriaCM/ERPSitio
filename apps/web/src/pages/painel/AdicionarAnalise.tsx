@@ -141,6 +141,15 @@ const UNIDADE_POR_TIPO: Record<TipoLaudo, Record<string, string>> = {
   },
 };
 
+/** Amostra de solo sem profundidade não serve para calcular adubação depois. */
+const TIPOS_QUE_PRECISAM_PROFUNDIDADE: TipoLaudo[] = ["QUIMICA", "FISICA", "MICRO"];
+
+/** Campos calculados a partir de outros — mesma lista do servidor (analiseLaudo.ts). */
+const CAMPOS_DERIVADOS_POR_TIPO: Partial<Record<TipoLaudo, string[]>> = {
+  QUIMICA: ["somaBases", "ctc", "saturacaoBases", "saturacaoAluminio"],
+  FISICA: ["grauFloculacao", "grauDispersao"],
+};
+
 const ABAS: { id: Situacao; rotulo: string }[] = [
   { id: "PENDENTE", rotulo: "Pendentes" },
   { id: "IMPORTADO", rotulo: "Importados" },
@@ -183,11 +192,50 @@ interface Destino {
   loteCompostoId: string;
 }
 
-/** Valores prontos para edição: campos derivados (V%, CTC...) começam em branco. */
+const arred2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * S.B., CTC, V% e m% — mesma fórmula do servidor (analiseLaudo.ts), para
+ * calcular ao vivo enquanto o usuário digita na conferência manual (PDF sem
+ * planilha). Só calcula quando os valores de entrada existem; nunca chuta.
+ */
+function calcularDerivadosQuimica(v: Record<string, number>): Partial<Record<string, number>> {
+  const saida: Partial<Record<string, number>> = {};
+  if (v.calcio == null || v.magnesio == null || v.potassio == null) return saida;
+
+  const somaBases = v.calcio + v.magnesio + v.potassio + (v.sodio ?? 0);
+  saida.somaBases = arred2(somaBases);
+
+  if (v.hAl != null) {
+    const ctc = somaBases + v.hAl;
+    saida.ctc = arred2(ctc);
+    if (ctc !== 0) saida.saturacaoBases = arred2((somaBases / ctc) * 100);
+  }
+  if (v.aluminio != null) {
+    const base = somaBases + v.aluminio;
+    if (base !== 0) saida.saturacaoAluminio = arred2((100 * v.aluminio) / base);
+  }
+  return saida;
+}
+
+/**
+ * Valores prontos para exibir: parte do que veio do arquivo (ou já editado),
+ * e completa S.B./CTC/V%/m% que ainda faltarem calculando ao vivo. Se o
+ * usuário digitar um valor nesses campos, o dele prevalece — só calcula o
+ * que está vazio.
+ */
+function valoresParaExibir(tipo: TipoLaudo, base: Record<string, number>): Record<string, number> {
+  if (tipo !== "QUIMICA") return base;
+  const calculado = calcularDerivadosQuimica(base);
+  const saida = { ...base };
+  for (const [chave, valor] of Object.entries(calculado)) {
+    if (saida[chave] == null && valor != null) saida[chave] = valor;
+  }
+  return saida;
+}
+
 function valoresIniciais(amostra: Amostra): Record<string, number> {
-  const v = { ...amostra.valores };
-  for (const c of amostra.camposDerivados) delete v[c];
-  return v;
+  return { ...amostra.valores };
 }
 
 function LinhaAmostra({
@@ -198,9 +246,11 @@ function LinhaAmostra({
   destino,
   valores,
   extras,
+  profundidade,
   onDestino,
   onValor,
   onAdicionarCampo,
+  onProfundidade,
 }: {
   amostra: Amostra;
   laudo: Laudo;
@@ -210,16 +260,22 @@ function LinhaAmostra({
   valores: Record<string, number>;
   /** Campos adicionados à mão nesta sessão (digitação manual), além dos que vieram do arquivo. */
   extras: string[];
+  profundidade: string;
   onDestino: (v: Destino) => void;
   onValor: (chave: string, v: number) => void;
   onAdicionarCampo: (chave: string) => void;
+  onProfundidade: (v: string) => void;
 }) {
   const [aberta, setAberta] = useState(false);
   const [novoCampo, setNovoCampo] = useState("");
-  const chaves = [...new Set([...Object.keys(amostra.valores), ...extras])];
+  // "valores" já inclui S.B./CTC/V%/m% calculados ao vivo quando ainda não
+  // vieram do arquivo nem foram digitados — por isso a lista de campos vem
+  // dele, não só do que o arquivo trouxe originalmente.
+  const chaves = [...new Set([...Object.keys(amostra.valores), ...Object.keys(valores), ...extras])];
   const ehComposto = laudo.tipo === "ORGANICO";
   const podeAdicionar = laudo.situacao === "PENDENTE";
   const camposDisponiveis = CAMPOS_POR_TIPO[laudo.tipo].filter((c) => !chaves.includes(c));
+  const precisaProfundidade = TIPOS_QUE_PRECISAM_PROFUNDIDADE.includes(laudo.tipo);
 
   function alternarTalhao(talhaoId: string) {
     const marcado = destino.talhaoIds.includes(talhaoId);
@@ -320,6 +376,28 @@ function LinhaAmostra({
 
       {aberta && (
         <div className="bg-terra-50/60 px-4 pb-4">
+          {precisaProfundidade && (
+            <label className="mb-3 block max-w-xs">
+              <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-terra-500">
+                Profundidade da coleta
+                {!profundidade && (
+                  <span className="text-amber-600" title="Essencial para calcular a adubação depois">
+                    · obrigatória
+                  </span>
+                )}
+              </span>
+              <input
+                type="text"
+                placeholder="ex.: 0-20 cm"
+                value={profundidade}
+                disabled={laudo.situacao !== "PENDENTE"}
+                onChange={(e) => onProfundidade(e.target.value)}
+                className={`w-full rounded-md border px-2 py-1.5 text-sm disabled:bg-terra-100 ${
+                  !profundidade ? "border-amber-300 bg-amber-50/60" : "border-terra-300"
+                }`}
+              />
+            </label>
+          )}
           {chaves.length === 0 ? (
             <p className="py-3 text-sm text-terra-500">
               Nenhum valor foi lido — adicione os campos abaixo e digite conferindo o laudo original.
@@ -327,13 +405,24 @@ function LinhaAmostra({
           ) : (
             <div className="grid grid-cols-3 gap-2 py-3 sm:grid-cols-5 lg:grid-cols-7">
               {chaves.map((c) => {
-                const derivado = amostra.camposDerivados.includes(c);
+                const derivado = (CAMPOS_DERIVADOS_POR_TIPO[laudo.tipo] ?? []).includes(c);
+                // Sem valor impresso no laudo -> o que aparece aqui veio do
+                // cálculo (ou o usuário ainda vai digitar por cima).
+                const calculado = derivado && amostra.valores[c] == null;
                 const unidade = amostra.unidades[c] ?? UNIDADE_POR_TIPO[laudo.tipo][c];
                 return (
                   <label key={c} className="block">
                     <span className="flex items-baseline justify-between gap-1">
-                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-terra-500">
+                      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-terra-500">
                         {ROTULO_VALOR[c] ?? c}
+                        {calculado && (
+                          <span
+                            className="rounded bg-mata-100 px-1 text-[8px] font-bold normal-case text-mata-700"
+                            title="Calculado a partir de outros valores — confira, e edite se precisar"
+                          >
+                            calc.
+                          </span>
+                        )}
                       </span>
                       {unidade && <span className="text-[9px] text-terra-400">{unidade}</span>}
                     </span>
@@ -345,9 +434,7 @@ function LinhaAmostra({
                       disabled={laudo.situacao !== "PENDENTE"}
                       onChange={(e) => onValor(c, Number(e.target.value))}
                       className={`numero w-full rounded-md border px-2 py-1 text-sm disabled:bg-terra-100 ${
-                        derivado
-                          ? "border-amber-300 bg-amber-50/60 placeholder:text-[10px] placeholder:text-amber-500"
-                          : "border-terra-300"
+                        calculado ? "border-mata-200 bg-mata-50/40" : "border-terra-300"
                       }`}
                     />
                   </label>
@@ -383,10 +470,11 @@ function LinhaAmostra({
               </button>
             </div>
           )}
-          {amostra.camposDerivados.length > 0 && (
-            <p className="mb-1 text-xs text-amber-700">
-              Campos em amarelo são calculados (V%, CTC...) — digite olhando o laudo em papel; é a
-              sua conferência de que os outros valores foram lidos certo.
+          {laudo.tipo === "QUIMICA" && (
+            <p className="mb-1 text-xs text-terra-500">
+              <span className="rounded bg-mata-100 px-1 text-[8px] font-bold text-mata-700">calc.</span>{" "}
+              S.B., CTC, V% e m% são calculados a partir de Ca, Mg, K, Na, Al e H+Al quando o laudo não
+              os imprime — edite se o valor impresso no papel for diferente.
             </p>
           )}
           {amostra.avisosUnidade.length > 0 && (
@@ -418,6 +506,7 @@ export default function AdicionarAnalise() {
   const [textoAberto, setTextoAberto] = useState<Record<string, boolean>>({});
   // campos adicionados à mão na digitação manual, por amostra
   const [camposManuais, setCamposManuais] = useState<Record<string, string[]>>({});
+  const [profundidades, setProfundidades] = useState<Record<string, string>>({});
 
   const { data: laudos, isLoading } = useQuery({
     queryKey: ["laudos", aba],
@@ -475,22 +564,40 @@ export default function AdicionarAnalise() {
   });
 
   const confirmar = useMutation({
-    mutationFn: (laudo: Laudo) =>
-      api.post<{ gravadas: number; arquivadas: number }>(`/laudos/${laudo.id}/confirmar`, {
-        amostras: laudo.amostras.map((a) => {
-          const padrao: Destino = {
-            talhaoIds: a.sugestao ? [a.sugestao.talhaoId] : [],
-            loteCompostoId: "",
-          };
-          const destino = destinos[a.id] ?? padrao;
-          return {
-            amostraId: a.id,
-            talhaoIds: destino.talhaoIds,
-            loteCompostoId: destino.loteCompostoId || null,
-            valores: edicoes[a.id] ?? valoresIniciais(a),
-          };
-        }),
-      }),
+    mutationFn: (laudo: Laudo) => {
+      const dados = laudo.amostras.map((a) => {
+        const padrao: Destino = {
+          talhaoIds: a.sugestao ? [a.sugestao.talhaoId] : [],
+          loteCompostoId: "",
+        };
+        const destino = destinos[a.id] ?? padrao;
+        const profundidade = profundidades[a.id] ?? a.profundidade ?? "";
+        return {
+          amostraId: a.id,
+          talhaoIds: destino.talhaoIds,
+          loteCompostoId: destino.loteCompostoId || null,
+          valores: valoresParaExibir(laudo.tipo, edicoes[a.id] ?? valoresIniciais(a)),
+          profundidade: profundidade || null,
+        };
+      });
+
+      // Profundidade e essencial para calcular necessidade de adubacao depois
+      // - so exige quando a amostra realmente vai virar analise de talhao.
+      if (TIPOS_QUE_PRECISAM_PROFUNDIDADE.includes(laudo.tipo)) {
+        const semProfundidade = dados.find((d) => d.talhaoIds.length > 0 && !d.profundidade);
+        if (semProfundidade) {
+          const amostra = laudo.amostras.find((a) => a.id === semProfundidade.amostraId);
+          throw new ApiError(
+            `Falta a profundidade da coleta em "${amostra?.identificacao ?? "amostra sem identificação"}" — é essencial para calcular a adubação depois.`,
+            422,
+          );
+        }
+      }
+
+      return api.post<{ gravadas: number; arquivadas: number }>(`/laudos/${laudo.id}/confirmar`, {
+        amostras: dados,
+      });
+    },
     onSuccess: (r) => {
       atualizar();
       setRecado(`${r.gravadas} análise(s) gravada(s), ${r.arquivadas} arquivada(s).`);
@@ -679,33 +786,52 @@ export default function AdicionarAnalise() {
             </div>
           </div>
 
-          {laudo.digitacaoManual && (
-            <div className="border-b border-terra-100 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-800">
-              <p>
-                Este arquivo é PDF. O texto do laudo junta valores (&quot;23,7512,21&quot; são dois
-                números) e quebra número entre linhas — chutar aqui gravaria valor errado, e
-                adubação em cima de valor errado é prejuízo. Digite os valores abaixo conferindo o
-                laudo original.
-              </p>
-              {laudo.textoExtraido && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setTextoAberto((t) => ({ ...t, [laudo.id]: !t[laudo.id] }))}
-                    className="mt-1.5 font-semibold underline decoration-dotted"
-                  >
-                    {textoAberto[laudo.id] ? "esconder" : "mostrar"} texto lido do PDF (OCR, só para
-                    conferência)
-                  </button>
-                  {textoAberto[laudo.id] && (
-                    <pre className="mt-1.5 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg bg-white/70 p-2.5 font-mono text-[11px] text-terra-700">
-                      {laudo.textoExtraido}
-                    </pre>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+          {laudo.digitacaoManual && (() => {
+            const texto = laudo.textoExtraido ?? "";
+            const semOcr = texto.startsWith("PDF anexado:") || texto === "";
+            const ocrFalhou = texto.startsWith("(OCR não conseguiu");
+            const textoOcr = !semOcr && !ocrFalhou ? texto : null;
+            return (
+              <div className="border-b border-terra-100 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-800">
+                <p>
+                  Este arquivo é PDF. O sistema <strong>não preenche os números sozinho</strong> — o
+                  texto do laudo junta valores (&quot;23,7512,21&quot; são dois números) e quebra
+                  número entre linhas, e chutar aqui gravaria valor errado. Digite os valores abaixo
+                  usando o &quot;+ adicionar valor&quot;, conferindo o laudo original.
+                </p>
+                {textoOcr && (
+                  <>
+                    <p className="mt-1.5 font-semibold text-mata-800">
+                      ✓ O texto deste PDF foi lido (OCR) — use como referência ao digitar:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTextoAberto((t) => ({ ...t, [laudo.id]: !(t[laudo.id] ?? true) }))}
+                      className="mt-0.5 font-semibold underline decoration-dotted"
+                    >
+                      {(textoAberto[laudo.id] ?? true) ? "esconder" : "mostrar"} texto lido
+                    </button>
+                    {(textoAberto[laudo.id] ?? true) && (
+                      <pre className="mt-1.5 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg bg-white/70 p-2.5 font-mono text-[11px] text-terra-700">
+                        {textoOcr}
+                      </pre>
+                    )}
+                  </>
+                )}
+                {ocrFalhou && (
+                  <p className="mt-1.5 text-red-700">
+                    O OCR não conseguiu ler este arquivo específico ({texto.replace(/^\(|\)$/g, "")}) —
+                    isso não afeta outros envios. Digite conferindo o PDF original.
+                  </p>
+                )}
+                {semOcr && (
+                  <p className="mt-1.5 text-terra-500">
+                    Sem texto de apoio para este envio — digite conferindo o PDF original.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {laudo.amostras.map((a) => {
             const padrao: Destino = {
@@ -720,8 +846,9 @@ export default function AdicionarAnalise() {
                 talhoes={talhoes ?? []}
                 lotes={lotes ?? []}
                 destino={destinos[a.id] ?? padrao}
-                valores={edicoes[a.id] ?? valoresIniciais(a)}
+                valores={valoresParaExibir(laudo.tipo, edicoes[a.id] ?? valoresIniciais(a))}
                 extras={camposManuais[a.id] ?? []}
+                profundidade={profundidades[a.id] ?? a.profundidade ?? ""}
                 onDestino={(v) => setDestinos((d) => ({ ...d, [a.id]: v }))}
                 onValor={(chave, v) =>
                   setEdicoes((e) => ({
@@ -735,6 +862,7 @@ export default function AdicionarAnalise() {
                     [a.id]: [...new Set([...(m[a.id] ?? []), chave])],
                   }))
                 }
+                onProfundidade={(v) => setProfundidades((p) => ({ ...p, [a.id]: v }))}
               />
             );
           })}

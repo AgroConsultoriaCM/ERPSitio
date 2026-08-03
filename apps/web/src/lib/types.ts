@@ -375,11 +375,13 @@ export interface AnaliseSolo {
   id: string;
   talhaoId: string;
   dataColeta: string;
-  profundidadeCm?: number | null;
+  /** Texto, não número: laudo real sempre usa faixa ("0-20"), nunca valor único. */
+  profundidadeCm?: string | null;
   laboratorio?: string | null;
   ph?: number | null;
   materiaOrganica?: number | null;
   fosforo?: number | null;
+  enxofre?: number | null;
   potassio?: number | null;
   calcio?: number | null;
   magnesio?: number | null;
@@ -388,6 +390,7 @@ export interface AnaliseSolo {
   somaBases?: number | null;
   ctc?: number | null;
   saturacaoBases?: number | null;
+  saturacaoAluminio?: number | null;
   observacoes?: string | null;
 }
 
