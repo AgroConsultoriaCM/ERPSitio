@@ -59,9 +59,69 @@ const SEM_DADOS: ComponenteNota = {
   explicacao: "sem cena limpa no período",
 };
 
-/** Leituras com pixel de verdade. Cena nublada volta com sampleCount zero. */
+/** Distância relativa entre dois valores, sempre >= 0 (0 = iguais). */
+function distanciaRelativa(a: number, b: number): number {
+  const base = Math.max(Math.abs(a), Math.abs(b));
+  return base === 0 ? 0 : Math.abs(a - b) / base;
+}
+
+/**
+ * Um pico ou vale isolado: destoa muito das duas leituras vizinhas enquanto
+ * elas concordam entre si. Vigor de planta de verdade não cai (ou sobe) mais
+ * de ~20% e volta ao padrão anterior já na leitura seguinte - nuvem ou sombra
+ * que passou pelo filtro de nuvem do Copernicus (ver satelite.ts), sim.
+ *
+ * SÓ marca quando os DOIS vizinhos batem entre si (até 12% de diferença): uma
+ * queda real e sustentada (duas leituras baixas seguidas) nunca cai aqui,
+ * porque o vizinho do outro lado não concordaria com o vizinho do lado bom.
+ * Limiares são heurística, não valor de literatura - ajustar se a prática
+ * mostrar outra coisa.
+ */
+function ehOscilacaoIsolada(anterior: number, atual: number, seguinte: number): boolean {
+  if (distanciaRelativa(anterior, seguinte) > 0.12) return false;
+  const mediaVizinhos = (anterior + seguinte) / 2;
+  return distanciaRelativa(atual, mediaVizinhos) >= 0.2;
+}
+
+/**
+ * Leituras com pixel de verdade, sem picos/vales isolados. Cena nublada
+ * "inteira" volta com sampleCount zero e já cai no primeiro filtro; o caso
+ * mais difícil é a cena que passou no filtro de nuvem do mosaico (até 40% da
+ * CENA) mas tinha nuvem ou sombra bem em cima do talhão - aí o pixel entra
+ * com sampleCount > 0 e um OSAVI artificialmente baixo. Como isso normalmente
+ * não se repete na leitura seguinte (a próxima nuvem não cai exatamente no
+ * mesmo lugar), comparar com as duas leituras vizinhas separa o artefato da
+ * mudança real de vigor, que se sustenta por mais de uma leitura.
+ *
+ * DUAS PASSADAS, não uma: se DUAS leituras isoladas caem próximas uma da
+ * outra (nublado em novembro E em janeiro, com dezembro bom no meio), a
+ * checagem simples confundiria dezembro também - os vizinhos dele são as
+ * duas leituras ruins, que por acaso concordam entre si. A segunda passada
+ * só confirma a remoção de um candidato se PELO MENOS UM dos vizinhos usados
+ * para julgá-lo não for, ele mesmo, candidato - uma testemunha que não está
+ * sob suspeita. Sem isso, dezembro seria descartado por "concordar" com
+ * duas leituras ruins vizinhas, quando na verdade é a boa entre duas más.
+ */
 export function apenasValidas(leituras: LeituraSatelite[]): LeituraSatelite[] {
-  return leituras.filter((l) => l.pixels > 0 && l.osaviMedio != null && l.ndviMedio != null);
+  const comPixel = leituras.filter((l) => l.pixels > 0 && l.osaviMedio != null && l.ndviMedio != null);
+
+  const candidatos = new Set<number>();
+  for (let i = 1; i < comPixel.length - 1; i++) {
+    const anterior = comPixel[i - 1].osaviMedio;
+    const seguinte = comPixel[i + 1].osaviMedio;
+    if (anterior == null || seguinte == null) continue;
+    if (ehOscilacaoIsolada(anterior, comPixel[i].osaviMedio as number, seguinte)) {
+      candidatos.add(i);
+    }
+  }
+
+  const remover = new Set<number>();
+  for (const i of candidatos) {
+    const temTestemunhaLimpa = !candidatos.has(i - 1) || !candidatos.has(i + 1);
+    if (temTestemunhaLimpa) remover.add(i);
+  }
+
+  return comPixel.filter((_, i) => !remover.has(i));
 }
 
 function mediana(valores: number[]): number | null {

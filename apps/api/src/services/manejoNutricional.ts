@@ -2,6 +2,7 @@ import type { PrismaClient } from "@erpsitio/db";
 import { sateliteConfigurado } from "./satelite.js";
 import { leiturasArmazenadas } from "./leituraSatelite.js";
 import { apenasValidas, type LeituraSatelite } from "./notaTalhao.js";
+import { classificarStatusGeralSolo, type StatusGeral } from "./recomendacaoSolo.js";
 
 /**
  * Manejo nutricional: junta, por talhao, tres coisas que hoje vivem separadas.
@@ -63,9 +64,11 @@ export interface TalhaoNutricional {
   variacaoAnual: number | null;
   analiseSolo: Record<string, unknown> | null;
   analiseFoliar: Record<string, unknown> | null;
-  /** % de variação de cada nutriente frente à análise de ~1 ano antes. */
+  /** % de variação de cada nutriente frente à análise anterior (a penúltima). */
   variacaoSolo: Record<string, number>;
   variacaoFoliar: Record<string, number>;
+  /** Resumo da última análise de solo x perfil da cultura - a bolinha do canto do bloco. */
+  statusGeralSolo: StatusGeral;
   adubacoes: AdubacaoResumo[];
   alertas: AlertaNutricional[];
 }
@@ -157,44 +160,42 @@ export function montarAlertas(dados: {
   return alertas;
 }
 
-/** Nutrientes com % de variação anual mostrada em cada bloco da tela. */
+/** Micronutrientes ficam num JSON (mesma chave nos dois tipos de análise). */
+const MICRONUTRIENTES = ["boro", "cobre", "ferro", "manganes", "zinco", "silicio"] as const;
+
+/** Nutrientes com % de variação mostrada em cada bloco da tela: todos os macro e micro da análise, mais os calculados. */
 const NUTRIENTES_SOLO_COMPARADOS = [
-  "ph", "materiaOrganica", "fosforo", "potassio", "calcio", "magnesio", "ctc", "saturacaoBases",
+  "ph", "materiaOrganica", "fosforo", "enxofre", "potassio", "calcio", "magnesio",
+  "aluminio", "hAl", "somaBases", "ctc", "saturacaoBases", "saturacaoAluminio",
+  ...MICRONUTRIENTES,
 ] as const;
 const NUTRIENTES_FOLIAR_COMPARADOS = [
   "nitrogenio", "fosforo", "potassio", "calcio", "magnesio", "enxofre",
+  ...MICRONUTRIENTES,
 ] as const;
 
-/** Tolerância em torno de "1 ano antes da última coleta" para achar a análise comparável. */
-const JANELA_ANO_ANTERIOR_MS = 120 * 864e5;
-
 /**
- * Entre as análises MAIS ANTIGAS que `atual`, acha a mais próxima de um ano
- * antes dela. Coleta não é feita sempre no mesmo dia do ano — por isso a
- * tolerância de 120 dias em vez de exigir a data exata. Fora da janela,
- * devolve null: melhor não comparar do que comparar com um ano errado.
+ * Achata o JSON de micronutrientes para dentro do objeto da análise, para o
+ * resto do código (variação, tela) tratar "boro" igual a "fósforo" - uma
+ * chave no mesmo objeto, sem precisar saber que uma vem de coluna e outra de
+ * JSON.
  */
-function acharAnaliseAnoAnterior<T extends { dataColeta: Date }>(todas: T[], atual: T): T | null {
-  const alvo = new Date(atual.dataColeta);
-  alvo.setUTCFullYear(alvo.getUTCFullYear() - 1);
-
-  let melhor: T | null = null;
-  let melhorDistancia = Infinity;
-  for (const a of todas) {
-    if (a === atual || a.dataColeta.getTime() >= atual.dataColeta.getTime()) continue;
-    const distancia = Math.abs(a.dataColeta.getTime() - alvo.getTime());
-    if (distancia <= JANELA_ANO_ANTERIOR_MS && distancia < melhorDistancia) {
-      melhor = a;
-      melhorDistancia = distancia;
-    }
-  }
-  return melhor;
+function comMicronutrientesAchatados<T extends { micronutrientes?: unknown }>(
+  analise: T | null,
+): (Record<string, unknown> & T) | null {
+  if (!analise) return null;
+  const micros = (analise.micronutrientes ?? {}) as Record<string, unknown>;
+  return { ...analise, ...micros };
 }
 
 /**
- * % de variação de cada nutriente frente à análise de ~1 ano antes. Vermelho
- * na tela quando caiu, verde quando subiu — o sinal de que a fertilidade está
- * melhorando (ou piorando) ano a ano, não só o número absoluto mais recente.
+ * % de variação de cada nutriente frente à ANÁLISE ANTERIOR (a penúltima
+ * coleta, seja qual for a data dela). Vermelho na tela quando caiu, verde
+ * quando subiu - o sinal de que a fertilidade está melhorando ou piorando
+ * de uma coleta para a outra, não só o número absoluto mais recente. Não é
+ * "frente ao ano passado": o solo pode ser reamostrado fora de um ciclo
+ * anual fixo, e comparar com a coleta imediatamente anterior é o que
+ * responde "subiu ou desceu desde a última vez que olhamos".
  */
 function variacaoPorNutriente(
   atual: Record<string, unknown> | null,
@@ -233,10 +234,23 @@ export async function montarManejoNutricional(
       codigo: true,
       areaHa: true,
       poligono: true,
+      culturaId: true,
       cultura: { select: { nome: true } },
     },
     orderBy: [{ codigo: "asc" }, { nome: "asc" }],
   });
+
+  // Perfil de correcao por cultura, para a bolinha de status do bloco de
+  // solo. Uma consulta so para a propriedade inteira; o mais recente de cada
+  // cultura vence se por acaso houver mais de um perfil cadastrado para ela.
+  const perfis = await prisma.perfilCorrecaoSolo.findMany({
+    where: { propriedadeId },
+    orderBy: { createdAt: "desc" },
+  });
+  const perfilPorCultura = new Map<string, (typeof perfis)[number]>();
+  for (const p of perfis) {
+    if (!perfilPorCultura.has(p.culturaId)) perfilPorCultura.set(p.culturaId, p);
+  }
 
   // As adubacoes vem numa consulta so, para nao bater no banco por talhao.
   const atividades = await prisma.atividade.findMany({
@@ -289,13 +303,15 @@ export async function montarManejoNutricional(
 
   for (const t of talhoes) {
     // So le o banco - nao ha chamada externa aqui. Quem alimenta a tabela e o
-    // agendador semanal (domingo de madrugada, ver agendador.ts).
-    const serieOsavi: LeituraSatelite[] = await leiturasArmazenadas(prisma, t.id, desde);
+    // agendador semanal (domingo de madrugada, ver agendador.ts). Ja limpa
+    // (sem cena vazia nem picos/vales isolados - ver apenasValidas em
+    // notaTalhao.ts) para o grafico nao precisar refazer esse trabalho.
+    const serieOsaviBruta: LeituraSatelite[] = await leiturasArmazenadas(prisma, t.id, desde);
+    const serieOsavi = apenasValidas(serieOsaviBruta);
 
-    const validas = apenasValidas(serieOsavi);
     const osaviMedioAno =
-      validas.length > 0
-        ? arred(validas.reduce((s, l) => s + (l.osaviMedio as number), 0) / validas.length)
+      serieOsavi.length > 0
+        ? arred(serieOsavi.reduce((s, l) => s + (l.osaviMedio as number), 0) / serieOsavi.length)
         : null;
 
     const adubacoes: AdubacaoResumo[] = atividades
@@ -320,16 +336,22 @@ export async function montarManejoNutricional(
         };
       });
 
-    // Historico completo deste talhao, para achar tanto a mais recente quanto
-    // a de ~1 ano antes dela — as duas consultas la em cima ja trazem tudo,
-    // ordenado do mais novo para o mais velho.
+    // Historico completo deste talhao, ordenado do mais novo para o mais
+    // velho (as duas consultas la em cima ja trazem assim) - a penultima
+    // posicao e a analise anterior, seja qual for a data dela.
     const solosDoTalhao = solos.filter((s) => s.talhaoId === t.id);
     const foliaresDoTalhao = foliares.filter((f) => f.talhaoId === t.id);
     const analiseSolo = solosDoTalhao[0] ?? null;
     const analiseFoliar = foliaresDoTalhao[0] ?? null;
-    const soloAnoPassado = analiseSolo ? acharAnaliseAnoAnterior(solosDoTalhao, analiseSolo) : null;
-    const foliarAnoPassado = analiseFoliar ? acharAnaliseAnoAnterior(foliaresDoTalhao, analiseFoliar) : null;
+    const soloAnterior = solosDoTalhao[1] ?? null;
+    const foliarAnterior = foliaresDoTalhao[1] ?? null;
     const variacaoAnual = variacaoNoPeriodo(serieOsavi);
+
+    const analiseSoloAchatada = comMicronutrientesAchatados(analiseSolo);
+    const analiseFoliarAchatada = comMicronutrientesAchatados(analiseFoliar);
+
+    const perfil = t.culturaId ? (perfilPorCultura.get(t.culturaId) ?? null) : null;
+    const statusGeralSolo = analiseSolo ? classificarStatusGeralSolo(analiseSolo, perfil) : "SEM_REFERENCIA";
 
     resultado.push({
       talhaoId: t.id,
@@ -340,18 +362,19 @@ export async function montarManejoNutricional(
       serieOsavi,
       osaviMedioAno,
       variacaoAnual,
-      analiseSolo: analiseSolo as unknown as Record<string, unknown> | null,
-      analiseFoliar: analiseFoliar as unknown as Record<string, unknown> | null,
+      analiseSolo: analiseSoloAchatada,
+      analiseFoliar: analiseFoliarAchatada,
       variacaoSolo: variacaoPorNutriente(
-        analiseSolo as unknown as Record<string, unknown> | null,
-        soloAnoPassado as unknown as Record<string, unknown> | null,
+        analiseSoloAchatada,
+        comMicronutrientesAchatados(soloAnterior),
         NUTRIENTES_SOLO_COMPARADOS,
       ),
       variacaoFoliar: variacaoPorNutriente(
-        analiseFoliar as unknown as Record<string, unknown> | null,
-        foliarAnoPassado as unknown as Record<string, unknown> | null,
+        analiseFoliarAchatada,
+        comMicronutrientesAchatados(foliarAnterior),
         NUTRIENTES_FOLIAR_COMPARADOS,
       ),
+      statusGeralSolo,
       adubacoes,
       alertas: montarAlertas({ analiseSolo, analiseFoliar, adubacoes, variacaoAnual }),
     });

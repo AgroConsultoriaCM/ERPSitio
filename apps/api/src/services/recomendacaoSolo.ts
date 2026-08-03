@@ -72,6 +72,82 @@ function classificarMinimoIdeal(valor: number | null, ideal: number | null): Sta
   return "ADEQUADO";
 }
 
+// --- resumo em 4 niveis (para a bolinha colorida do Manejo Nutricional) -----
+
+export type StatusGeral = "BAIXO" | "MARGEM" | "ADEQUADO" | "ALTO" | "SEM_REFERENCIA";
+
+/**
+ * Classifica um valor medido contra uma faixa ideal em QUATRO niveis, nao
+ * tres: alem de "baixo" e "alto" (gerarDiagnosticoSolo acima), separa quem
+ * esta perto da borda (MARGEM, amarelo) de quem esta claramente dentro
+ * (ADEQUADO, verde) ou claramente fora (BAIXO vermelho / ALTO azul). E o que
+ * sustenta a bolinha de resumo do bloco de solo.
+ *
+ * Faixa com minimo E maximo (hoje so pH usa isso): a margem e uma fatia da
+ * largura da propria faixa - faixa estreita tem margem estreita.
+ * Faixa com so um "ideal minimo" (todos os outros parametros hoje
+ * cadastraveis): a margem e um percentual do ideal, no mesmo espirito do
+ * classificarMinimoIdeal usado no diagnostico por talhao.
+ *
+ * Limiares (25% da largura da faixa; 70%/140% do ideal minimo) sao um ponto
+ * de partida razoavel, nao literatura fechada - ajustar se a prática mostrar
+ * outra coisa.
+ */
+function classificarQuatroNiveis(
+  valor: number | null,
+  min: number | null,
+  max: number | null,
+): StatusGeral {
+  if (valor === null || (min === null && max === null)) return "SEM_REFERENCIA";
+
+  if (min !== null && max !== null) {
+    const largura = max - min;
+    const margem = largura > 0 ? largura * 0.25 : Math.abs(min || max || 1) * 0.1;
+    if (valor < min - margem) return "BAIXO";
+    if (valor < min) return "MARGEM";
+    if (valor <= max + margem) return "ADEQUADO";
+    return "ALTO";
+  }
+
+  const ideal = (min ?? max) as number;
+  if (ideal === 0) return "SEM_REFERENCIA";
+  const razao = valor / ideal;
+  if (razao < 0.7) return "BAIXO";
+  if (razao < 1) return "MARGEM";
+  if (razao <= 1.4) return "ADEQUADO";
+  return "ALTO";
+}
+
+/** Do pior para o melhor - um só parâmetro crítico já marca a bolinha toda. */
+const PRIORIDADE_STATUS: StatusGeral[] = ["BAIXO", "ALTO", "MARGEM", "ADEQUADO"];
+
+/**
+ * Um único status resumindo a última análise de solo contra o perfil da
+ * cultura - a bolinha do canto do bloco. Pega o PIOR entre os parâmetros
+ * comparáveis: um só nutriente fora da faixa já chama atenção, mesmo que os
+ * outros estejam bons. Sem perfil cadastrado (ou nenhum parâmetro em comum
+ * preenchido), devolve SEM_REFERENCIA - cinza, não "adequado" por omissão.
+ */
+export function classificarStatusGeralSolo(
+  analise: AnaliseSoloEntrada,
+  perfil: PerfilCorrecaoEntrada | null,
+): StatusGeral {
+  if (!perfil) return "SEM_REFERENCIA";
+
+  const avaliacoes = [
+    classificarQuatroNiveis(analise.ph, perfil.phIdealMin, perfil.phIdealMax),
+    classificarQuatroNiveis(analise.materiaOrganica, perfil.materiaOrganicaIdeal, null),
+    classificarQuatroNiveis(analise.fosforo, perfil.fosforoIdeal, null),
+    classificarQuatroNiveis(analise.potassio, perfil.potassioIdeal, null),
+    classificarQuatroNiveis(analise.calcio, perfil.calcioIdeal, null),
+    classificarQuatroNiveis(analise.magnesio, perfil.magnesioIdeal, null),
+    classificarQuatroNiveis(analise.saturacaoBases, perfil.saturacaoBasesIdeal, null),
+  ].filter((s): s is Exclude<StatusGeral, "SEM_REFERENCIA"> => s !== "SEM_REFERENCIA");
+
+  if (avaliacoes.length === 0) return "SEM_REFERENCIA";
+  return PRIORIDADE_STATUS.find((p) => (avaliacoes as StatusGeral[]).includes(p)) ?? "ADEQUADO";
+}
+
 export function gerarDiagnosticoSolo(
   analise: AnaliseSoloEntrada,
   perfil: PerfilCorrecaoEntrada | null,

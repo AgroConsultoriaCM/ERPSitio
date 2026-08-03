@@ -5,6 +5,7 @@
 // A nota vai orientar decisao de manejo. Precisa acertar principalmente quando
 // NAO ha dado - cena nublada nao pode virar "talhao critico".
 import {
+  apenasValidas,
   avaliarTendencia,
   avaliarUniformidade,
   avaliarVigor,
@@ -146,6 +147,48 @@ console.log("\n== MES INTEIRO NUBLADO nao vira talhao critico ==");
   const nota = calcularNota([leitura("2026-07-01", null), leitura("2026-07-16", null)], []);
   conferir("sem cena limpa = sem_dados", nota.faixa, "sem_dados");
   conferir("nenhuma leitura usada", nota.leiturasUsadas, 0);
+}
+
+console.log("\n== OSCILACAO ISOLADA: nuvem/sombra que passou pelo filtro de cena ==");
+{
+  // Um mes cai para quase metade e volta ao padrao no seguinte - vigor de
+  // planta de verdade nao faz isso. Caso real que motivou o filtro: OSAVI
+  // caindo bem abaixo em novembro e janeiro, cercado de leituras normais.
+  const serie = [
+    leitura("2025-09-01", 0.46),
+    leitura("2025-10-01", 0.47),
+    leitura("2025-11-01", 0.24), // isolada - some
+    leitura("2025-12-01", 0.45),
+    leitura("2026-01-01", 0.22), // isolada - some
+    leitura("2026-02-01", 0.46),
+  ];
+  const limpa = apenasValidas(serie);
+  conferir("descarta as duas leituras isoladas", limpa.length, 4);
+  conferir(
+    "sobram so as leituras que concordam entre si",
+    limpa.map((l) => l.data).join(","),
+    "2025-09-01,2025-10-01,2025-12-01,2026-02-01",
+  );
+}
+{
+  // Queda REAL e sustentada (duas leituras baixas seguidas, nao uma so) nunca
+  // pode ser descartada - e exatamente o que o relatorio existe para mostrar.
+  const serie = [
+    leitura("2025-09-01", 0.46),
+    leitura("2025-10-01", 0.45),
+    leitura("2025-11-01", 0.25),
+    leitura("2025-12-01", 0.24),
+    leitura("2026-01-01", 0.23),
+  ];
+  const limpa = apenasValidas(serie);
+  conferir("queda sustentada NAO e descartada", limpa.length, 5);
+}
+{
+  // Ponta da serie (primeira ou ultima leitura) nunca tem os dois vizinhos -
+  // fica de fora do filtro, nao da para julgar isolamento sem os dois lados.
+  const serie = [leitura("2025-09-01", 0.1), leitura("2025-10-01", 0.45), leitura("2025-11-01", 0.46)];
+  const limpa = apenasValidas(serie);
+  conferir("ponta da serie fica, mesmo destoando", limpa.length, 3);
 }
 
 console.log(falhas === 0 ? "\nTUDO OK\n" : `\n${falhas} FALHA(S)\n`);

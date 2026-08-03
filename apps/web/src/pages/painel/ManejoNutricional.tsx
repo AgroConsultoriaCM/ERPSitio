@@ -44,6 +44,8 @@ interface Alerta {
   mensagem: string;
 }
 
+type StatusGeral = "BAIXO" | "MARGEM" | "ADEQUADO" | "ALTO" | "SEM_REFERENCIA";
+
 interface TalhaoNutricional {
   talhaoId: string;
   nome: string;
@@ -57,8 +59,54 @@ interface TalhaoNutricional {
   analiseFoliar: Record<string, number | string | null> | null;
   variacaoSolo: Record<string, number>;
   variacaoFoliar: Record<string, number>;
+  statusGeralSolo: StatusGeral;
   adubacoes: Adubacao[];
   alertas: Alerta[];
+}
+
+/** Nome curto de cada nutriente/parâmetro, na grafia química correta (Mg, não MG). */
+const ROTULO_NUTRIENTE: Record<string, string> = {
+  ph: "pH", materiaOrganica: "M.O.", fosforo: "P", enxofre: "S", potassio: "K",
+  calcio: "Ca", magnesio: "Mg", aluminio: "Al", hAl: "H+Al", somaBases: "SB",
+  ctc: "CTC", saturacaoBases: "V%", saturacaoAluminio: "m%",
+  boro: "B", cobre: "Cu", ferro: "Fe", manganes: "Mn", zinco: "Zn", silicio: "Si",
+  nitrogenio: "N",
+};
+
+/** Ordem de exibição: os medidos direto primeiro, os calculados por último. */
+const CAMPOS_SOLO = [
+  "ph", "materiaOrganica", "fosforo", "enxofre", "potassio", "calcio", "magnesio",
+  "boro", "cobre", "ferro", "manganes", "zinco", "silicio",
+  "aluminio", "hAl", "somaBases", "ctc", "saturacaoBases", "saturacaoAluminio",
+] as const;
+const CAMPOS_FOLIAR = [
+  "nitrogenio", "fosforo", "potassio", "calcio", "magnesio", "enxofre",
+  "boro", "cobre", "ferro", "manganes", "zinco", "silicio",
+] as const;
+
+const COR_STATUS_GERAL: Record<StatusGeral, string> = {
+  BAIXO: "bg-red-500",
+  MARGEM: "bg-amber-400",
+  ADEQUADO: "bg-mata-500",
+  ALTO: "bg-sky-500",
+  SEM_REFERENCIA: "bg-terra-200",
+};
+
+const TITULO_STATUS_GERAL: Record<StatusGeral, string> = {
+  BAIXO: "faltando bastante frente ao perfil da cultura",
+  MARGEM: "na margem inferior do perfil da cultura",
+  ADEQUADO: "dentro ou um pouco acima do perfil da cultura",
+  ALTO: "bem acima do perfil da cultura",
+  SEM_REFERENCIA: "sem perfil de correção cadastrado para esta cultura ainda",
+};
+
+function BolinhaStatusGeral({ status }: { status: StatusGeral }) {
+  return (
+    <span
+      title={`Última análise de solo: ${TITULO_STATUS_GERAL[status]}`}
+      className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${COR_STATUS_GERAL[status]}`}
+    />
+  );
 }
 
 interface Resposta {
@@ -78,13 +126,13 @@ const mesCurto = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }).replace(".", "");
 
 function Numero({
-  rotulo,
+  chave,
   valor,
   variacao,
 }: {
-  rotulo: string;
+  chave: string;
   valor: unknown;
-  /** % frente à mesma análise de ~1 ano antes. Ausente quando não há com o que comparar. */
+  /** % frente à análise anterior (a penúltima coleta). Ausente quando não há com o que comparar. */
   variacao?: number;
 }) {
   if (valor == null || valor === "") return null;
@@ -95,13 +143,14 @@ function Numero({
           className={`absolute right-1 top-1 text-[9px] font-bold leading-none ${
             variacao < 0 ? "text-red-600" : variacao > 0 ? "text-mata-600" : "text-terra-400"
           }`}
-          title="Variação frente à mesma análise de cerca de 1 ano antes"
+          title="Variação frente à análise anterior (a penúltima coleta)"
         >
           {variacao > 0 ? "+" : ""}
           {numero(variacao, 0)}%
         </span>
       )}
-      <p className="text-[10px] uppercase tracking-wide text-terra-400">{rotulo}</p>
+      {/* Sem "uppercase": os rótulos já vêm na grafia química certa (Mg, Ca, H+Al) - forçar caixa alta virava "MG", "CA". */}
+      <p className="text-[10px] tracking-wide text-terra-400">{ROTULO_NUTRIENTE[chave] ?? chave}</p>
       <p className="numero text-sm font-semibold text-terra-800">
         {typeof valor === "number" ? numero(valor, 2) : String(valor)}
       </p>
@@ -228,7 +277,7 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
         </div>
 
         <div className="space-y-3">
-          <div>
+          <div className="relative">
             <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-terra-600">
               <TestTube size={13} className="text-terra-400" />
               Última análise de solo
@@ -239,24 +288,22 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
               )}
             </p>
             {t.analiseSolo ? (
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                <Numero rotulo="pH" valor={t.analiseSolo.ph} variacao={t.variacaoSolo.ph} />
-                <Numero
-                  rotulo="M.O."
-                  valor={t.analiseSolo.materiaOrganica}
-                  variacao={t.variacaoSolo.materiaOrganica}
-                />
-                <Numero rotulo="P" valor={t.analiseSolo.fosforo} variacao={t.variacaoSolo.fosforo} />
-                <Numero rotulo="K" valor={t.analiseSolo.potassio} variacao={t.variacaoSolo.potassio} />
-                <Numero rotulo="Ca" valor={t.analiseSolo.calcio} variacao={t.variacaoSolo.calcio} />
-                <Numero rotulo="Mg" valor={t.analiseSolo.magnesio} variacao={t.variacaoSolo.magnesio} />
-                <Numero rotulo="CTC" valor={t.analiseSolo.ctc} variacao={t.variacaoSolo.ctc} />
-                <Numero
-                  rotulo="V%"
-                  valor={t.analiseSolo.saturacaoBases}
-                  variacao={t.variacaoSolo.saturacaoBases}
-                />
-              </div>
+              <>
+                <div className="grid grid-cols-3 gap-1.5 pr-4 sm:grid-cols-4">
+                  {CAMPOS_SOLO.map((chave) => (
+                    <Numero
+                      key={chave}
+                      chave={chave}
+                      valor={t.analiseSolo![chave]}
+                      variacao={t.variacaoSolo[chave]}
+                    />
+                  ))}
+                </div>
+                {/* Bolinha de status: resumo da última análise x perfil de correção da cultura. */}
+                <div className="absolute -bottom-1 -right-1">
+                  <BolinhaStatusGeral status={t.statusGeralSolo} />
+                </div>
+              </>
             ) : (
               <p className="rounded-lg bg-terra-50 px-3 py-2 text-xs text-terra-400">
                 nenhuma análise de solo lançada
@@ -276,12 +323,14 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
             </p>
             {t.analiseFoliar ? (
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                <Numero rotulo="N" valor={t.analiseFoliar.nitrogenio} variacao={t.variacaoFoliar.nitrogenio} />
-                <Numero rotulo="P" valor={t.analiseFoliar.fosforo} variacao={t.variacaoFoliar.fosforo} />
-                <Numero rotulo="K" valor={t.analiseFoliar.potassio} variacao={t.variacaoFoliar.potassio} />
-                <Numero rotulo="Ca" valor={t.analiseFoliar.calcio} variacao={t.variacaoFoliar.calcio} />
-                <Numero rotulo="Mg" valor={t.analiseFoliar.magnesio} variacao={t.variacaoFoliar.magnesio} />
-                <Numero rotulo="S" valor={t.analiseFoliar.enxofre} variacao={t.variacaoFoliar.enxofre} />
+                {CAMPOS_FOLIAR.map((chave) => (
+                  <Numero
+                    key={chave}
+                    chave={chave}
+                    valor={t.analiseFoliar![chave]}
+                    variacao={t.variacaoFoliar[chave]}
+                  />
+                ))}
               </div>
             ) : (
               <p className="rounded-lg bg-terra-50 px-3 py-2 text-xs text-terra-400">
@@ -446,6 +495,25 @@ export default function ManejoNutricional() {
           uma mudança de vigor há chuva, colheita, poda e florada. O relatório aponta lacunas
           objetivas (análise vencida, talhão sem adubação, vigor caindo) e deixa o diagnóstico com
           você. · {dados.fonte}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-terra-50 px-3 py-2.5 text-xs text-terra-500">
+        <span className="font-medium text-terra-600">Bolinha no canto da última análise de solo:</span>
+        <span className="flex items-center gap-1.5">
+          <BolinhaStatusGeral status="BAIXO" /> faltando bastante
+        </span>
+        <span className="flex items-center gap-1.5">
+          <BolinhaStatusGeral status="MARGEM" /> margem inferior
+        </span>
+        <span className="flex items-center gap-1.5">
+          <BolinhaStatusGeral status="ADEQUADO" /> dentro do ideal
+        </span>
+        <span className="flex items-center gap-1.5">
+          <BolinhaStatusGeral status="ALTO" /> bem acima
+        </span>
+        <span className="flex items-center gap-1.5">
+          <BolinhaStatusGeral status="SEM_REFERENCIA" /> sem perfil cadastrado para a cultura
         </span>
       </div>
     </div>

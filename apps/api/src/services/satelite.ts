@@ -110,11 +110,23 @@ function evaluatePixel(s) {
   return [...cor, s.dataMask];
 }`;
 
-/** NDVI e OSAVI juntos. O 0,16 do OSAVI desconta o solo exposto entre as ruas. */
+/**
+ * NDVI e OSAVI juntos. O 0,16 do OSAVI desconta o solo exposto entre as ruas.
+ *
+ * maxCloudCoverage (abaixo) filtra pela nuvem da CENA inteira, mas um talhão
+ * de poucos hectares cabe várias vezes dentro de uma cena de 100x100 km - a
+ * cena pode passar no filtro (ex.: 35% de nuvem) com a nuvem caindo bem em
+ * cima do talhão. Por isso o SCL (Scene Classification Layer) entra aqui: é
+ * a classificação por PIXEL que o próprio Sentinel-2 já calcula, e zerar o
+ * dataMask nas classes de nuvem/sombra tira esses pixels da média ANTES dela
+ * ser calculada - mais confiável que tentar filtrar depois pela estatística.
+ * Classes descartadas: 3 sombra de nuvem, 8/9 nuvem média/alta probabilidade,
+ * 10 cirrus fino. (6 água e 11 neve ficam, não são nuvem.)
+ */
 const EVALSCRIPT_ESTATISTICA = `//VERSION=3
 function setup() {
   return {
-    input: [{ bands: ["B04","B08","dataMask"] }],
+    input: [{ bands: ["B04","B08","SCL","dataMask"] }],
     output: [
       { id: "ndvi", bands: 1 },
       { id: "osavi", bands: 1 },
@@ -123,10 +135,12 @@ function setup() {
   };
 }
 function evaluatePixel(s) {
+  var nuvemOuSombra = s.SCL === 3 || s.SCL === 8 || s.SCL === 9 || s.SCL === 10;
+  var valido = s.dataMask === 1 && !nuvemOuSombra ? 1 : 0;
   return {
     ndvi: [(s.B08 - s.B04) / (s.B08 + s.B04)],
     osavi: [(s.B08 - s.B04) / (s.B08 + s.B04 + 0.16)],
-    dataMask: [s.dataMask]
+    dataMask: [valido]
   };
 }`;
 
