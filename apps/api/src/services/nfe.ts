@@ -9,6 +9,7 @@
 // que vao direto para o custo por talhao e para a margem da colheita.
 
 import { XMLParser } from "fast-xml-parser";
+import { lerEmbalagem } from "./embalagem.js";
 
 export interface ItemNota {
   /** Numero do item dentro da nota (1, 2, 3...). */
@@ -27,6 +28,16 @@ export interface ItemNota {
    * "Zapp QI", com acento, espaco e maiuscula diferentes.
    */
   registroMapa: string | null;
+  /**
+   * Ingrediente(s) ativo(s), lidos do parenteses final da descricao
+   * ("ENGEO PLENO S (LT) (TIAMETOXAM+LAMBDA-CIALOTRINA)" -> os dois nomes).
+   *
+   * Ao contrario do registro do MAPA, quase toda nota de defensivo declara
+   * isso - varios fornecedores nunca escrevem o registro, mas o nome do
+   * ingrediente ativo e nomenclatura quimica padronizada, entao e a chave
+   * mais confiavel para sugerir Função quando o registro nao vem.
+   */
+  ingredientesAtivos: string[];
   unidade: string;
   quantidade: number;
   /** Preco unitario como veio na nota, sem rateio de despesas. */
@@ -148,6 +159,42 @@ export function extrairRegistroMapa(
   return null;
 }
 
+/**
+ * Ingrediente(s) ativo(s) da descricao do item.
+ *
+ * Defensivo agricola e descrito, quase sempre, como "NOME COMERCIAL
+ * (EMBALAGEM) (INGREDIENTE ATIVO)" - o parenteses final e o ingrediente. A
+ * embalagem e removida primeiro com o MESMO leitor usado para o fator de
+ * conversao (embalagem.ts), senao "(20 LT)" seria lido como se fosse
+ * ingrediente. Parenteses com poucas letras (embalagem solta, "(BD)", "(1L)")
+ * tambem sao descartados - nome de ingrediente quimico tem pelo menos umas
+ * letras de verdade.
+ *
+ * Quando nao da para afirmar, devolve lista vazia: melhor sem sugestao de
+ * Função do que uma errada.
+ */
+export function extrairIngredientesAtivos(descricao: string): string[] {
+  const embalagem = lerEmbalagem(descricao);
+  const semEmbalagem = embalagem ? descricao.replace(embalagem.trecho, " ") : descricao;
+
+  const grupos = [...semEmbalagem.matchAll(/\(([^)]+)\)/g)].map((m) => m[1]);
+  const soLetras = (s: string) => s.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, "");
+
+  // Entre os parenteses que sobraram, o que tem mais letras e o mais provavel
+  // de ser o ingrediente - embalagem residual ("BD", "CX") e curta.
+  let melhor: string | null = null;
+  for (const g of grupos) {
+    if (soLetras(g).length < 4) continue;
+    if (!melhor || soLetras(g).length > soLetras(melhor).length) melhor = g;
+  }
+  if (!melhor) return [];
+
+  return melhor
+    .split("+")
+    .map((parte) => parte.replace(/[\d.,%]+/g, "").trim())
+    .filter((p) => soLetras(p).length >= 4);
+}
+
 export function lerXmlNfe(xml: string): NotaLida {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -229,6 +276,7 @@ export function lerXmlNfe(xml: string): NotaLida {
       custoUnitarioReal: quantidade > 0 ? centavos(custoTotalItem / quantidade) : 0,
       infoAdicional,
       registroMapa: extrairRegistroMapa(infoAdicional, texto(prod.xProd)),
+      ingredientesAtivos: extrairIngredientesAtivos(texto(prod.xProd)),
     };
   });
 

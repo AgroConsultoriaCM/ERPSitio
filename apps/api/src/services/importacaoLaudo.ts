@@ -112,8 +112,13 @@ function micros(valores: Record<string, number>) {
 
 export interface DadosAmostraConfirmada {
   amostraId: string;
-  /** Para onde vai. Nenhum dos dois = o usuario decidiu arquivar esta amostra. */
-  talhaoId?: string | null;
+  /**
+   * Para onde vai. Uma coleta pode valer para mais de um talhao (grid de
+   * amostragem que cobre area maior que um talhao so) - cada um vira uma
+   * analise propria, com os mesmos valores. Lista vazia e loteCompostoId
+   * ausente = o usuario decidiu arquivar esta amostra.
+   */
+  talhaoIds?: string[];
   loteCompostoId?: string | null;
   /** Valores ja conferidos e eventualmente corrigidos na tela. */
   valores: Record<string, number>;
@@ -122,13 +127,62 @@ export interface DadosAmostraConfirmada {
 }
 
 /**
- * Grava as amostras conferidas nas tabelas definitivas.
+ * Grava a analise de UM talhao a partir dos valores conferidos. Chamada uma
+ * vez por talhao marcado - a mesma coleta pode gerar varias analises
+ * identicas em talhoes diferentes.
  *
  * MICRO nao cria analise propria: ela COMPLEMENTA a quimica do mesmo talhao e
  * data, entrando no campo de micronutrientes. Criar uma analise separada so
  * com boro e zinco deixaria a tela do talhao com duas linhas para a mesma
  * coleta, e nenhuma delas completa.
  */
+async function gravarAnaliseNoTalhao(
+  prisma: PrismaClient,
+  tipo: TipoLaudo,
+  talhaoId: string,
+  base: { propriedadeId: string; dataColeta: Date; laboratorio: string | undefined },
+  valores: Record<string, number>,
+  profundidade: string | null,
+): Promise<void> {
+  if (tipo === "FISICA") {
+    await prisma.analiseFisicaSolo.create({
+      data: { ...base, talhaoId, profundidadeCm: profundidade ?? undefined, ...apenas(valores, CAMPOS_FISICA) },
+    });
+  } else if (tipo === "FOLIAR") {
+    await prisma.analiseFoliar.create({
+      data: { ...base, talhaoId, ...apenas(valores, CAMPOS_FOLIAR), micronutrientes: micros(valores) ?? undefined },
+    });
+  } else if (tipo === "MICRO") {
+    // Procura a quimica da MESMA coleta para completar, em vez de criar uma
+    // analise so de micronutrientes.
+    const janela = 45 * 864e5;
+    const quimica = await prisma.analiseSolo.findFirst({
+      where: {
+        talhaoId,
+        dataColeta: {
+          gte: new Date(base.dataColeta.getTime() - janela),
+          lte: new Date(base.dataColeta.getTime() + janela),
+        },
+      },
+      orderBy: { dataColeta: "desc" },
+    });
+    if (quimica) {
+      await prisma.analiseSolo.update({
+        where: { id: quimica.id },
+        data: { micronutrientes: micros(valores) ?? undefined },
+      });
+    } else {
+      await prisma.analiseSolo.create({
+        data: { ...base, talhaoId, profundidadeCm: undefined, micronutrientes: micros(valores) ?? undefined },
+      });
+    }
+  } else {
+    await prisma.analiseSolo.create({
+      data: { ...base, talhaoId, ...apenas(valores, CAMPOS_QUIMICA), micronutrientes: micros(valores) ?? undefined },
+    });
+  }
+}
+
 export async function confirmarAmostras(
   prisma: PrismaClient,
   propriedadeId: string,
@@ -152,6 +206,7 @@ export async function confirmarAmostras(
     const amostra = laudo.amostras.find((a) => a.id === dados.amostraId);
     if (!amostra) continue;
 
+    const talhaoIds = dados.talhaoIds ?? [];
     const data = dados.dataColeta
       ? new Date(dados.dataColeta)
       : (laudo.dataColeta ?? new Date());
@@ -164,12 +219,12 @@ export async function confirmarAmostras(
       data: {
         valores: dados.valores,
         profundidade,
-        talhaoId: dados.talhaoId ?? null,
+        talhaoIds,
         loteCompostoId: dados.loteCompostoId ?? null,
       },
     });
 
-    if (!dados.talhaoId && !dados.loteCompostoId) {
+    if (talhaoIds.length === 0 && !dados.loteCompostoId) {
       arquivadas++;
       continue;
     }
@@ -189,67 +244,10 @@ export async function confirmarAmostras(
       continue;
     }
 
-    const talhaoId = dados.talhaoId as string;
-
-    if (laudo.tipo === "FISICA") {
-      await prisma.analiseFisicaSolo.create({
-        data: {
-          ...base,
-          talhaoId,
-          profundidadeCm: profundidade ?? undefined,
-          ...apenas(dados.valores, CAMPOS_FISICA),
-        },
-      });
-    } else if (laudo.tipo === "FOLIAR") {
-      await prisma.analiseFoliar.create({
-        data: {
-          ...base,
-          talhaoId,
-          ...apenas(dados.valores, CAMPOS_FOLIAR),
-          micronutrientes: micros(dados.valores) ?? undefined,
-        },
-      });
-    } else if (laudo.tipo === "MICRO") {
-      // Procura a quimica da MESMA coleta para completar, em vez de criar uma
-      // analise so de micronutrientes.
-      const janela = 45 * 864e5;
-      const quimica = await prisma.analiseSolo.findFirst({
-        where: {
-          talhaoId,
-          dataColeta: {
-            gte: new Date(data.getTime() - janela),
-            lte: new Date(data.getTime() + janela),
-          },
-        },
-        orderBy: { dataColeta: "desc" },
-      });
-      if (quimica) {
-        await prisma.analiseSolo.update({
-          where: { id: quimica.id },
-          data: { micronutrientes: micros(dados.valores) ?? undefined },
-        });
-      } else {
-        await prisma.analiseSolo.create({
-          data: {
-            ...base,
-            talhaoId,
-            profundidadeCm: undefined,
-            micronutrientes: micros(dados.valores) ?? undefined,
-          },
-        });
-      }
-    } else {
-      await prisma.analiseSolo.create({
-        data: {
-          ...base,
-          talhaoId,
-          ...apenas(dados.valores, CAMPOS_QUIMICA),
-          micronutrientes: micros(dados.valores) ?? undefined,
-        },
-      });
+    for (const talhaoId of talhaoIds) {
+      await gravarAnaliseNoTalhao(prisma, laudo.tipo, talhaoId, base, dados.valores, profundidade);
+      gravadas++;
     }
-
-    gravadas++;
   }
 
   await prisma.laudoImportado.update({

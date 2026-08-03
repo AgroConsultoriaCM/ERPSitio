@@ -14,7 +14,12 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { lerXmlNfe, conferirTotal, XmlInvalidoError } from "../services/nfe.js";
 import { lerEmbalagem, sugerirNome } from "../services/embalagem.js";
-import { agrofitConfigurado, buscarProdutoPorRegistro, funcoesSugeridasDoAgrofit } from "../services/agrofit.js";
+import {
+  agrofitConfigurado,
+  buscarProdutoPorRegistro,
+  funcoesSugeridasDoAgrofit,
+  funcoesSugeridasPorIngredientes,
+} from "../services/agrofit.js";
 import { AppError, NaoEncontradoError } from "../lib/errors.js";
 
 const receberSchema = z.object({
@@ -168,16 +173,21 @@ export default async function notasRoutes(fastify: FastifyInstance) {
     const nosso = soDigitos(propriedade?.documento);
 
     // Função sugerida pelo Agrofit, so para itens NOVOS (produto ja conhecido
-    // ja tem função definida no proprio cadastro) que trazem o numero de
-    // registro do MAPA no texto da nota. Em paralelo e com cache em memoria
-    // (agrofit.ts) - o mesmo produto em notas diferentes so bate na Embrapa
-    // uma vez por vida do processo.
+    // ja tem função definida no proprio cadastro). Dois caminhos, nesta ordem:
+    //
+    //   1. registro do MAPA (chave exata) - quando a nota traz.
+    //   2. nome do ingrediente ativo - quando o registro nao vem, o que e o
+    //      caso mais comum na pratica (varios fornecedores nunca escrevem o
+    //      registro no XML, mas o ingrediente ativo e nomenclatura quimica
+    //      padronizada e quase sempre esta na descricao do item).
+    //
+    // Em paralelo e com cache em memoria (agrofit.ts) - o mesmo produto ou
+    // ingrediente em notas diferentes so bate na Embrapa uma vez por vida do
+    // processo.
+    const itensNovos = lida.itens.filter((item) => !porCodigo.has(item.codigo));
+
     const registrosParaConsultar = [
-      ...new Set(
-        lida.itens
-          .filter((item) => !porCodigo.has(item.codigo) && item.registroMapa)
-          .map((item) => item.registroMapa as string),
-      ),
+      ...new Set(itensNovos.map((item) => item.registroMapa).filter((v): v is string => Boolean(v))),
     ];
     const funcoesPorRegistro = new Map<string, string[]>();
     if (agrofitConfigurado() && registrosParaConsultar.length > 0) {
@@ -188,6 +198,22 @@ export default async function notasRoutes(fastify: FastifyInstance) {
         }),
       );
       for (const [registroMapa, funcoes] of encontrados) funcoesPorRegistro.set(registroMapa, funcoes);
+    }
+
+    const funcoesSugeridasPorItem = new Map<number, string[]>();
+    if (agrofitConfigurado()) {
+      await Promise.all(
+        itensNovos.map(async (item) => {
+          const porRegistro = item.registroMapa ? (funcoesPorRegistro.get(item.registroMapa) ?? []) : [];
+          if (porRegistro.length > 0) {
+            funcoesSugeridasPorItem.set(item.numero, porRegistro);
+            return;
+          }
+          if (item.ingredientesAtivos.length === 0) return;
+          const porIngrediente = await funcoesSugeridasPorIngredientes(item.ingredientesAtivos);
+          funcoesSugeridasPorItem.set(item.numero, porIngrediente);
+        }),
+      );
     }
 
     return {
@@ -227,8 +253,8 @@ export default async function notasRoutes(fastify: FastifyInstance) {
           quantidadeConvertida: fator ? item.quantidade * fator : null,
           custoConvertido:
             fator && fator > 0 ? Math.round((item.custoUnitarioReal / fator) * 100) / 100 : null,
-          /** Lida do registro do MAPA no Agrofit — o gestor confere antes de salvar. */
-          funcoesSugeridas: item.registroMapa ? (funcoesPorRegistro.get(item.registroMapa) ?? []) : [],
+          /** Do registro do MAPA ou do ingrediente ativo — o gestor confere antes de salvar. */
+          funcoesSugeridas: funcoesSugeridasPorItem.get(item.numero) ?? [],
         };
       }),
     };

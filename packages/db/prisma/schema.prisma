@@ -173,7 +173,6 @@ model Talhao {
   atividadesItens AtividadeTalhao[]
   leiturasSatelite LeituraSatelite[]
   analisesFisicas  AnaliseFisicaSolo[]
-  amostrasLaudo    AmostraLaudo[]
 
   @@index([propriedadeId])
   @@index([culturaId])
@@ -900,10 +899,11 @@ model AmostraLaudo {
   /// vieram na unidade padrao - e o caso normal.
   avisosUnidade String[] @default([])
 
-  /// Onde esta amostra foi parar depois de confirmada. Nulo enquanto pendente,
-  /// e continua nulo se o usuario decidir arquivar.
-  talhaoId String?
-  talhao   Talhao? @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+  /// Talhoes onde esta amostra virou analise, depois de confirmada. Uma
+  /// mesma coleta pode valer para mais de um talhao (grid de amostragem que
+  /// cobre area maior que um talhao so) - por isso lista, nao FK unica. Vazio
+  /// enquanto pendente, e continua vazio se o usuario decidir arquivar.
+  talhaoIds String[] @default([])
   loteCompostoId String?
   loteComposto   LoteComposto? @relation(fields: [loteCompostoId], references: [id], onDelete: SetNull)
 
@@ -911,7 +911,6 @@ model AmostraLaudo {
   updatedAt DateTime @updatedAt
 
   @@index([laudoId])
-  @@index([talhaoId])
   @@index([loteCompostoId])
 }
 

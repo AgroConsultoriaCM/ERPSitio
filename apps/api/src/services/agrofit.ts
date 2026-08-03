@@ -168,11 +168,15 @@ export async function listarPragas(pagina = 1) {
   >("/pragas", { page: pagina });
 }
 
-export async function listarIngredientesAtivos() {
-  return buscar<{ nome_comum: string; grupo_quimico: string; classe: string }[]>(
-    "/ingredientes-ativos",
-    {},
-  );
+export interface IngredienteAtivoAgrofit {
+  nome_comum: string;
+  grupo_quimico: string;
+  /** Vem como lista — o mesmo ingrediente pode estar em mais de uma classe. */
+  classe: string[];
+}
+
+export async function listarIngredientesAtivos(pagina = 1) {
+  return buscar<IngredienteAtivoAgrofit[]>("/ingredientes-ativos", { page: pagina });
 }
 
 /** Chamada mínima só para provar que a credencial funciona. */
@@ -236,12 +240,84 @@ function chaveClasse(v: string): string {
     .trim();
 }
 
-export function funcoesSugeridasDoAgrofit(produto: ProdutoAgrofit): string[] {
-  const classes = produto.classe_categoria_agronomica ?? [];
-  const funcoes = new Set<string>();
+function classesParaFuncoes(classes: string[], acumulador: Set<string>): void {
   for (const c of classes) {
     const mapeada = MAPA_CLASSE_FUNCAO[chaveClasse(c)];
-    if (mapeada) funcoes.add(mapeada);
+    if (mapeada) acumulador.add(mapeada);
+  }
+}
+
+export function funcoesSugeridasDoAgrofit(produto: ProdutoAgrofit): string[] {
+  const funcoes = new Set<string>();
+  classesParaFuncoes(produto.classe_categoria_agronomica ?? [], funcoes);
+  return [...funcoes];
+}
+
+/**
+ * Indice ingrediente ativo -> classes, montado uma vez e guardado em memoria
+ * (sem TTL: nomenclatura quimica nao muda, e o processo reinicia a cada
+ * deploy de qualquer forma). Bem menor que o cadastro de produtos formulados
+ * (algumas centenas de ingredientes contra ~4.250 produtos), entao cabe
+ * inteiro na memoria sem custar caro.
+ */
+let indiceIngredientes: Map<string, string[]> | null = null;
+
+/** Sem acento, hifen vira espaco: "sal de amônio" e "SAL DE AMONIO" casam. */
+function chaveIngrediente(v: string): string {
+  return v
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function obterIndiceIngredientes(): Promise<Map<string, string[]>> {
+  if (indiceIngredientes) return indiceIngredientes;
+
+  const indice = new Map<string, string[]>();
+  // Mesmo padrao de espelharProdutosFormulados: pagina ate vir vazia ou
+  // incompleta, com um teto de seguranca para nao rodar para sempre se a API
+  // mudar de comportamento.
+  for (let pagina = 1; pagina <= 50; pagina++) {
+    const lote = await listarIngredientesAtivos(pagina);
+    if (!Array.isArray(lote) || lote.length === 0) break;
+    for (const ing of lote) {
+      if (ing.nome_comum) indice.set(chaveIngrediente(ing.nome_comum), ing.classe ?? []);
+    }
+    if (lote.length < 100) break; // pagina incompleta = ultima
+  }
+
+  indiceIngredientes = indice;
+  return indice;
+}
+
+/**
+ * Função sugerida a partir do(s) nome(s) de ingrediente ativo (ver
+ * `extrairIngredientesAtivos` em nfe.ts). Usado quando a nota nao traz o
+ * registro do MAPA — o caso mais comum, porque varios fornecedores nunca
+ * escrevem o registro no XML, mas o nome do ingrediente ativo e nomenclatura
+ * quimica padronizada e quase sempre esta na descricao do item.
+ *
+ * Menos preciso que a busca por registro (um mesmo ingrediente pode estar
+ * registrado em mais de uma classe, ex. glufosinato aparece como herbicida E
+ * fungicida no Agrofit) — por isso so entra como reforço quando a busca por
+ * registro nao achou nada.
+ */
+export async function funcoesSugeridasPorIngredientes(nomes: string[]): Promise<string[]> {
+  if (nomes.length === 0) return [];
+  let indice: Map<string, string[]>;
+  try {
+    indice = await obterIndiceIngredientes();
+  } catch {
+    return [];
+  }
+
+  const funcoes = new Set<string>();
+  for (const nome of nomes) {
+    const classes = indice.get(chaveIngrediente(nome));
+    if (classes) classesParaFuncoes(classes, funcoes);
   }
   return [...funcoes];
 }

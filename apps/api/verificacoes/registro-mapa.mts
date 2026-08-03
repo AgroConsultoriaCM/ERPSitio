@@ -6,11 +6,11 @@
 // O numero e a unica chave exata entre a nota e o cadastro oficial do Agrofit.
 // Errar aqui cadastraria o produto errado, com o modo de acao errado, e o
 // controle de pragas passaria a mentir.
-import { extrairRegistroMapa } from "../src/services/nfe.js";
+import { extrairRegistroMapa, extrairIngredientesAtivos } from "../src/services/nfe.js";
 
 let falhas = 0;
 function conferir(nome: string, obtido: unknown, esperado: unknown) {
-  const ok = obtido === esperado;
+  const ok = JSON.stringify(obtido) === JSON.stringify(esperado);
   console.log(
     `  ${ok ? "ok   " : "FALHA"} ${nome}${ok ? "" : `  obtido ${JSON.stringify(obtido)}, esperado ${JSON.stringify(esperado)}`}`,
   );
@@ -65,6 +65,43 @@ conferir(
   "registro escrito na propria descricao",
   extrairRegistroMapa(null, "HERBICIDA XPTO REG MAPA 45725"),
   "45725",
+);
+
+console.log("\n== ingrediente ativo: os 4 itens reais da nota da Agro Marapoama ==");
+{
+  // Esta nota (25535/1) NAO tem registro do MAPA em lugar nenhum do XML - so
+  // texto de classificacao ONU para transporte. O ingrediente ativo, ao
+  // contrario, esta sempre na descricao - e por isso virou a chave principal
+  // para sugerir Função quando o registro nao vem.
+  conferir(
+    "dois ingredientes, separados por +",
+    extrairIngredientesAtivos("ENGEO PLENO S (LT) (TIAMETOXAM+LAMBDA-CIALOTRINA)"),
+    ["TIAMETOXAM", "LAMBDA-CIALOTRINA"],
+  );
+  conferir(
+    "embalagem no meio nao atrapalha",
+    extrairIngredientesAtivos("BIVACK (BR) (LT) (CARFENTRAZONA-ETILICA)"),
+    ["CARFENTRAZONA-ETILICA"],
+  );
+  conferir(
+    "embalagem com numero (20 LT) e removida certo",
+    extrairIngredientesAtivos("PREFER (20 LT) (GLUFOSINATO - SAL DE AMONIO)"),
+    ["GLUFOSINATO - SAL DE AMONIO"],
+  );
+  conferir(
+    "um so ingrediente, formulacao antes do parenteses",
+    extrairIngredientesAtivos("SUMYZIN 500 SC (LT) (FLUMIOXAZINA)"),
+    ["FLUMIOXAZINA"],
+  );
+}
+
+console.log("\n== ingrediente ativo: o que NAO pode virar ingrediente ==");
+conferir("so embalagem, sem ingrediente algum", extrairIngredientesAtivos("PRODUTO XYZ (20 LT)"), []);
+conferir("sem parenteses nenhum", extrairIngredientesAtivos("ADUBO FOLIAR GRANULADO"), []);
+conferir(
+  "parenteses curto demais (sigla de embalagem)",
+  extrairIngredientesAtivos("PRODUTO ABC (BD) (CX)"),
+  [],
 );
 
 console.log(falhas === 0 ? "\nTUDO OK\n" : `\n${falhas} FALHA(S)\n`);

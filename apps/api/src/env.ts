@@ -20,6 +20,11 @@ const envSchema = z.object({
   // so o bloco de satelite fica indisponivel.
   COPERNICUS_CLIENT_ID: z.string().optional(),
   COPERNICUS_CLIENT_SECRET: z.string().optional(),
+
+  // Chave da OCR.space (ocr.space), para ler o texto de laudos em PDF sem
+  // planilha. Opcional pelo mesmo motivo das demais: sem ela, o PDF entra na
+  // fila para digitacao 100% manual, como ja funcionava antes.
+  OCR_SPACE_API_KEY: z.string().optional(),
 });
 
 export const env = envSchema.parse({
@@ -36,4 +41,5 @@ export const env = envSchema.parse({
   AGROFIT_CONSUMER_SECRET: process.env.AGROFIT_CONSUMER_SECRET,
   COPERNICUS_CLIENT_ID: process.env.COPERNICUS_CLIENT_ID,
   COPERNICUS_CLIENT_SECRET: process.env.COPERNICUS_CLIENT_SECRET,
+  OCR_SPACE_API_KEY: process.env.OCR_SPACE_API_KEY,
 });

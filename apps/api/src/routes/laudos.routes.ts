@@ -1,8 +1,34 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { AppError, NaoEncontradoError } from "../lib/errors.js";
-import { lerLaudo, LaudoInvalidoError, type Planilha } from "../services/analiseLaudo.js";
+import {
+  lerLaudo,
+  LaudoInvalidoError,
+  unidadeDoValor,
+  chaveEhDerivada,
+  type Planilha,
+  type TipoLaudo,
+} from "../services/analiseLaudo.js";
 import { confirmarAmostras, sugerirTalhao } from "../services/importacaoLaudo.js";
+import { ocrConfigurado, extrairTextoDoPdf } from "../services/ocr.js";
+
+/**
+ * Unidade e campos derivados de cada amostra — sempre recalculados a partir
+ * do tipo do laudo e das chaves que a amostra tem, nunca gravados no banco.
+ * Assim continuam corretos mesmo apos o usuario editar os valores na tela de
+ * conferencia, e nao existe risco de desalinhar amostra com indice errado.
+ */
+function anotarAmostra<T extends { valores: unknown }>(tipo: TipoLaudo, amostra: T) {
+  const valores = amostra.valores as Record<string, unknown>;
+  const unidades: Record<string, string> = {};
+  const camposDerivados: string[] = [];
+  for (const chave of Object.keys(valores)) {
+    const u = unidadeDoValor(tipo, chave);
+    if (u) unidades[chave] = u;
+    if (chaveEhDerivada(tipo, chave)) camposDerivados.push(chave);
+  }
+  return { ...amostra, unidades, camposDerivados };
+}
 
 /**
  * Importacao de laudos de laboratorio.
@@ -19,8 +45,8 @@ const planilhaSchema = z.array(z.array(celulaSchema)).min(1).max(500);
 const enviarSchema = z.object({
   nomeArquivo: z.string().min(1),
   planilha: planilhaSchema.optional(),
-  /** Para PDF: o texto extraido, sem valores. O usuario digita conferindo. */
-  textoExtraido: z.string().optional(),
+  /** PDF em base64, para o OCR ler. Passa pela API mas nunca e salvo em disco nem no banco. */
+  pdfBase64: z.string().max(15_000_000).optional(),
 });
 
 const confirmarSchema = z.object({
@@ -28,7 +54,8 @@ const confirmarSchema = z.object({
     .array(
       z.object({
         amostraId: z.string().uuid(),
-        talhaoId: z.string().uuid().nullish(),
+        /** Uma coleta pode valer para mais de um talhão. */
+        talhaoIds: z.array(z.string().uuid()).default([]),
         loteCompostoId: z.string().uuid().nullish(),
         valores: z.record(z.string(), z.number()),
         dataColeta: z.string().nullish(),
@@ -64,10 +91,10 @@ export default async function laudosRoutes(fastify: FastifyInstance) {
     return laudos.map((l) => ({
       ...l,
       amostras: l.amostras.map((a) => ({
-        ...a,
+        ...anotarAmostra(l.tipo, a),
         // Sugestao calculada na hora, nao gravada: se o produtor renomear um
         // talhao, a sugestao acompanha em vez de ficar presa ao nome antigo.
-        sugestao: a.talhaoId ? null : sugerirTalhao(a.identificacao, talhoes),
+        sugestao: a.talhaoIds.length === 0 ? sugerirTalhao(a.identificacao, talhoes) : null,
       })),
     }));
   });
@@ -78,20 +105,34 @@ export default async function laudosRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const dados = enviarSchema.parse(request.body);
 
-      if (!dados.planilha && !dados.textoExtraido) {
-        throw new AppError("Envie a planilha do laudo ou o texto do PDF.", 422);
+      if (!dados.planilha && !dados.pdfBase64) {
+        throw new AppError("Envie a planilha do laudo ou o arquivo PDF.", 422);
       }
 
-      // PDF: nao extrai numero. O texto do laudo junta valores ("23,7512,21"
-      // sao dois numeros) e quebra numero entre linhas. Chutar aqui gravaria
-      // 23,75 onde era 2.375 - e adubacao em cima de valor errado e prejuizo.
+      // PDF: nao extrai numero, so texto (via OCR quando configurado). O
+      // texto do laudo junta valores ("23,7512,21" sao dois numeros) e quebra
+      // numero entre linhas de jeito imprevisivel conforme o layout do
+      // laboratorio. Chutar aqui gravaria 23,75 onde era 2.375 - e adubacao
+      // em cima de valor errado e prejuizo. O OCR so orienta a digitacao.
       if (!dados.planilha) {
+        let textoExtraido: string | null = null;
+        if (dados.pdfBase64 && ocrConfigurado()) {
+          try {
+            textoExtraido = await extrairTextoDoPdf(dados.pdfBase64);
+          } catch (err) {
+            // OCR fora do ar ou PDF ilegivel nao pode travar o upload - o
+            // laudo entra na fila do mesmo jeito, so sem o texto de apoio.
+            textoExtraido = `(OCR não conseguiu ler este PDF: ${err instanceof Error ? err.message : "erro desconhecido"})`;
+          }
+        }
+
         const laudo = await fastify.prisma.laudoImportado.create({
           data: {
             nomeArquivo: dados.nomeArquivo,
             tipo: "QUIMICA",
             digitacaoManual: true,
-            textoExtraido: dados.textoExtraido,
+            textoExtraido:
+              textoExtraido ?? "PDF anexado: digite os valores conferindo o laudo original.",
             propriedadeId: request.user.propriedadeId,
             amostras: {
               create: [{ valores: {}, naoReconhecidas: [] }],
@@ -132,7 +173,10 @@ export default async function laudosRoutes(fastify: FastifyInstance) {
         include: { amostras: true },
       });
 
-      return reply.status(201).send(laudo);
+      return reply.status(201).send({
+        ...laudo,
+        amostras: laudo.amostras.map((a) => anotarAmostra(laudo.tipo, a)),
+      });
     },
   );
 

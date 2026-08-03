@@ -43,6 +43,8 @@ export interface AmostraLida {
   naoReconhecidas: string[];
   /** Conversao de unidade aplicada, ou unidade estranha que nao deu para converter. */
   avisosUnidade: string[];
+  /** Colunas calculadas (V%, CTC...) que o sistema NAO pre-preenche - o usuario digita conferindo. */
+  camposDerivados: string[];
 }
 
 export interface LaudoLido {
@@ -257,6 +259,55 @@ function unidadeDaColuna(linhaUnidades: Celula[], coluna: number): string | null
   }
   return null;
 }
+
+/** Unidade de cada valor, para MOSTRAR na tela de conferência — não interfere na conversão. */
+const UNIDADE_EXIBICAO: Partial<Record<TipoLaudo, Record<string, string>>> = {
+  QUIMICA: {
+    ph: "CaCl₂", materiaOrganica: "g/dm³", fosforo: "mg/dm³", enxofre: "mg/dm³",
+    calcio: "mmolc/dm³", magnesio: "mmolc/dm³", sodio: "mmolc/dm³", potassio: "mmolc/dm³",
+    aluminio: "mmolc/dm³", hAl: "mmolc/dm³", somaBases: "mmolc/dm³", ctc: "mmolc/dm³",
+    saturacaoBases: "%", saturacaoAluminio: "%",
+  },
+  MICRO: { boro: "mg/dm³", cobre: "mg/dm³", ferro: "mg/dm³", manganes: "mg/dm³", zinco: "mg/dm³" },
+  FOLIAR: {
+    nitrogenio: "g/kg", fosforo: "g/kg", potassio: "g/kg", calcio: "g/kg", magnesio: "g/kg",
+    enxofre: "g/kg", boro: "mg/kg", cobre: "mg/kg", ferro: "mg/kg", manganes: "mg/kg",
+    zinco: "mg/kg", silicio: "g/kg",
+  },
+  FISICA: {
+    argila: "%", silte: "%", areiaTotal: "%", areiaMuitoGrossa: "%", areiaGrossa: "%",
+    areiaMedia: "%", areiaFina: "%", areiaMuitoFina: "%", argilaDispersaAgua: "%",
+    grauFloculacao: "%", grauDispersao: "%",
+  },
+  ORGANICO: {
+    materiaOrganica: "%", carbonoOrganico: "%", nitrogenio: "%", p2o5Total: "%", p2o5Ac: "%",
+    p2o5Agua: "%", k2o: "%", calcio: "%", magnesio: "%", enxofre: "%", boro: "%", cobre: "%",
+    ferro: "%", manganes: "%", zinco: "%", umidade: "%", ph: "CaCl₂", relacaoCN: "razão",
+  },
+};
+
+export function unidadeDoValor(tipo: TipoLaudo, chave: string): string | null {
+  return UNIDADE_EXIBICAO[tipo]?.[chave] ?? null;
+}
+
+/**
+ * Colunas CALCULADAS a partir de outras (V% = 100xSB/CTC, CTC = SB+H+Al...),
+ * nao medidas direto. O leitor sabe o nome delas, mas NAO pre-preenche: o
+ * usuario digita olhando o laudo em papel, e essa digitacao vira uma
+ * conferencia independente de que os valores medidos (Ca, Mg, K...) foram
+ * lidos certo - se o que ele digitar nao bater com o que da pra esperar,
+ * algo saiu errado antes.
+ */
+const CAMPOS_DERIVADOS: Partial<Record<TipoLaudo, string[]>> = {
+  QUIMICA: ["somaBases", "ctc", "saturacaoBases", "saturacaoAluminio"],
+  FISICA: ["grauFloculacao", "grauDispersao"],
+};
+
+export function chaveEhDerivada(tipo: TipoLaudo, chave: string): boolean {
+  return CAMPOS_DERIVADOS[tipo]?.includes(chave) ?? false;
+}
+
+const arred2 = (v: number) => Math.round(v * 100) / 100;
 
 export type PapelColuna =
   | { papel: "propriedade" }
@@ -510,7 +561,10 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
             }
           }
         }
-        valores[papel.chave] = valorFinal;
+        // O PDF do laboratorio mostra 2 casas ("5,65"); a planilha carrega
+        // precisao de ponto flutuante que ninguem mediu ("5.650000095367432").
+        // Arredondar aqui e ser fiel ao que o laudo realmente informa.
+        valores[papel.chave] = arred2(valorFinal);
       } else if (n != null) {
         // Coluna com numero que nao soubemos nomear: avisa em vez de descartar
         // calado. Laudo novo com coluna nova aparece aqui, e o usuario ve.
@@ -527,6 +581,7 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
       valores,
       naoReconhecidas,
       avisosUnidade,
+      camposDerivados: Object.keys(valores).filter((c) => chaveEhDerivada(tipo, c)),
     });
   }
 

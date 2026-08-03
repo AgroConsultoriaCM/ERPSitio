@@ -83,7 +83,13 @@ export async function buscarClima(latitude: number, longitude: number): Promise<
     );
   }
 
-  const hoje = new Date().toISOString().slice(0, 10);
+  // "en-CA" formata como AAAA-MM-DD — mas o que importa aqui é o timeZone: a
+  // Open-Meteo devolve `daily.time` no calendário de America/Sao_Paulo (por
+  // causa do parametro `timezone` na URL), e comparar isso com um "hoje" em
+  // UTC erra um dia inteiro entre 21h e meia-noite no horario de Brasilia -
+  // foi exatamente o que fez o dia de hoje sumir da janela de pulverizacao a
+  // noite, mostrando so 6 dos 7 dias.
+  const hoje = new Date().toLocaleDateString("en-CA", { timeZone: TIMEZONE });
   const dias: DiaClima[] = json.daily.time.map((data, i) => ({
     data,
     chuvaMm: json.daily.precipitation_sum[i] ?? null,

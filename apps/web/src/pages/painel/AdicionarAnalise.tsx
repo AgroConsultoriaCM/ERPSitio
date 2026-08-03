@@ -28,7 +28,12 @@ interface Amostra {
   valores: Record<string, number>;
   naoReconhecidas: string[];
   avisosUnidade: string[];
-  talhaoId: string | null;
+  /** Unidade de cada valor (mg/dm³, mmolc/dm³...), para mostrar na tela. */
+  unidades: Record<string, string>;
+  /** Calculados a partir de outros valores (V%, CTC...) — não vêm pré-preenchidos. */
+  camposDerivados: string[];
+  /** Uma coleta pode valer para mais de um talhão. */
+  talhaoIds: string[];
   loteCompostoId: string | null;
   sugestao: { talhaoId: string; nome: string; confianca: number } | null;
 }
@@ -102,6 +107,33 @@ async function lerPlanilha(arquivo: File): Promise<(string | number | null)[][]>
   );
 }
 
+/**
+ * PDF em base64, para o servidor mandar ao OCR. O arquivo passa pela nossa
+ * API (nunca fica salvo em disco nem no banco - só o texto que volta do OCR
+ * é guardado), diferente da planilha, que é lida inteira no navegador.
+ */
+async function lerPdfComoBase64(arquivo: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(leitor.result as string);
+    leitor.onerror = () => reject(leitor.error ?? new Error("falha ao ler o arquivo"));
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+interface Destino {
+  /** Uma coleta pode valer para mais de um talhão. */
+  talhaoIds: string[];
+  loteCompostoId: string;
+}
+
+/** Valores prontos para edição: campos derivados (V%, CTC...) começam em branco. */
+function valoresIniciais(amostra: Amostra): Record<string, number> {
+  const v = { ...amostra.valores };
+  for (const c of amostra.camposDerivados) delete v[c];
+  return v;
+}
+
 function LinhaAmostra({
   amostra,
   laudo,
@@ -116,18 +148,37 @@ function LinhaAmostra({
   laudo: Laudo;
   talhoes: Talhao[];
   lotes: LoteComposto[];
-  destino: string;
+  destino: Destino;
   valores: Record<string, number>;
-  onDestino: (v: string) => void;
+  onDestino: (v: Destino) => void;
   onValor: (chave: string, v: number) => void;
 }) {
   const [aberta, setAberta] = useState(false);
-  const chaves = Object.keys(valores);
+  const chaves = Object.keys(amostra.valores);
   const ehComposto = laudo.tipo === "ORGANICO";
+
+  function alternarTalhao(talhaoId: string) {
+    const marcado = destino.talhaoIds.includes(talhaoId);
+    onDestino({
+      loteCompostoId: "",
+      talhaoIds: marcado
+        ? destino.talhaoIds.filter((id) => id !== talhaoId)
+        : [...destino.talhaoIds, talhaoId],
+    });
+  }
+
+  function alternarLote(loteId: string) {
+    onDestino({
+      talhaoIds: [],
+      loteCompostoId: destino.loteCompostoId === loteId ? "" : loteId,
+    });
+  }
+
+  const talhoesConfirmados = talhoes.filter((t) => amostra.talhaoIds.includes(t.id));
 
   return (
     <div className="border-t border-terra-100">
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+      <div className="flex flex-wrap items-start gap-3 px-4 py-3">
         <button
           onClick={() => setAberta((v) => !v)}
           className="flex flex-1 items-center gap-2 text-left"
@@ -150,34 +201,52 @@ function LinhaAmostra({
         </button>
 
         {laudo.situacao === "PENDENTE" ? (
-          <div className="flex items-center gap-2">
-            {amostra.sugestao && destino === `talhao:${amostra.sugestao.talhaoId}` && (
-              <Etiqueta tom="mata">sugerido</Etiqueta>
-            )}
-            <select
-              value={destino}
-              onChange={(e) => onDestino(e.target.value)}
-              className="rounded-lg border border-terra-300 px-2.5 py-1.5 text-sm"
-            >
-              <option value="">— arquivar (não usar) —</option>
-              {!ehComposto &&
-                talhoes.map((t) => (
-                  <option key={t.id} value={`talhao:${t.id}`}>
+          <div className="flex max-w-md flex-wrap justify-end gap-1.5">
+            {!ehComposto &&
+              talhoes.map((t) => {
+                const marcado = destino.talhaoIds.includes(t.id);
+                const sugerido = amostra.sugestao?.talhaoId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => alternarTalhao(t.id)}
+                    title={sugerido ? "Sugerido pelo sistema" : undefined}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                      marcado
+                        ? "border-mata-500 bg-mata-600 text-white"
+                        : sugerido
+                          ? "border-mata-400 bg-mata-50 text-mata-700"
+                          : "border-terra-300 text-terra-600 hover:bg-terra-50"
+                    }`}
+                  >
                     {t.codigo ? `${t.codigo} · ` : ""}
                     {t.nome}
-                  </option>
-                ))}
-              {lotes.map((l) => (
-                <option key={l.id} value={`lote:${l.id}`}>
-                  Composto: {l.nome}
-                </option>
-              ))}
-            </select>
+                  </button>
+                );
+              })}
+            {lotes.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => alternarLote(l.id)}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                  destino.loteCompostoId === l.id
+                    ? "border-mata-500 bg-mata-600 text-white"
+                    : "border-terra-300 text-terra-600 hover:bg-terra-50"
+                }`}
+              >
+                Composto: {l.nome}
+              </button>
+            ))}
+            {destino.talhaoIds.length === 0 && !destino.loteCompostoId && (
+              <span className="self-center text-xs text-terra-400">arquivar (não usar)</span>
+            )}
           </div>
         ) : (
-          <Etiqueta tom={amostra.talhaoId || amostra.loteCompostoId ? "mata" : "neutro"}>
-            {amostra.talhaoId
-              ? (talhoes.find((t) => t.id === amostra.talhaoId)?.nome ?? "talhão")
+          <Etiqueta tom={talhoesConfirmados.length > 0 || amostra.loteCompostoId ? "mata" : "neutro"}>
+            {talhoesConfirmados.length > 0
+              ? talhoesConfirmados.map((t) => t.nome).join(", ")
               : amostra.loteCompostoId
                 ? "composto"
                 : "arquivada"}
@@ -193,22 +262,41 @@ function LinhaAmostra({
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2 py-3 sm:grid-cols-5 lg:grid-cols-7">
-              {chaves.map((c) => (
-                <label key={c} className="block">
-                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-terra-500">
-                    {ROTULO_VALOR[c] ?? c}
-                  </span>
-                  <input
-                    type="number"
-                    step="any"
-                    value={valores[c]}
-                    disabled={laudo.situacao !== "PENDENTE"}
-                    onChange={(e) => onValor(c, Number(e.target.value))}
-                    className="numero w-full rounded-md border border-terra-300 px-2 py-1 text-sm disabled:bg-terra-100"
-                  />
-                </label>
-              ))}
+              {chaves.map((c) => {
+                const derivado = amostra.camposDerivados.includes(c);
+                return (
+                  <label key={c} className="block">
+                    <span className="flex items-baseline justify-between gap-1">
+                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-terra-500">
+                        {ROTULO_VALOR[c] ?? c}
+                      </span>
+                      {amostra.unidades[c] && (
+                        <span className="text-[9px] text-terra-400">{amostra.unidades[c]}</span>
+                      )}
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={valores[c] ?? ""}
+                      placeholder={derivado ? "digite conferindo" : undefined}
+                      disabled={laudo.situacao !== "PENDENTE"}
+                      onChange={(e) => onValor(c, Number(e.target.value))}
+                      className={`numero w-full rounded-md border px-2 py-1 text-sm disabled:bg-terra-100 ${
+                        derivado
+                          ? "border-amber-300 bg-amber-50/60 placeholder:text-[10px] placeholder:text-amber-500"
+                          : "border-terra-300"
+                      }`}
+                    />
+                  </label>
+                );
+              })}
             </div>
+          )}
+          {amostra.camposDerivados.length > 0 && (
+            <p className="mb-1 text-xs text-amber-700">
+              Campos em amarelo são calculados (V%, CTC...) — digite olhando o laudo em papel; é a
+              sua conferência de que os outros valores foram lidos certo.
+            </p>
           )}
           {amostra.avisosUnidade.length > 0 && (
             <p className="mb-1 text-xs text-amber-700">
@@ -234,8 +322,9 @@ export default function AdicionarAnalise() {
   const [erro, setErro] = useState<string | null>(null);
   const [recado, setRecado] = useState<string | null>(null);
   // destino e valores editados, por amostra
-  const [destinos, setDestinos] = useState<Record<string, string>>({});
+  const [destinos, setDestinos] = useState<Record<string, Destino>>({});
   const [edicoes, setEdicoes] = useState<Record<string, Record<string, number>>>({});
+  const [textoAberto, setTextoAberto] = useState<Record<string, boolean>>({});
 
   const { data: laudos, isLoading } = useQuery({
     queryKey: ["laudos", aba],
@@ -270,11 +359,11 @@ export default function AdicionarAnalise() {
             const planilha = await lerPlanilha(arquivo);
             await api.post("/laudos", { nomeArquivo: arquivo.name, planilha });
           } else {
-            // PDF entra para digitação conferida — ver comentário na rota.
-            await api.post("/laudos", {
-              nomeArquivo: arquivo.name,
-              textoExtraido: "PDF anexado: digite os valores conferindo o laudo original.",
-            });
+            // PDF: o servidor manda para o OCR e volta com o texto (quando
+            // configurado) — o usuário digita os valores conferindo, o
+            // sistema não extrai número de PDF sozinho.
+            const pdfBase64 = await lerPdfComoBase64(arquivo);
+            await api.post("/laudos", { nomeArquivo: arquivo.name, pdfBase64 });
           }
           ok++;
         } catch (e) {
@@ -296,13 +385,16 @@ export default function AdicionarAnalise() {
     mutationFn: (laudo: Laudo) =>
       api.post<{ gravadas: number; arquivadas: number }>(`/laudos/${laudo.id}/confirmar`, {
         amostras: laudo.amostras.map((a) => {
-          const destino = destinos[a.id] ?? (a.sugestao ? `talhao:${a.sugestao.talhaoId}` : "");
-          const [tipo, id] = destino.split(":");
+          const padrao: Destino = {
+            talhaoIds: a.sugestao ? [a.sugestao.talhaoId] : [],
+            loteCompostoId: "",
+          };
+          const destino = destinos[a.id] ?? padrao;
           return {
             amostraId: a.id,
-            talhaoId: tipo === "talhao" ? id : null,
-            loteCompostoId: tipo === "lote" ? id : null,
-            valores: edicoes[a.id] ?? a.valores,
+            talhaoIds: destino.talhaoIds,
+            loteCompostoId: destino.loteCompostoId || null,
+            valores: edicoes[a.id] ?? valoresIniciais(a),
           };
         }),
       }),
@@ -469,15 +561,38 @@ export default function AdicionarAnalise() {
           </div>
 
           {laudo.digitacaoManual && (
-            <p className="border-b border-terra-100 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-800">
-              Este arquivo é PDF. O texto do laudo junta valores (&quot;23,7512,21&quot; são dois
-              números) e quebra número entre linhas — chutar aqui gravaria valor errado, e adubação
-              em cima de valor errado é prejuízo. Abra o PDF e digite conferindo.
-            </p>
+            <div className="border-b border-terra-100 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-800">
+              <p>
+                Este arquivo é PDF. O texto do laudo junta valores (&quot;23,7512,21&quot; são dois
+                números) e quebra número entre linhas — chutar aqui gravaria valor errado, e
+                adubação em cima de valor errado é prejuízo. Digite os valores abaixo conferindo o
+                laudo original.
+              </p>
+              {laudo.textoExtraido && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTextoAberto((t) => ({ ...t, [laudo.id]: !t[laudo.id] }))}
+                    className="mt-1.5 font-semibold underline decoration-dotted"
+                  >
+                    {textoAberto[laudo.id] ? "esconder" : "mostrar"} texto lido do PDF (OCR, só para
+                    conferência)
+                  </button>
+                  {textoAberto[laudo.id] && (
+                    <pre className="mt-1.5 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg bg-white/70 p-2.5 font-mono text-[11px] text-terra-700">
+                      {laudo.textoExtraido}
+                    </pre>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           {laudo.amostras.map((a) => {
-            const padrao = a.sugestao ? `talhao:${a.sugestao.talhaoId}` : "";
+            const padrao: Destino = {
+              talhaoIds: a.sugestao ? [a.sugestao.talhaoId] : [],
+              loteCompostoId: "",
+            };
             return (
               <LinhaAmostra
                 key={a.id}
@@ -486,12 +601,12 @@ export default function AdicionarAnalise() {
                 talhoes={talhoes ?? []}
                 lotes={lotes ?? []}
                 destino={destinos[a.id] ?? padrao}
-                valores={edicoes[a.id] ?? a.valores}
+                valores={edicoes[a.id] ?? valoresIniciais(a)}
                 onDestino={(v) => setDestinos((d) => ({ ...d, [a.id]: v }))}
                 onValor={(chave, v) =>
                   setEdicoes((e) => ({
                     ...e,
-                    [a.id]: { ...(e[a.id] ?? a.valores), [chave]: v },
+                    [a.id]: { ...(e[a.id] ?? valoresIniciais(a)), [chave]: v },
                   }))
                 }
               />
