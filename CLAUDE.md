@@ -60,7 +60,11 @@ Interface toda em português do Brasil, na linguagem da operação ("operações
                 |      levando "Authorization: Bearer <token>"
                 v
    +--------------------------------------+
-   |  ORACLE CLOUD  163.176.96.228        |
+   |  ORACLE CLOUD  163.176.239.86        |
+   |  (ARM; servidor antigo 163.176.96.228|
+   |   segue de pe so como fallback, ver  |
+   |   secao 2.1 - decisao de desligar e  |
+   |   do Igor, ainda nao tomada)         |
    |                                      |
    |  Caddy :443  (certificado Let's      |
    |     |         Encrypt, automatico)   |
@@ -100,24 +104,62 @@ Interface toda em português do Brasil, na linguagem da operação ("operações
 
 Painel: https://cloud.oracle.com — região **sa-saopaulo-1 (Brazil East)**
 
-### Instância
+### Instância — PRIMÁRIA (ARM, em uso desde 03/08/2026)
+
+| Item | Valor |
+| --- | --- |
+| Nome | `instance-20260730-0819` |
+| Shape | `VM.Standard.A1.Flex` (ARM Ampere, Always Free) |
+| OCPU / memória | **2 / 12 GB** — teto da cota Always Free de ARM, ver seção 8 |
+| Availability domain | `BpqJ:SA-SAOPAULO-1-AD-1` |
+| Fault domain | `FAULT-DOMAIN-1` |
+| Imagem | Ubuntu 22.04 |
+| Disco | 97 GB + **swap de 2 GB** (criado pelo cloud-init) |
+| IP público | `163.176.239.86` |
+| Usuário | `ubuntu` |
+| Criada em | 03/08/2026 10:46 UTC |
+| Uso observado (03/08/2026) | ~70 MB dos três containers, num total de 12 GB — folga enorme |
+
+> A cota ARM Always Free finalmente **emplacou** depois de mais de 200
+> tentativas malsucedidas em conta gratuita (ver seção 8) — esta instância
+> nasceu do automatismo `infra/oracle/tentar-instancia.ps1`.
+
+> **Esta instância foi criada por um `user_data` mais simples que o
+> `infra/oracle/cloud-init.yaml` atual do repositório** — não instala
+> `rclone`/`gnupg`, não configura fuso horário nem crontab, e insere a regra
+> de iptables numa posição fixa (`-I INPUT 6`) em vez de achar o `REJECT`
+> dinamicamente (a correção do commit `89f7359`). Funcionou por sorte aqui
+> (o `REJECT` também estava na posição 7), mas **se esta instância for
+> recriada, confira que o script usado é o `cloud-init.yaml` atual**, não uma
+> cópia antiga guardada em algum lugar do fluxo do Resource Manager. Todos os
+> gaps encontrados (rclone, fuso, crontab) foram corrigidos à mão em
+> 03/08/2026 — ver seção 7.
+
+### Instância — FALLBACK (Micro, mantida até o corte final)
 
 | Item | Valor |
 | --- | --- |
 | Nome | `instance-20260730-1409` |
 | Shape | `VM.Standard.E2.1.Micro` (AMD, Always Free) |
 | OCPU / memória | 1 / 1 GB |
-| Availability domain | `BpqJ:SA-SAOPAULO-1-AD-1` |
 | Fault domain | `FAULT-DOMAIN-3` |
-| Imagem | Ubuntu 22.04 |
-| Disco | 50 GB + **swap de 4 GB** criado à mão |
+| Disco | 50 GB + swap de 4 GB |
 | IP público | `163.176.96.228` |
 | IP privado | `10.0.0.205` |
-| Usuário | `ubuntu` |
 
-> Escolhemos a Micro porque a ARM (`VM.Standard.A1.Flex`) vive com "Out of
-> capacity" em São Paulo. A Micro atende folgada: ~300 MB de uso
-> num total de 956 MB.
+O DNS (seção 2.2) já aponta só para a ARM — este servidor não recebe mais
+tráfego real, mas roda a mesma stack em paralelo, com backup diário próprio,
+como rede de segurança durante a migração. **Ainda não foi desligado.**
+Sequência antes de desligar (nenhuma etapa pulada):
+
+1. Backup em nuvem funcionando **na ARM** — hoje só este fallback manda
+   cópia para o Drive (rclone não estava instalado na ARM; corrigido
+   03/08/2026, falta só a autorização OAuth, que exige login do Igor — ver
+   seção 8).
+2. Rodar `verificar-backup.sh --nuvem` na ARM pelo menos uma vez, igual à
+   prova de 31/07/2026 feita no servidor antigo.
+3. **Confirmação explícita do Igor no momento** — terminar a instância é
+   irreversível, e a chave privada dela deixa de servir para qualquer coisa.
 
 ### Rede
 
@@ -172,6 +214,9 @@ site não abre".
 
 ### O que roda na máquina
 
+Igual nas duas instâncias (primária ARM e fallback Micro) — mesmo desenho,
+mesmo `docker-compose.micro.yml`, mesmos limites de memória:
+
 ```
 /home/ubuntu/ERPSitio          clone do repositorio
   .env                         segredos (permissao 600)
@@ -184,17 +229,27 @@ docker compose -f infra/docker-compose.micro.yml
 crontab                        backup 02:00 diario; conferencia dia 1, 03:00
 ```
 
-Preparação da máquina: `infra/oracle/cloud-init-micro.yaml` (Docker, gnupg,
-rclone, swap, iptables, clone do repositório).
+**Onde as duas divergem hoje:** o fallback Micro tem `rclone.conf`
+autorizado; a ARM primária não (seção 8, item 3a).
+
+Preparação da máquina, pela ordem certa a seguir: `infra/oracle/cloud-init.yaml`
+para a ARM (2 OCPU/12 GB) e `infra/oracle/cloud-init-micro.yaml` para a Micro
+(1 OCPU/1 GB) — os dois fazem Docker, gnupg, rclone, swap, iptables e clonam o
+repositório. **A ARM que está rodando hoje não foi provisionada por nenhum dos
+dois** (ver aviso na seção 2.1 e a armadilha correspondente na seção 7); se
+precisar recriá-la, use o `cloud-init.yaml` atual, à mão, para não repetir os
+mesmos gaps.
 
 > **`up -d` sem nome de serviço sobe os três.** Já aconteceu de `db` e `api`
 > estarem de pé e o **caddy nunca ter sido iniciado** — a API respondia por
 > dentro e o site não abria por fora, sem erro em log nenhum. Ao investigar
 > "site fora do ar", confira `docker ps` e veja se **os três** aparecem.
 
-**Fuso da máquina:** `America/Sao_Paulo`. Estava em UTC até 30/07/2026, o que
-fazia o cron das 02:00 disparar às 23:00 de Brasília. Se recriar a instância,
-rode `sudo timedatectl set-timezone America/Sao_Paulo` — senão os horários do
+**Fuso da máquina:** `America/Sao_Paulo`. Estava em UTC até 30/07/2026 no
+servidor antigo — e **de novo em UTC na ARM, criada em 03/08/2026**, porque o
+`user_data` que a provisionou não seta fuso nenhum (ver nota acima). Se
+recriar qualquer instância, rode
+`sudo timedatectl set-timezone America/Sao_Paulo` — senão os horários do
 cron e do log não significam o que dizem.
 
 > **Trocar o fuso não basta: reinicie o cron.** Ele lê o fuso ao iniciar e nunca
@@ -210,11 +265,11 @@ Painel: https://registro.br/painel/dominios → `sitiocostamello.com.br`
 A edição é feita em **CONFIGURAR ZONA DNS → MODO AVANÇADO** (o modo básico só
 configura a raiz e não cria subdomínio).
 
-**Zona configurada (31/07/2026), já publicada e propagada:**
+**Zona configurada, já publicada e propagada (conferido de novo em 03/08/2026):**
 
 | Tipo | Nome | Dados | Para quê |
 | --- | --- | --- | --- |
-| A | `api.sitiocostamello.com.br` | `163.176.96.228` | aponta a API para a Oracle |
+| A | `api.sitiocostamello.com.br` | `163.176.239.86` | aponta a API para a Oracle — **já é a ARM**, atualizado na migração |
 | A | `sitiocostamello.com.br` | `216.198.79.1` | raiz → Vercel (que responde 308 para o www) |
 | CNAME | `www.sitiocostamello.com.br` | `9a58cd0c11c07a2c.vercel-dns-017.com.` | onde o site realmente está |
 
@@ -388,24 +443,34 @@ Acompanhe em https://vercel.com/dashboard.
 
 ## Mudou a API ou o banco (`apps/api`, `packages/db`)
 
-Depois do push, o GitHub Actions compila a imagem (~2 min). Confira em
-https://github.com/AgroConsultoriaCM/ERPSitio/actions que terminou com sucesso,
-e então, **no servidor**:
+Depois do push, o GitHub Actions compila a imagem multi-arch (~2 min). Confira
+em https://github.com/AgroConsultoriaCM/ERPSitio/actions que terminou com
+sucesso, e então, **nos dois servidores** (enquanto o antigo não for
+desligado — seção 8, item 3b):
 
 ```bash
-ssh -i CAMINHO/DA/CHAVE ubuntu@163.176.96.228
+ssh -i ~/.oci/oficial212.key ubuntu@163.176.239.86   # ARM, primario
+ssh -i ~/.oci/micro.key ubuntu@163.176.96.228        # Micro, fallback
+
+# em cada um:
 cd ~/ERPSitio
 git pull
-docker compose -f infra/docker-compose.micro.yml --env-file .env pull
-docker compose -f infra/docker-compose.micro.yml --env-file .env up -d
+docker compose -f infra/docker-compose.micro.yml --env-file .env pull api
+docker compose -f infra/docker-compose.micro.yml --env-file .env up -d api
 docker ps                 # confira que db, api E caddy estao de pe
 ```
 
-O `git pull` traz o compose e os scripts; o `docker compose pull` traz a
-imagem nova. Migrations do Prisma rodam sozinhas quando a API sobe.
+O `git pull` traz o compose e os scripts; o `docker compose pull api` traz a
+imagem nova (CI já publica `linux/amd64` e `linux/arm64` no mesmo manifest —
+cada servidor puxa a versão certa da própria arquitetura sozinho). Migrations
+do Prisma rodam sozinhas quando a API sobe.
 
 > Fazer o `up -d` **antes** de o Actions terminar sobe a imagem antiga sem
 > avisar. Confira o Actions primeiro.
+>
+> **Sempre confira o `/health` de cada servidor individualmente** depois do
+> deploy, não só o domínio (que só bate no que o DNS aponta agora, a ARM):
+> `curl --resolve api.sitiocostamello.com.br:443:<IP> https://api.sitiocostamello.com.br/health`
 
 ## Mudou o schema do banco
 
@@ -681,7 +746,7 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 | Senha do Postgres, `JWT_SECRET` | `.env` do servidor (600) | geradas lá, nunca saíram |
 | `SENHA_BACKUP` | `.env` do servidor + gerenciador de senhas + papel | **nunca guardar no Drive** — é o que protege os backups que estão lá |
 | Autorização do Drive | `~/.config/rclone/rclone.conf` no servidor | |
-| Chave SSH **do servidor** | máquina do usuário | a atual é `ssh-key-2026-07-30`. Ao montar máquina nova, **gerar outra** e instalá-la no `authorized_keys`, em vez de copiar |
+| Chave SSH **do servidor** | máquina do usuário | dois arquivos hoje, um por instância: `~/.oci/oficial212.key` (ARM, primária) e `~/.oci/micro.key` (Micro, fallback) — ambas registradas como `ssh-key-2026-07-30` na Oracle. Ao montar máquina nova, **gerar outra** e instalá-la no `authorized_keys`, em vez de copiar |
 | Chave SSH **do GitHub** | máquina do usuário, separada da anterior | separadas de propósito: se uma vazar, a outra continua valendo |
 | Chave de API da Oracle | `~/.oci/config` na máquina do usuário | idem |
 
@@ -748,10 +813,27 @@ Nada disso está no Git. Roteiro para montar outra máquina:
 - **Arredondar valor intermediário espalha erro pelo total.** Em conta de
   dinheiro, arredonde só no fim — exceto quando a precisão intermediária é
   requisito, como as 6 casas do preço do quilo (ver seção da colheita).
+- **`git checkout -- infra/scripts/` desfaz `chmod +x` feito à mão no
+  servidor.** Os scripts de backup eram gravados no Git como `100644` (não
+  executável) — um `chmod +x` direto no servidor sobrevivia até a próxima vez
+  que alguém rodasse esse `checkout` (feito antes de todo deploy, para trazer
+  script atualizado sem sujar o resto do working tree). O cron das 02:00
+  dependia desse chmod manual. Corrigido em 03/08/2026 com
+  `git update-index --chmod=+x` nos cinco `.sh` do repositório (commit
+  `7aa94ad`) — agora o modo executável é a própria árvore do Git, e
+  `checkout`/`pull` preservam. Se um `.sh` novo for adicionado, lembrar de
+  marcar executável **no commit**, não só no servidor.
+- **Instância Oracle criada por um `user_data` diferente do
+  `cloud-init.yaml` do repositório não tem o que o arquivo promete.** A ARM
+  atual (`instance-20260730-0819`) rodou uma versão mais simples do script —
+  sem `rclone`/fuso/crontab, com a regra de iptables numa posição fixa em vez
+  da busca dinâmica pelo `REJECT` (a correção do commit `89f7359`). Confira
+  sempre `cat /var/log/erpsitio-preparacao.log` numa instância nova e compare
+  com o `cloud-init.yaml` atual antes de assumir que ela tem tudo.
 
 ---
 
-# 8. Pendências conhecidas (31/07/2026)
+# 8. Pendências conhecidas (31/07/2026, revisado em 03/08/2026)
 
 **Trabalho começado e parado**
 
@@ -776,43 +858,25 @@ Nada disso está no Git. Roteiro para montar outra máquina:
 2. **Repositório público.** Não há segredo commitado, mas com o sistema em
    operação real vale torná-lo privado. Se fizer, o servidor precisará de
    `docker login ghcr.io` — passo em `infra/oracle/README-micro.md`.
-3. **Instância ARM.** `infra/oracle/tentar-instancia.ps1` insiste;
-   `infra/oracle/vigiar-instancia.ps1` avisa quando aparecer. Migrar seria o
-   mesmo compose mais restaurar um backup.
+3. ~~Instância ARM~~ **Resolvido em 03/08/2026.** A cota ARM Always Free
+   emplacou depois de mais de 200 tentativas em conta gratuita; a instância
+   `instance-20260730-0819` (163.176.239.86, 2 OCPU / 12 GB) está no ar e é a
+   que recebe tráfego real (DNS já aponta para ela). Ver seção 2.1 para os
+   detalhes e para as duas pendências que ela abriu (itens 3a e 3b abaixo).
+   `infra/oracle/tentar-instancia.ps1` e `vigiar-instancia.ps1` não precisam
+   mais rodar.
 
-   Números conferidos na documentação em 01/08/2026, porque os antigos já
-   estavam errados aqui:
-
-   | Fato | Valor |
-   | --- | --- |
-   | Cota ARM Always Free | **2 OCPU e 12 GB** (1.500 OCPU-h e 9.000 GB-h por mês) |
-   | Domínios de disponibilidade em `sa-saopaulo-1` | **1 só** (`BpqJ:SA-SAOPAULO-1-AD-1`) |
-   | Disco Always Free | 200 GB somando tudo; a Micro já usa 50 |
-   | Boot volume mínimo | 50 GB por instância |
-
-   Consequências: o stack já pede o **teto** da cota, não um pedido grande;
-   **não existe alternar entre ADs** em São Paulo; e ao criar a ARM é preciso
-   pôr o boot volume em **100 GB ou menos**, senão passa dos 200 GB e cobra.
-
-   Só um processo do `tentar-instancia.ps1` por vez: dois disputam o mesmo
-   stack e metade das tentativas vira "não consegui disparar o job".
-
-   Em 01/08/2026 o upgrade para **Pay As You Go** foi solicitado, mas em
-   01/08 12:30 UTC o console ainda mostrava a faixa "Você está em uma Avaliação
-   Grátis... Faça upgrade". **Confira o estado da conta antes de concluir
-   qualquer coisa a partir disso** — as 213 tentativas falhadas até aqui são
-   todas de conta gratuita, então a hipótese de que conta paga destrava
-   capacidade continua sem teste.
-
-   Se um dia concluir: os recursos Always Free seguem gratuitos, mas passar dos
-   limites vira cobrança de verdade. **Crie o alerta de orçamento** em
-   Billing → Budgets antes de criar qualquer instância.
-
-   **O `tentar-instancia.ps1` já morreu sozinho pelo menos uma vez**, ficando
-   72 minutos parado sem ninguém perceber. Para saber se está trabalhando, não
-   basta ver o processo vivo: confira se novos jobs aparecem no stack.
-   `oci resource-manager job list --stack-id <id> --all` e olhe o horário do
-   mais recente — o ciclo é de ~15 minutos.
+3a. **Autorizar o rclone na ARM.** Instalado em 03/08/2026, mas falta rodar
+    `rclone config` apontando para o mesmo Google Drive do backup — isso abre
+    uma URL de autorização que só o Igor consegue completar (login da conta
+    Google). Até lá, o backup diário da ARM fica **só local**: o script roda,
+    a cópia fica em `~/ERPSitio/backups/`, mas a etapa de nuvem falha e sai
+    com código 4 (comportamento correto e já visto no log). É o único
+    bloqueio real para o item 3b.
+3b. **Desligar o servidor antigo (163.176.96.228).** Só depois do item 3a
+    resolvido e de rodar `verificar-backup.sh --nuvem` na ARM pelo menos uma
+    vez. Ver a sequência completa na seção 2.1. É uma ação irreversível —
+    sempre confirmar com o Igor no momento, não vale autorização antecipada.
 
 **Produto — precisam de decisão do Igor, mexem em estrutura**
 
