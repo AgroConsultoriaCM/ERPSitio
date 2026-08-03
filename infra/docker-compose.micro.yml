@@ -65,6 +65,10 @@ services:
       # padrão, e sem elas apenas o bloco de satélite fica indisponível.
       COPERNICUS_CLIENT_ID: ${COPERNICUS_CLIENT_ID:-}
       COPERNICUS_CLIENT_SECRET: ${COPERNICUS_CLIENT_SECRET:-}
+      # OCR.space: lê o texto de laudo em PDF sem planilha. Mesma lógica —
+      # vazia por padrão, e sem ela o PDF entra na fila para digitação
+      # 100% manual, sem o texto de apoio.
+      OCR_SPACE_API_KEY: ${OCR_SPACE_API_KEY:-}
       # Teto de heap abaixo do mem_limit: o Node precisa saber que tem pouco,
       # ou só descobre quando o container já morreu.
       NODE_OPTIONS: --max-old-space-size=256
