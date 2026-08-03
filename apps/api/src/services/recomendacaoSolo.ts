@@ -31,11 +31,14 @@ interface AnaliseSoloEntrada {
   ph: number | null;
   materiaOrganica: number | null;
   fosforo: number | null;
+  enxofre: number | null;
   potassio: number | null;
   calcio: number | null;
   magnesio: number | null;
   ctc: number | null;
   saturacaoBases: number | null;
+  /** { boro: 1.2, cobre: 0.5, ... } - mesmas chaves do perfil, ver MICRONUTRIENTES_COMPARADOS. */
+  micronutrientes?: unknown;
 }
 
 interface PerfilCorrecaoEntrada {
@@ -44,11 +47,17 @@ interface PerfilCorrecaoEntrada {
   phIdealMax: number | null;
   materiaOrganicaIdeal: number | null;
   fosforoIdeal: number | null;
+  enxofreIdeal: number | null;
   potassioIdeal: number | null;
   calcioIdeal: number | null;
   magnesioIdeal: number | null;
   saturacaoBasesIdeal: number | null;
+  /** { boro: 1.2, cobre: 0.5, ... } - ideal minimo de cada micronutriente. */
+  micronutrientesIdeais?: unknown;
 }
+
+/** Micronutrientes com "ideal minimo" no mesmo espirito de P/K/Ca/Mg. */
+const MICRONUTRIENTES_COMPARADOS = ["boro", "cobre", "ferro", "manganes", "zinco"] as const;
 
 function classificarFaixa(
   valor: number | null,
@@ -94,13 +103,16 @@ export type StatusGeral = "BAIXO" | "MARGEM" | "ADEQUADO" | "ALTO" | "SEM_REFERE
  * outra coisa.
  */
 function classificarQuatroNiveis(
-  valor: number | null,
-  min: number | null,
-  max: number | null,
+  valor: number | null | undefined,
+  min: number | null | undefined,
+  max: number | null | undefined,
 ): StatusGeral {
-  if (valor === null || (min === null && max === null)) return "SEM_REFERENCIA";
+  // "== null" de proposito: pega null E undefined no mesmo teste - um campo
+  // opcional ausente e "sem valor" nos dois casos, e Json do Prisma pode
+  // devolver undefined para uma chave que nao existe no objeto.
+  if (valor == null || (min == null && max == null)) return "SEM_REFERENCIA";
 
-  if (min !== null && max !== null) {
+  if (min != null && max != null) {
     const largura = max - min;
     const margem = largura > 0 ? largura * 0.25 : Math.abs(min || max || 1) * 0.1;
     if (valor < min - margem) return "BAIXO";
@@ -128,6 +140,13 @@ const PRIORIDADE_STATUS: StatusGeral[] = ["BAIXO", "ALTO", "MARGEM", "ADEQUADO"]
  * outros estejam bons. Sem perfil cadastrado (ou nenhum parâmetro em comum
  * preenchido), devolve SEM_REFERENCIA - cinza, não "adequado" por omissão.
  */
+/** Le um numero de dentro de um JSON de micronutrientes, sem confiar no formato. */
+function numeroDoJson(json: unknown, chave: string): number | null {
+  if (!json || typeof json !== "object") return null;
+  const v = (json as Record<string, unknown>)[chave];
+  return typeof v === "number" ? v : null;
+}
+
 export function classificarStatusGeralSolo(
   analise: AnaliseSoloEntrada,
   perfil: PerfilCorrecaoEntrada | null,
@@ -138,10 +157,18 @@ export function classificarStatusGeralSolo(
     classificarQuatroNiveis(analise.ph, perfil.phIdealMin, perfil.phIdealMax),
     classificarQuatroNiveis(analise.materiaOrganica, perfil.materiaOrganicaIdeal, null),
     classificarQuatroNiveis(analise.fosforo, perfil.fosforoIdeal, null),
+    classificarQuatroNiveis(analise.enxofre, perfil.enxofreIdeal, null),
     classificarQuatroNiveis(analise.potassio, perfil.potassioIdeal, null),
     classificarQuatroNiveis(analise.calcio, perfil.calcioIdeal, null),
     classificarQuatroNiveis(analise.magnesio, perfil.magnesioIdeal, null),
     classificarQuatroNiveis(analise.saturacaoBases, perfil.saturacaoBasesIdeal, null),
+    ...MICRONUTRIENTES_COMPARADOS.map((chave) =>
+      classificarQuatroNiveis(
+        numeroDoJson(analise.micronutrientes, chave),
+        numeroDoJson(perfil.micronutrientesIdeais, chave),
+        null,
+      ),
+    ),
   ].filter((s): s is Exclude<StatusGeral, "SEM_REFERENCIA"> => s !== "SEM_REFERENCIA");
 
   if (avaliacoes.length === 0) return "SEM_REFERENCIA";
@@ -185,6 +212,13 @@ export function gerarDiagnosticoSolo(
       status: classificarMinimoIdeal(analise.fosforo, perfil.fosforoIdeal),
     },
     {
+      parametro: "Enxofre - S (mg/dm³)",
+      valorMedido: analise.enxofre,
+      faixaIdealMin: perfil.enxofreIdeal,
+      faixaIdealMax: null,
+      status: classificarMinimoIdeal(analise.enxofre, perfil.enxofreIdeal),
+    },
+    {
       parametro: "Potássio - K (mmolc/dm³)",
       valorMedido: analise.potassio,
       faixaIdealMin: perfil.potassioIdeal,
@@ -212,6 +246,23 @@ export function gerarDiagnosticoSolo(
       faixaIdealMax: null,
       status: classificarMinimoIdeal(analise.saturacaoBases, perfil.saturacaoBasesIdeal),
     },
+    ...([
+      ["boro", "Boro - B (mg/dm³)"],
+      ["cobre", "Cobre - Cu (mg/dm³)"],
+      ["ferro", "Ferro - Fe (mg/dm³)"],
+      ["manganes", "Manganês - Mn (mg/dm³)"],
+      ["zinco", "Zinco - Zn (mg/dm³)"],
+    ] as const).map(([chave, rotulo]) => {
+      const valorMedido = numeroDoJson(analise.micronutrientes, chave);
+      const faixaIdealMin = numeroDoJson(perfil.micronutrientesIdeais, chave);
+      return {
+        parametro: rotulo,
+        valorMedido,
+        faixaIdealMin,
+        faixaIdealMax: null,
+        status: classificarMinimoIdeal(valorMedido, faixaIdealMin),
+      };
+    }),
   ];
 
   let necessidadeCalagemToneladasPorHectare: number | null = null;

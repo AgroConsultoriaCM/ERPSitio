@@ -40,6 +40,7 @@ model Propriedade {
   movimentacoesEstoque  MovimentacaoEstoque[]
   colheitas             Colheita[]
   perfisCorrecaoSolo    PerfilCorrecaoSolo[]
+  perfisCorrecaoFoliar  PerfilCorrecaoFoliar[]
   analisesSolo          AnaliseSolo[]
   analisesFoliar        AnaliseFoliar[]
   setoresIrrigacao      SetorIrrigacao[]
@@ -134,7 +135,6 @@ model Cultura {
   updatedAt     DateTime @updatedAt
 
   talhoes             Talhao[]
-  perfisCorrecaoSolo  PerfilCorrecaoSolo[]
 
   @@index([propriedadeId])
 }
@@ -628,20 +628,29 @@ model Colheita {
 // Analises de solo / folha e perfis de correcao (banco de conhecimento)
 // ---------------------------------------------------------------------------
 
+/// Perfil de correcao do SOLO, por cultura - um valor "ideal" por nutriente.
+///
+/// culturaNome (nao culturaId): o perfil vale para a ESPECIE ("Limao",
+/// "Abacate"), nao para cada variedade cadastrada separadamente ("Limao -
+/// Ponta Firme", "Limao - Quebra Galho"...). O sitio tem 4 variedades de
+/// limao e 2 de abacate, mas o alvo nutricional que o produtor cadastra e o
+/// mesmo pela especie - forcar um perfil por variedade so duplicaria
+/// cadastro sem ganho nenhum.
 model PerfilCorrecaoSolo {
   id                    String   @id @default(uuid())
   nome                  String
-  culturaId             String
-  cultura               Cultura  @relation(fields: [culturaId], references: [id], onDelete: Cascade)
+  culturaNome           String
   phIdealMin            Float?
   phIdealMax            Float?
   materiaOrganicaIdeal  Float?
   fosforoIdeal          Float?
+  enxofreIdeal          Float?
   potassioIdeal         Float?
   calcioIdeal           Float?
   magnesioIdeal         Float?
   saturacaoBasesIdeal   Float?
   ctcReferencia         Float?
+  /// Um "ideal" por micronutriente: { boro: 0.5, cobre: 1.2, ... }.
   micronutrientesIdeais Json?
   observacoes           String?
   propriedadeId         String
@@ -650,7 +659,37 @@ model PerfilCorrecaoSolo {
   updatedAt               DateTime @updatedAt
 
   @@index([propriedadeId])
-  @@index([culturaId])
+  @@index([culturaNome])
+}
+
+/// Perfil de correcao FOLIAR, por cultura - uma FAIXA (minimo e maximo) por
+/// nutriente, diferente do solo que usa um so "ideal". E como a folha e
+/// interpretada na pratica: abaixo do minimo falta, acima do maximo e
+/// excesso/luxo, sem um numero unico "certo" no meio.
+model PerfilCorrecaoFoliar {
+  id                 String   @id @default(uuid())
+  nome               String
+  culturaNome        String
+  nitrogenioIdealMin Float?
+  nitrogenioIdealMax Float?
+  fosforoIdealMin    Float?
+  fosforoIdealMax    Float?
+  potassioIdealMin   Float?
+  potassioIdealMax   Float?
+  calcioIdealMin     Float?
+  calcioIdealMax     Float?
+  magnesioIdealMin   Float?
+  magnesioIdealMax   Float?
+  enxofreIdealMin    Float?
+  enxofreIdealMax    Float?
+  observacoes        String?
+  propriedadeId      String
+  propriedade        Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([culturaNome])
 }
 
 model AnaliseSolo {

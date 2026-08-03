@@ -123,15 +123,15 @@ async function main() {
   }
 
   for (const [nomeCompleto, perfil] of Object.entries(PERFIS_REFERENCIA)) {
-    const cultura = culturas[nomeCompleto];
+    const culturaNome = nomeCompleto.split(" - ")[0];
     const jaExiste = await prisma.perfilCorrecaoSolo.findFirst({
-      where: { culturaId: cultura.id, propriedadeId: propriedade.id },
+      where: { culturaNome, propriedadeId: propriedade.id },
     });
     if (!jaExiste) {
       await prisma.perfilCorrecaoSolo.create({
         data: {
           nome: `Perfil de referência - ${nomeCompleto}`,
-          culturaId: cultura.id,
+          culturaNome,
           propriedadeId: propriedade.id,
           observacoes:
             "Ponto de partida genérico de literatura agronômica. Ajuste conforme o conhecimento técnico da propriedade.",

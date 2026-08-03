@@ -357,17 +357,39 @@ export interface ResumoColheitaTalhao {
 export interface PerfilCorrecaoSolo {
   id: string;
   nome: string;
-  culturaId: string;
-  cultura?: Cultura;
+  /** Nome da ESPÉCIE ("Limão", "Abacate"), não de uma Cultura específica — vale para todas as variedades. */
+  culturaNome: string;
   phIdealMin?: number | null;
   phIdealMax?: number | null;
   materiaOrganicaIdeal?: number | null;
   fosforoIdeal?: number | null;
+  enxofreIdeal?: number | null;
   potassioIdeal?: number | null;
   calcioIdeal?: number | null;
   magnesioIdeal?: number | null;
   saturacaoBasesIdeal?: number | null;
   ctcReferencia?: number | null;
+  micronutrientesIdeais?: Record<string, number> | null;
+  observacoes?: string | null;
+}
+
+export interface PerfilCorrecaoFoliar {
+  id: string;
+  nome: string;
+  /** Nome da ESPÉCIE ("Limão", "Abacate"), mesma convenção do PerfilCorrecaoSolo. */
+  culturaNome: string;
+  nitrogenioIdealMin?: number | null;
+  nitrogenioIdealMax?: number | null;
+  fosforoIdealMin?: number | null;
+  fosforoIdealMax?: number | null;
+  potassioIdealMin?: number | null;
+  potassioIdealMax?: number | null;
+  calcioIdealMin?: number | null;
+  calcioIdealMax?: number | null;
+  magnesioIdealMin?: number | null;
+  magnesioIdealMax?: number | null;
+  enxofreIdealMin?: number | null;
+  enxofreIdealMax?: number | null;
   observacoes?: string | null;
 }
 

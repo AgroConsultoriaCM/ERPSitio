@@ -5,40 +5,37 @@ import { AppError, NaoEncontradoError } from "../lib/errors.js";
 const perfilSchema = z.object({
   nome: z.string().min(1),
   /// Nome da ESPECIE ("Limão", "Abacate"), nao de uma Cultura especifica -
-  /// o perfil vale para todas as variedades cadastradas com esse nome.
+  /// mesma convencao do PerfilCorrecaoSolo (ver perfisCorrecao.routes.ts).
   culturaNome: z.string().min(1),
-  phIdealMin: z.number().optional().nullable(),
-  phIdealMax: z.number().optional().nullable(),
-  materiaOrganicaIdeal: z.number().optional().nullable(),
-  fosforoIdeal: z.number().optional().nullable(),
-  enxofreIdeal: z.number().optional().nullable(),
-  potassioIdeal: z.number().optional().nullable(),
-  calcioIdeal: z.number().optional().nullable(),
-  magnesioIdeal: z.number().optional().nullable(),
-  saturacaoBasesIdeal: z.number().optional().nullable(),
-  ctcReferencia: z.number().optional().nullable(),
-  micronutrientesIdeais: z
-    .record(z.number())
-    .optional()
-    .nullable()
-    .transform((v) => v ?? undefined),
+  nitrogenioIdealMin: z.number().optional().nullable(),
+  nitrogenioIdealMax: z.number().optional().nullable(),
+  fosforoIdealMin: z.number().optional().nullable(),
+  fosforoIdealMax: z.number().optional().nullable(),
+  potassioIdealMin: z.number().optional().nullable(),
+  potassioIdealMax: z.number().optional().nullable(),
+  calcioIdealMin: z.number().optional().nullable(),
+  calcioIdealMax: z.number().optional().nullable(),
+  magnesioIdealMin: z.number().optional().nullable(),
+  magnesioIdealMax: z.number().optional().nullable(),
+  enxofreIdealMin: z.number().optional().nullable(),
+  enxofreIdealMax: z.number().optional().nullable(),
   observacoes: z.string().optional(),
 });
 
-export default async function perfisCorrecaoRoutes(fastify: FastifyInstance) {
+export default async function perfisCorrecaoFoliarRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", fastify.authenticate);
   fastify.addHook("preHandler", fastify.requirePermissao("cadastros", "VER"));
 
-  fastify.get("/perfis-correcao", async (request) => {
+  fastify.get("/perfis-correcao-foliar", async (request) => {
     const { culturaNome } = request.query as { culturaNome?: string };
-    return fastify.prisma.perfilCorrecaoSolo.findMany({
+    return fastify.prisma.perfilCorrecaoFoliar.findMany({
       where: { propriedadeId: request.user.propriedadeId, culturaNome: culturaNome ?? undefined },
       orderBy: { nome: "asc" },
     });
   });
 
   fastify.post(
-    "/perfis-correcao",
+    "/perfis-correcao-foliar",
     { preHandler: fastify.requirePermissao("cadastros", "EDITAR") },
     async (request, reply) => {
       const dados = perfilSchema.parse(request.body);
@@ -48,7 +45,7 @@ export default async function perfisCorrecaoRoutes(fastify: FastifyInstance) {
       if (!existeCultura) {
         throw new AppError(`Nenhuma cultura cadastrada com o nome "${dados.culturaNome}".`, 422);
       }
-      const perfil = await fastify.prisma.perfilCorrecaoSolo.create({
+      const perfil = await fastify.prisma.perfilCorrecaoFoliar.create({
         data: { ...dados, propriedadeId: request.user.propriedadeId },
       });
       return reply.status(201).send(perfil);
@@ -56,15 +53,15 @@ export default async function perfisCorrecaoRoutes(fastify: FastifyInstance) {
   );
 
   fastify.patch<{ Params: { id: string } }>(
-    "/perfis-correcao/:id",
+    "/perfis-correcao-foliar/:id",
     { preHandler: fastify.requirePermissao("cadastros", "EDITAR") },
     async (request, reply) => {
       const dados = perfilSchema.partial().parse(request.body);
-      const existente = await fastify.prisma.perfilCorrecaoSolo.findFirst({
+      const existente = await fastify.prisma.perfilCorrecaoFoliar.findFirst({
         where: { id: request.params.id, propriedadeId: request.user.propriedadeId },
       });
       if (!existente) throw new NaoEncontradoError();
-      const perfil = await fastify.prisma.perfilCorrecaoSolo.update({
+      const perfil = await fastify.prisma.perfilCorrecaoFoliar.update({
         where: { id: existente.id },
         data: dados,
       });
@@ -73,14 +70,14 @@ export default async function perfisCorrecaoRoutes(fastify: FastifyInstance) {
   );
 
   fastify.delete<{ Params: { id: string } }>(
-    "/perfis-correcao/:id",
+    "/perfis-correcao-foliar/:id",
     { preHandler: fastify.requirePermissao("cadastros", "EDITAR") },
     async (request, reply) => {
-      const existente = await fastify.prisma.perfilCorrecaoSolo.findFirst({
+      const existente = await fastify.prisma.perfilCorrecaoFoliar.findFirst({
         where: { id: request.params.id, propriedadeId: request.user.propriedadeId },
       });
       if (!existente) throw new NaoEncontradoError();
-      await fastify.prisma.perfilCorrecaoSolo.delete({ where: { id: existente.id } });
+      await fastify.prisma.perfilCorrecaoFoliar.delete({ where: { id: existente.id } });
       return reply.status(204).send();
     },
   );

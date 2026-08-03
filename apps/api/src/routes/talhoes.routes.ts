@@ -53,6 +53,7 @@ export default async function talhoesRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { id: string } }>("/talhoes/:id/diagnostico", async (request) => {
     const talhao = await fastify.prisma.talhao.findFirst({
       where: { id: request.params.id, propriedadeId: request.user.propriedadeId },
+      include: { cultura: { select: { nome: true } } },
     });
     if (!talhao) throw new NaoEncontradoError();
 
@@ -68,9 +69,11 @@ export default async function talhoesRoutes(fastify: FastifyInstance) {
       };
     }
 
-    const perfil = talhao.culturaId
+    // Perfil vale pela ESPECIE (culturaNome: "Limão", "Abacate"), nao por uma
+    // Cultura especifica - ver comentario no schema de PerfilCorrecaoSolo.
+    const perfil = talhao.cultura?.nome
       ? await fastify.prisma.perfilCorrecaoSolo.findFirst({
-          where: { culturaId: talhao.culturaId, propriedadeId: request.user.propriedadeId },
+          where: { culturaNome: talhao.cultura.nome, propriedadeId: request.user.propriedadeId },
           orderBy: { createdAt: "desc" },
         })
       : null;

@@ -21,6 +21,7 @@ import insumosRoutes from "./routes/insumos.routes.js";
 import estoqueRoutes from "./routes/estoque.routes.js";
 import colheitasRoutes from "./routes/colheitas.routes.js";
 import perfisCorrecaoRoutes from "./routes/perfisCorrecao.routes.js";
+import perfisCorrecaoFoliarRoutes from "./routes/perfisCorrecaoFoliar.routes.js";
 import analisesSoloRoutes from "./routes/analisesSolo.routes.js";
 import analisesFoliarRoutes from "./routes/analisesFoliar.routes.js";
 import setoresIrrigacaoRoutes from "./routes/setoresIrrigacao.routes.js";
@@ -80,6 +81,7 @@ export async function buildApp() {
       await api.register(estoqueRoutes);
       await api.register(colheitasRoutes);
       await api.register(perfisCorrecaoRoutes);
+      await api.register(perfisCorrecaoFoliarRoutes);
       await api.register(analisesSoloRoutes);
       await api.register(analisesFoliarRoutes);
       await api.register(setoresIrrigacaoRoutes);

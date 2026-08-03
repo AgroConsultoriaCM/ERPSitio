@@ -18,11 +18,13 @@ const analiseBase = {
   ph: 6.0,
   materiaOrganica: 25,
   fosforo: 25,
+  enxofre: null as number | null,
   potassio: 3.5,
   calcio: 40,
   magnesio: 15,
   ctc: 80,
   saturacaoBases: 70,
+  micronutrientes: null as unknown,
 };
 
 const perfil = {
@@ -31,10 +33,12 @@ const perfil = {
   phIdealMax: 6.5,
   materiaOrganicaIdeal: 25,
   fosforoIdeal: 25,
+  enxofreIdeal: null as number | null,
   potassioIdeal: 3.5,
   calcioIdeal: 40,
   magnesioIdeal: 15,
   saturacaoBasesIdeal: 70,
+  micronutrientesIdeais: null as unknown,
 };
 
 console.log("\n== sem perfil cadastrado -> sem_referencia, nunca 'adequado' por omissao ==");
@@ -59,6 +63,41 @@ console.log("\n== margem inferior (perto do ideal, mas abaixo) ==");
   // Ideal 3.5; 80% do ideal = 2.8 -> razao 0,8, entre 0,7 e 1 = MARGEM
   const analise = { ...analiseBase, potassio: 2.8 };
   conferir("80% do ideal = margem, nao baixo", classificarStatusGeralSolo(analise, perfil), "MARGEM");
+}
+
+console.log("\n== enxofre (adicionado junto com a tela mostrar todos os nutrientes) ==");
+{
+  const perfilComEnxofre = { ...perfil, enxofreIdeal: 20 };
+  conferir(
+    "enxofre bem abaixo do ideal derruba a bolinha",
+    classificarStatusGeralSolo({ ...analiseBase, enxofre: 5 }, perfilComEnxofre),
+    "BAIXO",
+  );
+  conferir(
+    "sem enxofreIdeal cadastrado, enxofre nao entra na conta",
+    classificarStatusGeralSolo({ ...analiseBase, enxofre: 5 }, perfil),
+    "ADEQUADO",
+  );
+}
+
+console.log("\n== micronutrientes (dentro do JSON, mesma logica dos demais) ==");
+{
+  const perfilComMicros = { ...perfil, micronutrientesIdeais: { boro: 0.5, zinco: 2.0 } };
+  conferir(
+    "boro bem abaixo do ideal derruba a bolinha",
+    classificarStatusGeralSolo({ ...analiseBase, micronutrientes: { boro: 0.1, zinco: 2.0 } }, perfilComMicros),
+    "BAIXO",
+  );
+  conferir(
+    "micronutrientes dentro do ideal -> adequado",
+    classificarStatusGeralSolo({ ...analiseBase, micronutrientes: { boro: 0.5, zinco: 2.0 } }, perfilComMicros),
+    "ADEQUADO",
+  );
+  conferir(
+    "medir um micronutriente sem ideal cadastrado (ferro) nao muda o resultado dos demais",
+    classificarStatusGeralSolo({ ...analiseBase, micronutrientes: { ferro: 0.001 } }, perfilComMicros),
+    "ADEQUADO",
+  );
 }
 
 console.log("\n== muito acima do ideal ==");

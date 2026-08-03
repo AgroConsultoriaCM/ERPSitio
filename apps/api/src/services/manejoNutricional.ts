@@ -237,22 +237,23 @@ export async function montarManejoNutricional(
       codigo: true,
       areaHa: true,
       poligono: true,
-      culturaId: true,
       cultura: { select: { nome: true } },
     },
     orderBy: [{ codigo: "asc" }, { nome: "asc" }],
   });
 
   // Perfil de correcao por cultura, para a bolinha de status do bloco de
-  // solo. Uma consulta so para a propriedade inteira; o mais recente de cada
-  // cultura vence se por acaso houver mais de um perfil cadastrado para ela.
+  // solo. Vale pela ESPECIE (culturaNome: "Limão", "Abacate"), nao por uma
+  // Cultura especifica - ver comentario no schema de PerfilCorrecaoSolo. Uma
+  // consulta so para a propriedade inteira; o mais recente de cada nome
+  // vence se por acaso houver mais de um perfil cadastrado para ele.
   const perfis = await prisma.perfilCorrecaoSolo.findMany({
     where: { propriedadeId },
     orderBy: { createdAt: "desc" },
   });
   const perfilPorCultura = new Map<string, (typeof perfis)[number]>();
   for (const p of perfis) {
-    if (!perfilPorCultura.has(p.culturaId)) perfilPorCultura.set(p.culturaId, p);
+    if (!perfilPorCultura.has(p.culturaNome)) perfilPorCultura.set(p.culturaNome, p);
   }
 
   // As adubacoes vem numa consulta so, para nao bater no banco por talhao.
@@ -353,7 +354,7 @@ export async function montarManejoNutricional(
     const analiseSoloAchatada = comMicronutrientesAchatados(analiseSolo);
     const analiseFoliarAchatada = comMicronutrientesAchatados(analiseFoliar);
 
-    const perfil = t.culturaId ? (perfilPorCultura.get(t.culturaId) ?? null) : null;
+    const perfil = t.cultura?.nome ? (perfilPorCultura.get(t.cultura.nome) ?? null) : null;
     const statusGeralSolo = analiseSolo ? classificarStatusGeralSolo(analiseSolo, perfil) : "SEM_REFERENCIA";
 
     resultado.push({
