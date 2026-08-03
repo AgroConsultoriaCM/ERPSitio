@@ -59,10 +59,10 @@ jobs:
         with:
           context: .
           file: apps/api/Dockerfile
-          # Só amd64 por enquanto: é o que a VM.Standard.E2.1.Micro usa.
-          # Quando a instância ARM liberar, acrescentar linux/arm64 aqui
-          # (compila por emulação, fica mais lento, mas funciona).
-          platforms: linux/amd64
+          # amd64: VM.Standard.E2.1.Micro. arm64: VM.Standard.A1.Flex, em uso
+          # a partir da migração de 03/08/2026. Compila por emulação (mais
+          # lento que nativo), mas dispensa compilar na propria maquina.
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
