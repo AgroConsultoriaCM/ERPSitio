@@ -55,6 +55,13 @@ services:
       COPERNICUS_CLIENT_ID: ${COPERNICUS_CLIENT_ID}
       COPERNICUS_CLIENT_SECRET: ${COPERNICUS_CLIENT_SECRET}
       OCR_SPACE_API_KEY: ${OCR_SPACE_API_KEY}
+      # "tsx watch" usa chokidar por baixo, que sofre do mesmo problema do
+      # Vite (ver "web" abaixo): Docker Desktop no Windows nao propaga
+      # eventos nativos de arquivo do host para o container. Sem isto, editar
+      # o codigo da API nao reinicia o processo - so um "docker compose
+      # restart api" manual pega a mudanca, e passa despercebido.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "300"
     ports:
       - "${API_PORT:-3333}:3333"
     depends_on:

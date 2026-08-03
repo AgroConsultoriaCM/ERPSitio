@@ -240,6 +240,12 @@ function valoresIniciais(amostra: Amostra): Record<string, number> {
   return { ...amostra.valores };
 }
 
+/** ISO completo (ou null) -> "AAAA-MM-DD", para o valor de um input de data. */
+function paraInputData(iso: string | null): string {
+  if (!iso) return "";
+  return iso.slice(0, 10);
+}
+
 function LinhaAmostra({
   amostra,
   laudo,
@@ -517,6 +523,10 @@ export default function AdicionarAnalise() {
   // campos adicionados à mão na digitação manual, por amostra
   const [camposManuais, setCamposManuais] = useState<Record<string, string[]>>({});
   const [profundidades, setProfundidades] = useState<Record<string, string>>({});
+  // data de coleta editada, por laudo — o sistema lê da planilha, mas o
+  // usuário confere e corrige antes de confirmar (ela nunca vem certa
+  // sozinha quando o laudo tem mais de uma coleta na mesma remessa).
+  const [datasColeta, setDatasColeta] = useState<Record<string, string>>({});
 
   const { data: laudos, isLoading } = useQuery({
     queryKey: ["laudos", aba],
@@ -575,6 +585,7 @@ export default function AdicionarAnalise() {
 
   const confirmar = useMutation({
     mutationFn: (laudo: Laudo) => {
+      const dataColeta = datasColeta[laudo.id] ?? paraInputData(laudo.dataColeta);
       const dados = laudo.amostras.map((a) => {
         const padrao: Destino = {
           talhaoIds: a.sugestao ? [a.sugestao.talhaoId] : [],
@@ -588,6 +599,7 @@ export default function AdicionarAnalise() {
           loteCompostoId: destino.loteCompostoId || null,
           valores: valoresParaExibir(laudo.tipo, edicoes[a.id] ?? valoresIniciais(a)),
           profundidade: profundidade || null,
+          dataColeta: dataColeta || null,
         };
       });
 
@@ -738,11 +750,26 @@ export default function AdicionarAnalise() {
               <FileSpreadsheet size={17} className="shrink-0 text-terra-400" />
               <div className="min-w-0">
                 <p className="truncate font-semibold text-terra-900">{laudo.nomeArquivo}</p>
-                <p className="text-xs text-terra-500">
-                  {laudo.amostras.length} amostra(s)
-                  {laudo.dataColeta &&
-                    ` · coleta ${new Date(laudo.dataColeta).toLocaleDateString("pt-BR")}`}
-                  {laudo.cliente && ` · ${laudo.cliente}`}
+                <p className="flex flex-wrap items-center gap-x-1 text-xs text-terra-500">
+                  <span>{laudo.amostras.length} amostra(s)</span>
+                  {laudo.situacao === "PENDENTE" ? (
+                    <span className="flex items-center gap-1">
+                      <span>· coleta</span>
+                      <input
+                        type="date"
+                        value={datasColeta[laudo.id] ?? paraInputData(laudo.dataColeta)}
+                        onChange={(e) =>
+                          setDatasColeta((d) => ({ ...d, [laudo.id]: e.target.value }))
+                        }
+                        title="Data de coleta — o sistema lê da planilha, confira e corrija se precisar"
+                        className="rounded border border-terra-300 bg-white px-1 py-0.5 text-xs text-terra-700"
+                      />
+                    </span>
+                  ) : (
+                    laudo.dataColeta &&
+                    ` · coleta ${new Date(laudo.dataColeta).toLocaleDateString("pt-BR")}`
+                  )}
+                  {laudo.cliente && <span>· {laudo.cliente}</span>}
                 </p>
               </div>
             </div>

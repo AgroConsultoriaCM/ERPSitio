@@ -222,6 +222,10 @@ export async function confirmarAmostras(
 
     let gravadas = 0;
     let arquivadas = 0;
+    // A tela deixa corrigir a data de coleta antes de confirmar - guarda a
+    // correcao no laudo tambem, senao reabrir depois volta para a data
+    // errada que a planilha trouxe.
+    let dataColetaCorrigida: Date | null = null;
 
     for (const dados of amostras) {
       const amostra = laudo.amostras.find((a) => a.id === dados.amostraId);
@@ -231,6 +235,7 @@ export async function confirmarAmostras(
       const data = dados.dataColeta
         ? new Date(dados.dataColeta)
         : (laudo.dataColeta ?? new Date());
+      if (dados.dataColeta) dataColetaCorrigida = data;
       const profundidade = dados.profundidade ?? amostra.profundidade;
 
       // Guarda o que o usuario conferiu, mesmo se decidir arquivar: se ele
@@ -273,7 +278,12 @@ export async function confirmarAmostras(
 
     await tx.laudoImportado.update({
       where: { id: laudo.id },
-      data: { situacao: "IMPORTADO", importadoEm: new Date(), importadoPorId: usuarioId },
+      data: {
+        situacao: "IMPORTADO",
+        importadoEm: new Date(),
+        importadoPorId: usuarioId,
+        dataColeta: dataColetaCorrigida ?? undefined,
+      },
     });
 
     return { gravadas, arquivadas };
