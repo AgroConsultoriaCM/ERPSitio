@@ -62,9 +62,10 @@ Interface toda em português do Brasil, na linguagem da operação ("operações
    +--------------------------------------+
    |  ORACLE CLOUD  163.176.239.86        |
    |  (ARM; servidor antigo 163.176.96.228|
-   |   segue de pe so como fallback, ver  |
-   |   secao 2.1 - decisao de desligar e  |
-   |   do Igor, ainda nao tomada)         |
+   |   esta PARADO desde 03/08/2026 - nao |
+   |   responde. Terminar de vez e decisao|
+   |   do Igor, ainda nao tomada - secao  |
+   |   2.1)                               |
    |                                      |
    |  Caddy :443  (certificado Let's      |
    |     |         Encrypt, automatico)   |
@@ -147,10 +148,18 @@ Painel: https://cloud.oracle.com — região **sa-saopaulo-1 (Brazil East)**
 | IP público | `163.176.96.228` |
 | IP privado | `10.0.0.205` |
 
-O DNS (seção 2.2) já aponta só para a ARM — este servidor não recebe mais
-tráfego real, mas roda a mesma stack em paralelo, com backup diário próprio,
-como rede de segurança durante a migração. **Ainda não foi desligado.**
-Sequência antes de desligar:
+O DNS (seção 2.2) aponta só para a ARM desde a migração.
+**Parado (não terminado) em 03/08/2026** — containers desligados com
+`docker compose down` (limpo, sem `-v`: os volumes com os dados continuam no
+disco) e depois `sudo shutdown -h now`. Confirmado: SSH e ping esgotam o
+tempo limite. Site e API seguem 100% no ar, servidos só pela ARM.
+
+**Isto é reversível** — a instância parada continua existindo na Oracle (com
+o boot volume intacto) e pode ser ligada de novo pelo painel se algo precisar
+ser conferido nela. A decisão de **terminar** (apagar de vez) é só do Igor,
+depois de um período observando a ARM sozinha. Terminar SIM é irreversível.
+
+Sequência que levou até aqui:
 
 1. ~~Backup em nuvem funcionando na ARM~~ **Feito em 03/08/2026.** rclone
    instalado, autorizado (o Igor completou o login OAuth pelo navegador local,
@@ -161,9 +170,12 @@ Sequência antes de desligar:
    saída 0.** Baixou o backup do Drive, restaurou num Postgres descartável e
    conferiu: 1 propriedade, 7 talhões, 35,37 ha, 6 culturas, 3 usuários — bate
    com a produção.
-3. **Falta só a confirmação explícita do Igor no momento de desligar** —
-   terminar a instância é irreversível, e a chave privada dela deixa de servir
-   para qualquer coisa. Os dois pré-requisitos técnicos (1 e 2) estão prontos.
+3. ~~Confirmação do Igor para parar~~ **Feito em 03/08/2026** — instância
+   parada (não terminada), site conferido no ar só pela ARM.
+4. **Terminar de vez.** Decisão do Igor, sem prazo definido — ele quer
+   observar a ARM sozinha primeiro. Quando decidir, é ele mesmo quem termina
+   pelo painel da Oracle (ou pede para o Claude fazer, com confirmação
+   explícita naquele momento — nunca por autorização antecipada).
 
 ### Rede
 
@@ -446,14 +458,12 @@ Acompanhe em https://vercel.com/dashboard.
 
 Depois do push, o GitHub Actions compila a imagem multi-arch (~2 min). Confira
 em https://github.com/AgroConsultoriaCM/ERPSitio/actions que terminou com
-sucesso, e então, **nos dois servidores** (enquanto o antigo não for
-desligado — seção 8, item 3b):
+sucesso, e então, **no servidor** (só a ARM — o Micro antigo está parado
+desde 03/08/2026, seção 2.1/8):
 
 ```bash
-ssh -i ~/.oci/oficial212.key ubuntu@163.176.239.86   # ARM, primario
-ssh -i ~/.oci/micro.key ubuntu@163.176.96.228        # Micro, fallback
+ssh -i ~/.oci/oficial212.key ubuntu@163.176.239.86
 
-# em cada um:
 cd ~/ERPSitio
 git pull
 docker compose -f infra/docker-compose.micro.yml --env-file .env pull api
@@ -469,9 +479,10 @@ do Prisma rodam sozinhas quando a API sobe.
 > Fazer o `up -d` **antes** de o Actions terminar sobe a imagem antiga sem
 > avisar. Confira o Actions primeiro.
 >
-> **Sempre confira o `/health` de cada servidor individualmente** depois do
-> deploy, não só o domínio (que só bate no que o DNS aponta agora, a ARM):
-> `curl --resolve api.sitiocostamello.com.br:443:<IP> https://api.sitiocostamello.com.br/health`
+> Confira o `/health` depois do deploy: `curl https://api.sitiocostamello.com.br/health`.
+> Se um dia houver mais de um servidor de novo, confira cada IP individualmente
+> com `curl --resolve api.sitiocostamello.com.br:443:<IP> .../health` — o
+> domínio sozinho só bate no que o DNS aponta.
 
 ## Mudou o schema do banco
 
@@ -869,10 +880,13 @@ Nada disso está no Git. Roteiro para montar outra máquina:
 
 3a. ~~Autorizar o rclone na ARM~~ **Feito em 03/08/2026** — backup diário
     (local + nuvem) e restauração de teste confirmados na ARM. Ver seção 2.1.
-3b. **Desligar o servidor antigo (163.176.96.228).** Os dois pré-requisitos
-    técnicos (item 3a) estão prontos — falta só a confirmação do Igor no
-    momento de terminar a instância. Ação irreversível, nunca fazer por
-    autorização antecipada.
+3b. ~~Desligar o servidor antigo~~ **Parado (não terminado) em 03/08/2026.**
+    Containers derrubados com `docker compose down`, depois `shutdown -h now`.
+    Site conferido no ar 100% só pela ARM. **Terminar de vez continua em
+    aberto** — decisão do Igor, sem prazo, feita só com confirmação explícita
+    no momento (nunca por autorização antecipada). Enquanto isso: nenhum
+    deploy vai mais para o `163.176.96.228` (está desligado — seção 3 já
+    reflete isso).
 
 **Produto — precisam de decisão do Igor, mexem em estrutura**
 
