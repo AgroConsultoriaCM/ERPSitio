@@ -684,3 +684,87 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
     amostras,
   };
 }
+
+// --- leitura de tabela a partir do texto do OCR (PDF sem planilha) --------
+
+export interface AmostraOcr {
+  codigoLaboratorio: string;
+  identificacao: string | null;
+  profundidade: string | null;
+  /** Linha original, para mostrar ao lado dos campos na digitação manual. */
+  linhaOriginal: string;
+}
+
+export interface TabelaOcr {
+  tipo: TipoLaudo;
+  amostras: AmostraOcr[];
+}
+
+/** Um número sozinho na célula — sem outro colado do lado por um espaço. */
+function celulaEhNumeroUnico(celula: string): boolean {
+  const s = celula.trim();
+  return s.length > 0 && !/\s/.test(s) && numero(s) != null;
+}
+
+/**
+ * Tenta separar código/identificação/profundidade de cada linha de amostra a
+ * partir do texto que o OCR devolveu (isTable=true, células separadas por
+ * tab).
+ *
+ * NÃO tenta ler o bloco de nutrientes. Testado contra um laudo real (ESSERE
+ * GROUP/Kimberlit, o mesmo do print que não estava lendo): o OCR funde de 2 a
+ * 6 números na mesma célula quando as colunas do PDF original são estreitas
+ * demais, e essa fusão MUDA de uma linha de amostra para outra — a coluna do
+ * alumínio vem sozinha numa linha e colada com cálcio e magnésio na linha de
+ * baixo. Sem posição fixa para se apoiar, decidir qual número é qual
+ * nutriente seria chutar — e uma das sete amostras reais tinha um número a
+ * mais que não batia com nenhuma coluna do cabeçalho, prova de que nem contar
+ * quantos números caíram em cada célula é seguro. Por isso o leitor para no
+ * primeiro número que aparecer colado com outro: o resto o usuário digita à
+ * mão, olhando a linha original ao lado de cada amostra (`linhaOriginal`).
+ *
+ * Devolve null quando nem o tipo do laudo dá para reconhecer no texto — a
+ * tela volta ao comportamento anterior, com 1 amostra vazia por PDF.
+ */
+export function lerTabelaOcr(textoOcr: string): TabelaOcr | null {
+  const linhas = textoOcr
+    .split(/\r?\n/)
+    .map((l) => l.split("\t").map((c) => c.trim()))
+    .filter((celulas) => celulas.some((c) => c.length > 0));
+
+  const tipo = detectarTipo(linhas);
+  if (!tipo) return null;
+
+  const primeiraAmostraIdx = linhas.findIndex((l) => CODIGO_AMOSTRA.test(l[0] ?? ""));
+  if (primeiraAmostraIdx < 0) return null;
+
+  const cabecalhoTexto = linhas.slice(0, primeiraAmostraIdx).flat().join(" ").toUpperCase();
+  const temColunaProfundidade = /PROFUN/.test(cabecalhoTexto);
+
+  const amostras: AmostraOcr[] = [];
+  for (const linha of linhas.slice(primeiraAmostraIdx)) {
+    if (!CODIGO_AMOSTRA.test(linha[0] ?? "")) {
+      if (amostras.length > 0) break;
+      continue;
+    }
+
+    const codigoLaboratorio = linha[0];
+    const segundaEhTexto = numero(linha[1]) == null && texto(linha[1]) != null;
+    const identificacao = segundaEhTexto ? texto(linha[1]) : null;
+
+    let profundidade: string | null = null;
+    if (temColunaProfundidade) {
+      const cel = linha[segundaEhTexto ? 2 : 1] ?? "";
+      if (celulaEhNumeroUnico(cel)) profundidade = cel.replace(",", ".");
+    }
+
+    amostras.push({
+      codigoLaboratorio,
+      identificacao,
+      profundidade,
+      linhaOriginal: linha.filter((c) => c.length > 0).join("   "),
+    });
+  }
+
+  return amostras.length > 0 ? { tipo, amostras } : null;
+}

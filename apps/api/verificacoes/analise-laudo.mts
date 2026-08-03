@@ -16,6 +16,7 @@ const XLSX = exigir("xlsx") as typeof import("xlsx");
 import {
   detectarTipo,
   lerLaudo,
+  lerTabelaOcr,
   montarRotulos,
   LaudoInvalidoError,
   type Planilha,
@@ -232,6 +233,49 @@ console.log("\n== cabecalho em duas linhas ==");
   conferir("junta as duas linhas por coluna", rotulos.slice(0, 8), [
     "LAB.", "CLIENTE", "PROPRIEDADE", "TALHAO", "PROF.", "GRID", "ARGILA", "SILTE",
   ]);
+}
+
+console.log("\n== leitura de tabela a partir do texto do OCR (PDF sem planilha) ==");
+{
+  // Texto real devolvido pela OCR.space (isTable=true) para um laudo do
+  // sitio, com o nome do cliente trocado por um generico - o laudo original
+  // fica so em analises_sitio/, fora do repositorio publico. As celulas
+  // fundidas ("12,21 0,20 23,75 6,54 1,89") sao exatamente como a OCR.space
+  // devolveu: cada linha funde os numeros em pontos diferentes, prova de que
+  // nao ha posicao fixa para se apoiar no bloco de nutrientes.
+  const textoReal = [
+    "Cliente:\tCliente Exemplo\tData Emissão: 15/09/2025\r",
+    "Fazenda: Santo Antônio\r",
+    "Código Descrição\tProfun pH\tH+AI AI Ca Mg K PRes. S Cu Fe Mn\tM.O.\tSB\tCTC\tV%\t\r",
+    "cm\tmmol c/dm3\tmg/dm3\tg/dm?\tmmol c/dm?\t%\t\r",
+    "LS4636\tLimão novo\t20\t5,52\t12,21 0,20 23,75 6,54 1,89\t16,35 4,08 1,32 11,6 9,12 0,64\t0,16\t7,08\t32,18 44,39\t93,59\t\r",
+    "LS4637\tLimão anão\t20\t6,08\t11,34\t0,20\t31,94\t9,24\t3,16\t154,17\t6,71\t1,16\t16,4\t3,95\t1,64\t0,16\t10,44\t44,34\t55,68\t79,63\t\r",
+    "LS4638\tAbacate\t20\t6,89\t9,00\t0,20\t38,49 16,88\t1,42\t66,28\t3,84\t0,77 8,62\t4,28\t1,26\t0,15\t12,03\t56,79\t65,78\t86,33\t\r",
+  ].join("\n");
+
+  const resultado = lerTabelaOcr(textoReal);
+  afirmar("reconhece o tipo (química) mesmo sem planilha", resultado?.tipo === "QUIMICA");
+  conferir("uma amostra por linha, código certo", resultado?.amostras.map((a) => a.codigoLaboratorio), [
+    "LS4636", "LS4637", "LS4638",
+  ]);
+  conferir("identificação certa mesmo com espaço no nome", resultado?.amostras.map((a) => a.identificacao), [
+    "Limão novo", "Limão anão", "Abacate",
+  ]);
+  conferir("profundidade extraída de todas as linhas (célula limpa)", resultado?.amostras.map((a) => a.profundidade), [
+    "20", "20", "20",
+  ]);
+  conferir(
+    "NÃO inventa valor de nutriente - cada amostra só tem código/identificação/profundidade/linha",
+    resultado?.amostras[0] ? Object.keys(resultado.amostras[0]).sort() : null,
+    ["codigoLaboratorio", "identificacao", "linhaOriginal", "profundidade"],
+  );
+  afirmar(
+    "linha original guardada para digitar conferindo",
+    resultado?.amostras[0]?.linhaOriginal.includes("12,21 0,20 23,75") ?? false,
+  );
+
+  const semCodigoAmostra = lerTabelaOcr("Laudo qualquer\nsem nenhuma linha de amostra reconhecível");
+  afirmar("sem código de amostra no texto -> null (não força nada)", semCodigoAmostra === null);
 }
 
 // ---------------------------------------------------------------------------

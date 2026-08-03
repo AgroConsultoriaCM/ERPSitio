@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AppError, NaoEncontradoError } from "../lib/errors.js";
 import {
   lerLaudo,
+  lerTabelaOcr,
   LaudoInvalidoError,
   unidadeDoValor,
   chaveEhDerivada,
@@ -126,16 +127,31 @@ export default async function laudosRoutes(fastify: FastifyInstance) {
           }
         }
 
+        // Quando o OCR leu com sucesso, tenta separar codigo/identificacao/
+        // profundidade linha a linha - poupa digitar isso a mao amostra por
+        // amostra. O bloco de nutrientes continua 100% manual (ver
+        // lerTabelaOcr, no servico, para o motivo).
+        const tabela = textoExtraido ? lerTabelaOcr(textoExtraido) : null;
+
         const laudo = await fastify.prisma.laudoImportado.create({
           data: {
             nomeArquivo: dados.nomeArquivo,
-            tipo: "QUIMICA",
+            tipo: tabela?.tipo ?? "QUIMICA",
             digitacaoManual: true,
             textoExtraido:
               textoExtraido ?? "PDF anexado: digite os valores conferindo o laudo original.",
             propriedadeId: request.user.propriedadeId,
             amostras: {
-              create: [{ valores: {}, naoReconhecidas: [] }],
+              create: tabela
+                ? tabela.amostras.map((a) => ({
+                    codigoLaboratorio: a.codigoLaboratorio,
+                    identificacao: a.identificacao,
+                    profundidade: a.profundidade,
+                    linhaOriginal: a.linhaOriginal,
+                    valores: {},
+                    naoReconhecidas: [],
+                  }))
+                : [{ valores: {}, naoReconhecidas: [] }],
             },
           },
           include: { amostras: true },

@@ -32,6 +32,8 @@ interface Amostra {
   unidades: Record<string, string>;
   /** Calculados a partir de outros valores (V%, CTC...) — não vêm pré-preenchidos. */
   camposDerivados: string[];
+  /** Linha original do texto lido por OCR, quando o sistema separou esta amostra automaticamente de um PDF. */
+  linhaOriginal: string | null;
   /** Uma coleta pode valer para mais de um talhão. */
   talhaoIds: string[];
   loteCompostoId: string | null;
@@ -376,6 +378,14 @@ function LinhaAmostra({
 
       {aberta && (
         <div className="bg-terra-50/60 px-4 pb-4">
+          {amostra.linhaOriginal && (
+            <p className="mb-3 rounded-md border border-terra-200 bg-white/70 px-2 py-1.5 font-mono text-[11px] leading-snug text-terra-600">
+              <span className="font-sans font-semibold uppercase tracking-wide text-terra-400">
+                linha lida no PDF:{" "}
+              </span>
+              {amostra.linhaOriginal}
+            </p>
+          )}
           {precisaProfundidade && (
             <label className="mb-3 block max-w-xs">
               <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-terra-500">
@@ -799,6 +809,13 @@ export default function AdicionarAnalise() {
                   número entre linhas, e chutar aqui gravaria valor errado. Digite os valores abaixo
                   usando o &quot;+ adicionar valor&quot;, conferindo o laudo original.
                 </p>
+                {laudo.amostras.length > 1 && (
+                  <p className="mt-1.5">
+                    O sistema separou <strong>{laudo.amostras.length} amostras</strong> do PDF e já
+                    preencheu código, identificação e profundidade de cada uma — confira, e digite o
+                    resto olhando a linha original mostrada dentro de cada amostra.
+                  </p>
+                )}
                 {textoOcr && (
                   <>
                     <p className="mt-1.5 font-semibold text-mata-800">

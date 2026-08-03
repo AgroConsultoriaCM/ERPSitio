@@ -906,6 +906,12 @@ model AmostraLaudo {
   /// vieram na unidade padrao - e o caso normal.
   avisosUnidade String[] @default([])
 
+  /// Linha original do texto lido por OCR, quando o sistema conseguiu separar
+  /// codigo/identificacao/profundidade automaticamente de um PDF (ver
+  /// lerTabelaOcr). Mostrada ao lado dos campos para digitar o resto
+  /// conferindo essa linha especifica, em vez de vasculhar o laudo inteiro.
+  linhaOriginal String?
+
   /// Talhoes onde esta amostra virou analise, depois de confirmada. Uma
   /// mesma coleta pode valer para mais de um talhao (grid de amostragem que
   /// cobre area maior que um talhao so) - por isso lista, nao FK unica. Vazio
