@@ -95,6 +95,14 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
     },
   });
 
+  const excluirSolo = useMutation({
+    mutationFn: (id: string) => api.delete(`/analises-solo/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["analises-solo", talhaoId] });
+      qc.invalidateQueries({ queryKey: ["diagnostico", talhaoId] });
+    },
+  });
+
   const [foliarForm, setFoliarForm] = useState<Record<string, string>>({
     dataColeta: "",
     estadioFenologico: "",
@@ -125,6 +133,11 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
       qc.invalidateQueries({ queryKey: ["analises-foliar", talhaoId] });
       setFoliarForm((f) => ({ ...Object.fromEntries(Object.keys(f).map((k) => [k, ""])) }));
     },
+  });
+
+  const excluirFoliar = useMutation({
+    mutationFn: (id: string) => api.delete(`/analises-foliar/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["analises-foliar", talhaoId] }),
   });
 
   const dadosGrafico = analisesSolo
@@ -246,10 +259,21 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
 
         <ul className="mt-3 space-y-2">
           {analisesSolo?.map((a) => (
-            <li key={a.id} className="rounded-lg bg-white p-3 text-sm shadow-sm">
-              <span className="font-medium">{new Date(a.dataColeta).toLocaleDateString("pt-BR")}</span>
-              {" — "}pH {a.ph ?? "-"}, V% {a.saturacaoBases ?? "-"}, P {a.fosforo ?? "-"}, K {a.potassio ?? "-"}
-              {a.laboratorio ? ` (${a.laboratorio})` : ""}
+            <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm shadow-sm">
+              <span>
+                <span className="font-medium">{new Date(a.dataColeta).toLocaleDateString("pt-BR")}</span>
+                {" — "}pH {a.ph ?? "-"}, V% {a.saturacaoBases ?? "-"}, P {a.fosforo ?? "-"}, K {a.potassio ?? "-"}
+                {a.laboratorio ? ` (${a.laboratorio})` : ""}
+              </span>
+              <button
+                onClick={() => {
+                  if (confirm("Excluir esta análise de solo? Não pode ser desfeito.")) excluirSolo.mutate(a.id);
+                }}
+                disabled={excluirSolo.isPending}
+                className="shrink-0 text-red-600 hover:underline disabled:opacity-50"
+              >
+                Excluir
+              </button>
             </li>
           ))}
         </ul>
@@ -295,10 +319,21 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
 
         <ul className="mt-3 space-y-2">
           {analisesFoliar?.map((a) => (
-            <li key={a.id} className="rounded-lg bg-white p-3 text-sm shadow-sm">
-              <span className="font-medium">{new Date(a.dataColeta).toLocaleDateString("pt-BR")}</span>
-              {" — "}N {a.nitrogenio ?? "-"}, P {a.fosforo ?? "-"}, K {a.potassio ?? "-"}
-              {a.estadioFenologico ? ` (${a.estadioFenologico})` : ""}
+            <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm shadow-sm">
+              <span>
+                <span className="font-medium">{new Date(a.dataColeta).toLocaleDateString("pt-BR")}</span>
+                {" — "}N {a.nitrogenio ?? "-"}, P {a.fosforo ?? "-"}, K {a.potassio ?? "-"}
+                {a.estadioFenologico ? ` (${a.estadioFenologico})` : ""}
+              </span>
+              <button
+                onClick={() => {
+                  if (confirm("Excluir esta análise foliar? Não pode ser desfeito.")) excluirFoliar.mutate(a.id);
+                }}
+                disabled={excluirFoliar.isPending}
+                className="shrink-0 text-red-600 hover:underline disabled:opacity-50"
+              >
+                Excluir
+              </button>
             </li>
           ))}
         </ul>
