@@ -150,16 +150,20 @@ Painel: https://cloud.oracle.com — região **sa-saopaulo-1 (Brazil East)**
 O DNS (seção 2.2) já aponta só para a ARM — este servidor não recebe mais
 tráfego real, mas roda a mesma stack em paralelo, com backup diário próprio,
 como rede de segurança durante a migração. **Ainda não foi desligado.**
-Sequência antes de desligar (nenhuma etapa pulada):
+Sequência antes de desligar:
 
-1. Backup em nuvem funcionando **na ARM** — hoje só este fallback manda
-   cópia para o Drive (rclone não estava instalado na ARM; corrigido
-   03/08/2026, falta só a autorização OAuth, que exige login do Igor — ver
-   seção 8).
-2. Rodar `verificar-backup.sh --nuvem` na ARM pelo menos uma vez, igual à
-   prova de 31/07/2026 feita no servidor antigo.
-3. **Confirmação explícita do Igor no momento** — terminar a instância é
-   irreversível, e a chave privada dela deixa de servir para qualquer coisa.
+1. ~~Backup em nuvem funcionando na ARM~~ **Feito em 03/08/2026.** rclone
+   instalado, autorizado (o Igor completou o login OAuth pelo navegador local,
+   o token foi levado ao servidor por `rclone config create ... --non-interactive`,
+   sem wizard interativo por SSH) e testado: `backup.sh` rodou com saída 0,
+   arquivo chegou em `drive:ERPSitio/backups`.
+2. ~~Rodar `verificar-backup.sh --nuvem` na ARM~~ **Feito em 03/08/2026,
+   saída 0.** Baixou o backup do Drive, restaurou num Postgres descartável e
+   conferiu: 1 propriedade, 7 talhões, 35,37 ha, 6 culturas, 3 usuários — bate
+   com a produção.
+3. **Falta só a confirmação explícita do Igor no momento de desligar** —
+   terminar a instância é irreversível, e a chave privada dela deixa de servir
+   para qualquer coisa. Os dois pré-requisitos técnicos (1 e 2) estão prontos.
 
 ### Rede
 
@@ -228,9 +232,6 @@ docker compose -f infra/docker-compose.micro.yml
 ~/.config/rclone/rclone.conf   autorizacao do Google Drive
 crontab                        backup 02:00 diario; conferencia dia 1, 03:00
 ```
-
-**Onde as duas divergem hoje:** o fallback Micro tem `rclone.conf`
-autorizado; a ARM primária não (seção 8, item 3a).
 
 Preparação da máquina, pela ordem certa a seguir: `infra/oracle/cloud-init.yaml`
 para a ARM (2 OCPU/12 GB) e `infra/oracle/cloud-init-micro.yaml` para a Micro
@@ -866,17 +867,12 @@ Nada disso está no Git. Roteiro para montar outra máquina:
    `infra/oracle/tentar-instancia.ps1` e `vigiar-instancia.ps1` não precisam
    mais rodar.
 
-3a. **Autorizar o rclone na ARM.** Instalado em 03/08/2026, mas falta rodar
-    `rclone config` apontando para o mesmo Google Drive do backup — isso abre
-    uma URL de autorização que só o Igor consegue completar (login da conta
-    Google). Até lá, o backup diário da ARM fica **só local**: o script roda,
-    a cópia fica em `~/ERPSitio/backups/`, mas a etapa de nuvem falha e sai
-    com código 4 (comportamento correto e já visto no log). É o único
-    bloqueio real para o item 3b.
-3b. **Desligar o servidor antigo (163.176.96.228).** Só depois do item 3a
-    resolvido e de rodar `verificar-backup.sh --nuvem` na ARM pelo menos uma
-    vez. Ver a sequência completa na seção 2.1. É uma ação irreversível —
-    sempre confirmar com o Igor no momento, não vale autorização antecipada.
+3a. ~~Autorizar o rclone na ARM~~ **Feito em 03/08/2026** — backup diário
+    (local + nuvem) e restauração de teste confirmados na ARM. Ver seção 2.1.
+3b. **Desligar o servidor antigo (163.176.96.228).** Os dois pré-requisitos
+    técnicos (item 3a) estão prontos — falta só a confirmação do Igor no
+    momento de terminar a instância. Ação irreversível, nunca fazer por
+    autorização antecipada.
 
 **Produto — precisam de decisão do Igor, mexem em estrutura**
 
