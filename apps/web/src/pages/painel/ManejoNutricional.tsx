@@ -59,6 +59,8 @@ interface TalhaoNutricional {
   analiseFoliar: Record<string, number | string | null> | null;
   variacaoSolo: Record<string, number>;
   variacaoFoliar: Record<string, number>;
+  dataAnaliseSoloAnterior: string | null;
+  dataAnaliseFoliarAnterior: string | null;
   statusGeralSolo: StatusGeral;
   adubacoes: Adubacao[];
   alertas: Alerta[];
@@ -278,12 +280,19 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
 
         <div className="space-y-3">
           <div className="relative">
-            <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-terra-600">
-              <TestTube size={13} className="text-terra-400" />
-              Última análise de solo
-              {t.analiseSolo?.dataColeta && (
+            <p className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold text-terra-600">
+              <span className="flex items-center gap-1.5">
+                <TestTube size={13} className="text-terra-400" />
+                Última análise de solo
+                {t.analiseSolo?.dataColeta && (
+                  <span className="font-normal text-terra-400">
+                    · {dataCurta(String(t.analiseSolo.dataColeta))}
+                  </span>
+                )}
+              </span>
+              {t.dataAnaliseSoloAnterior && (
                 <span className="font-normal text-terra-400">
-                  · {dataCurta(String(t.analiseSolo.dataColeta))}
+                  (comparado com {dataCurta(t.dataAnaliseSoloAnterior)})
                 </span>
               )}
             </p>
@@ -312,12 +321,19 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
           </div>
 
           <div>
-            <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-terra-600">
-              <Leaf size={13} className="text-terra-400" />
-              Última análise foliar
-              {t.analiseFoliar?.dataColeta && (
+            <p className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold text-terra-600">
+              <span className="flex items-center gap-1.5">
+                <Leaf size={13} className="text-terra-400" />
+                Última análise foliar
+                {t.analiseFoliar?.dataColeta && (
+                  <span className="font-normal text-terra-400">
+                    · {dataCurta(String(t.analiseFoliar.dataColeta))}
+                  </span>
+                )}
+              </span>
+              {t.dataAnaliseFoliarAnterior && (
                 <span className="font-normal text-terra-400">
-                  · {dataCurta(String(t.analiseFoliar.dataColeta))}
+                  (comparado com {dataCurta(t.dataAnaliseFoliarAnterior)})
                 </span>
               )}
             </p>

@@ -67,6 +67,9 @@ export interface TalhaoNutricional {
   /** % de variação de cada nutriente frente à análise anterior (a penúltima). */
   variacaoSolo: Record<string, number>;
   variacaoFoliar: Record<string, number>;
+  /** Data da análise usada como comparação (a penúltima) - para a tela mostrar contra o que está variando. */
+  dataAnaliseSoloAnterior: string | null;
+  dataAnaliseFoliarAnterior: string | null;
   /** Resumo da última análise de solo x perfil da cultura - a bolinha do canto do bloco. */
   statusGeralSolo: StatusGeral;
   adubacoes: AdubacaoResumo[];
@@ -374,6 +377,8 @@ export async function montarManejoNutricional(
         comMicronutrientesAchatados(foliarAnterior),
         NUTRIENTES_FOLIAR_COMPARADOS,
       ),
+      dataAnaliseSoloAnterior: soloAnterior?.dataColeta.toISOString() ?? null,
+      dataAnaliseFoliarAnterior: foliarAnterior?.dataColeta.toISOString() ?? null,
       statusGeralSolo,
       adubacoes,
       alertas: montarAlertas({ analiseSolo, analiseFoliar, adubacoes, variacaoAnual }),
