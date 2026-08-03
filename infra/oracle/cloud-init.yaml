@@ -58,8 +58,22 @@ write_files:
       # da Oracle e precisa ser liberada la tambem.
       debconf-set-selections /etc/erpsitio-preseed.conf
       DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
-      iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-      iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+      # A posicao da regra de bloqueio (REJECT/DROP) muda de maquina para
+      # maquina - ja foi vista na 5 e na 6. Numero fixo funciona so por sorte:
+      # se o bloqueio estiver antes da posicao escolhida, a porta liberada
+      # aqui nunca e alcancada, e ainda assim aparece "certa" no iptables -L.
+      liberar_porta() {
+        local porta="$1"
+        local linha_bloqueio
+        linha_bloqueio=$(iptables -L INPUT -n --line-numbers | awk '$2=="REJECT"||$2=="DROP"{print $1; exit}')
+        if [ -n "$linha_bloqueio" ]; then
+          iptables -I INPUT "$linha_bloqueio" -m state --state NEW -p tcp --dport "$porta" -j ACCEPT
+        else
+          iptables -A INPUT -m state --state NEW -p tcp --dport "$porta" -j ACCEPT
+        fi
+      }
+      liberar_porta 80
+      liberar_porta 443
       netfilter-persistent save
 
       echo "[3/4] criando swap de 2 GB..."

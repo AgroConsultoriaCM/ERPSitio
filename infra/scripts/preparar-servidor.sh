@@ -35,12 +35,28 @@ sudo apt-get install -y -qq git
 echo "[3/5] liberando as portas 80 e 443 no firewall do sistema..."
 # A Oracle Cloud vem com iptables fechado por padrão, ALÉM das regras no
 # painel dela. Esquecer esta parte é o motivo nº 1 de "o site não abre".
-if ! sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null; then
-  sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-fi
-if ! sudo iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null; then
-  sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
-fi
+#
+# A posição da regra de bloqueio (REJECT/DROP) MUDA de máquina para máquina -
+# já foi vista na 5 e na 6. Inserir num número fixo funciona só por sorte: se
+# o bloqueio estiver antes da posição escolhida, a porta liberada aqui nunca é
+# alcançada, e o iptables mostra a regra "certa" sem ela valer nada. Por isso
+# a posição é sempre lida na hora, nunca hardcoded.
+liberar_porta() {
+  local porta="$1"
+  if sudo iptables -C INPUT -p tcp --dport "$porta" -j ACCEPT 2>/dev/null; then
+    return
+  fi
+  local linha_bloqueio
+  linha_bloqueio=$(sudo iptables -L INPUT -n --line-numbers | awk '$2=="REJECT"||$2=="DROP"{print $1; exit}')
+  if [ -n "$linha_bloqueio" ]; then
+    sudo iptables -I INPUT "$linha_bloqueio" -m state --state NEW -p tcp --dport "$porta" -j ACCEPT
+  else
+    # Sem regra de bloqueio explícita: acrescentar no fim já basta.
+    sudo iptables -A INPUT -m state --state NEW -p tcp --dport "$porta" -j ACCEPT
+  fi
+}
+liberar_porta 80
+liberar_porta 443
 sudo apt-get install -y -qq iptables-persistent >/dev/null 2>&1 || true
 sudo netfilter-persistent save >/dev/null 2>&1 || sudo sh -c 'iptables-save > /etc/iptables/rules.v4' || true
 echo "      portas 80 e 443 liberadas no sistema"
