@@ -94,7 +94,7 @@ export default function SetorDetalhe() {
 
   return (
     <div className="space-y-4">
-      <button onClick={() => navigate("/painel/cadastros/setores")} className="text-sm text-gray-500 hover:underline">
+      <button onClick={() => navigate("/painel/cadastros/setores")} className="text-sm text-gray-600 hover:underline">
         ← Voltar para setores
       </button>
       <div className="flex items-baseline gap-3">
@@ -115,7 +115,7 @@ export default function SetorDetalhe() {
             key={valor}
             onClick={() => setAba(valor)}
             className={`px-4 py-2 text-sm font-medium ${
-              aba === valor ? "border-b-2 border-sky-700 text-sky-800" : "text-gray-500"
+              aba === valor ? "border-b-2 border-sky-700 text-sky-800" : "text-gray-600"
             }`}
           >
             {label}
@@ -146,11 +146,11 @@ export default function SetorDetalhe() {
 
           <div className="grid grid-cols-2 gap-3 rounded-md bg-gray-50 p-3 text-sm">
             <div>
-              <p className="text-gray-500">Código</p>
+              <p className="text-gray-600">Código</p>
               <p className="font-medium text-gray-700">{setor?.codigo ?? "-"}</p>
             </div>
             <div>
-              <p className="text-gray-500">Área (do contorno)</p>
+              <p className="text-gray-600">Área (do contorno)</p>
               <p className="font-medium text-gray-700">
                 {setor?.areaHa != null ? formatarArea(setor.areaHa) : "-"}
               </p>
@@ -204,7 +204,7 @@ export default function SetorDetalhe() {
           {erroPoligono && (
             <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erroPoligono}</div>
           )}
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-600">
             Tracejado escuro = limite da propriedade. Contornos claros = talhões (referência apenas). Redesenhar o
             contorno recalcula a área automaticamente.
           </p>

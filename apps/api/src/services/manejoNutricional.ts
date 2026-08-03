@@ -2,7 +2,13 @@ import type { PrismaClient } from "@erpsitio/db";
 import { sateliteConfigurado } from "./satelite.js";
 import { leiturasArmazenadas } from "./leituraSatelite.js";
 import { apenasValidas, type LeituraSatelite } from "./notaTalhao.js";
-import { classificarStatusGeralSolo, type StatusGeral } from "./recomendacaoSolo.js";
+import {
+  classificarStatusGeralSolo,
+  classificarStatusGeralFoliar,
+  classificarPorNutrienteSolo,
+  classificarPorNutrienteFoliar,
+  type StatusGeral,
+} from "./recomendacaoSolo.js";
 
 /**
  * Manejo nutricional: junta, por talhao, tres coisas que hoje vivem separadas.
@@ -70,8 +76,12 @@ export interface TalhaoNutricional {
   /** Data da análise usada como comparação (a penúltima) - para a tela mostrar contra o que está variando. */
   dataAnaliseSoloAnterior: string | null;
   dataAnaliseFoliarAnterior: string | null;
-  /** Resumo da última análise de solo x perfil da cultura - a bolinha do canto do bloco. */
+  /** Resumo da última análise de solo/folha x perfil da cultura - mantido para telas que só querem um resumo. */
   statusGeralSolo: StatusGeral;
+  statusGeralFoliar: StatusGeral;
+  /** Status de CADA nutriente x perfil - uma bolinha por card, não só o resumo. */
+  statusPorNutrienteSolo: Record<string, StatusGeral>;
+  statusPorNutrienteFoliar: Record<string, StatusGeral>;
   adubacoes: AdubacaoResumo[];
   alertas: AlertaNutricional[];
 }
@@ -256,6 +266,17 @@ export async function montarManejoNutricional(
     if (!perfilPorCultura.has(p.culturaNome)) perfilPorCultura.set(p.culturaNome, p);
   }
 
+  // Mesma logica para o perfil FOLIAR - especie tambem, mesmo criterio de
+  // "mais recente vence".
+  const perfisFoliar = await prisma.perfilCorrecaoFoliar.findMany({
+    where: { propriedadeId },
+    orderBy: { createdAt: "desc" },
+  });
+  const perfilFoliarPorCultura = new Map<string, (typeof perfisFoliar)[number]>();
+  for (const p of perfisFoliar) {
+    if (!perfilFoliarPorCultura.has(p.culturaNome)) perfilFoliarPorCultura.set(p.culturaNome, p);
+  }
+
   // As adubacoes vem numa consulta so, para nao bater no banco por talhao.
   const atividades = await prisma.atividade.findMany({
     where: {
@@ -355,7 +376,13 @@ export async function montarManejoNutricional(
     const analiseFoliarAchatada = comMicronutrientesAchatados(analiseFoliar);
 
     const perfil = t.cultura?.nome ? (perfilPorCultura.get(t.cultura.nome) ?? null) : null;
+    const perfilFoliar = t.cultura?.nome ? (perfilFoliarPorCultura.get(t.cultura.nome) ?? null) : null;
     const statusGeralSolo = analiseSolo ? classificarStatusGeralSolo(analiseSolo, perfil) : "SEM_REFERENCIA";
+    const statusGeralFoliar = analiseFoliar
+      ? classificarStatusGeralFoliar(analiseFoliar, perfilFoliar)
+      : "SEM_REFERENCIA";
+    const statusPorNutrienteSolo = classificarPorNutrienteSolo(analiseSolo, perfil);
+    const statusPorNutrienteFoliar = classificarPorNutrienteFoliar(analiseFoliar, perfilFoliar);
 
     resultado.push({
       talhaoId: t.id,
@@ -381,6 +408,9 @@ export async function montarManejoNutricional(
       dataAnaliseSoloAnterior: soloAnterior?.dataColeta.toISOString() ?? null,
       dataAnaliseFoliarAnterior: foliarAnterior?.dataColeta.toISOString() ?? null,
       statusGeralSolo,
+      statusGeralFoliar,
+      statusPorNutrienteSolo,
+      statusPorNutrienteFoliar,
       adubacoes,
       alertas: montarAlertas({ analiseSolo, analiseFoliar, adubacoes, variacaoAnual }),
     });

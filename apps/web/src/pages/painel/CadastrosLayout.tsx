@@ -15,7 +15,7 @@ export default function CadastrosLayout() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Cadastros</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           {propriedade?.nome ? (
             <>
               Tudo aqui pertence a <span className="font-medium text-gray-700">{propriedade.nome}</span>
@@ -39,7 +39,7 @@ export default function CadastrosLayout() {
               className={`px-3 py-2 text-sm font-medium ${
                 ativa
                   ? "border-b-2 border-green-700 text-green-800"
-                  : "text-gray-500 hover:text-gray-700"
+                  : "text-gray-600 hover:text-gray-700"
               }`}
             >
               {aba.rotula}

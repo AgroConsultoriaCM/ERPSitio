@@ -54,7 +54,7 @@ export default function Usuarios() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Usuários e permissões</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Cada usuário pertence a uma categoria de acesso. O que cada categoria pode ver e alterar é definido na aba
           Permissões.
         </p>
@@ -71,7 +71,7 @@ export default function Usuarios() {
             key={v}
             onClick={() => setAba(v)}
             className={`px-4 py-2 text-sm font-medium ${
-              aba === v ? "border-b-2 border-green-700 text-green-800" : "text-gray-500"
+              aba === v ? "border-b-2 border-green-700 text-green-800" : "text-gray-600"
             }`}
           >
             {label}
@@ -129,7 +129,7 @@ export default function Usuarios() {
 
           <div className="overflow-hidden rounded-xl bg-white shadow-sm">
             <table className="w-full text-left text-sm">
-              <thead className="bg-gray-100 text-gray-500">
+              <thead className="bg-gray-100 text-gray-600">
                 <tr>
                   <th className="px-4 py-2">Nome</th>
                   <th className="px-4 py-2">E-mail</th>
@@ -142,10 +142,10 @@ export default function Usuarios() {
                 {usuarios?.map((u) => {
                   const ehVoce = u.id === usuarioLogado?.id;
                   return (
-                    <tr key={u.id} className={`border-t ${u.ativo ? "" : "text-gray-400"}`}>
+                    <tr key={u.id} className={`border-t ${u.ativo ? "" : "text-gray-500"}`}>
                       <td className="px-4 py-2">
                         {u.nome}
-                        {ehVoce && <span className="ml-2 text-xs text-gray-400">(você)</span>}
+                        {ehVoce && <span className="ml-2 text-xs text-gray-500">(você)</span>}
                       </td>
                       <td className="px-4 py-2">{u.email}</td>
                       <td className="px-4 py-2">
@@ -168,7 +168,7 @@ export default function Usuarios() {
                         <button
                           onClick={() => alternarAtivo.mutate({ id: u.id, ativo: !u.ativo })}
                           disabled={ehVoce}
-                          className={`disabled:text-gray-300 ${u.ativo ? "text-red-600" : "text-green-700"}`}
+                          className={`disabled:text-gray-500 ${u.ativo ? "text-red-600" : "text-green-700"}`}
                           title={ehVoce ? "Você não pode desativar a si mesmo" : undefined}
                         >
                           {u.ativo ? "Desativar" : "Reativar"}
@@ -252,7 +252,7 @@ function MatrizPermissoes() {
     },
   });
 
-  if (!data) return <p className="text-sm text-gray-400">Carregando...</p>;
+  if (!data) return <p className="text-sm text-gray-500">Carregando...</p>;
 
   return (
     <div className="space-y-4">
@@ -266,7 +266,7 @@ function MatrizPermissoes() {
         </div>
       )}
 
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-gray-600">
         Marque o que cada categoria pode <strong>ver</strong> (abrir a tela) e <strong>editar</strong> (criar,
         alterar, excluir). Marcar "editar" liga o "ver" automaticamente.
       </p>
@@ -283,14 +283,14 @@ function MatrizPermissoes() {
                     : "Encarregado"}
               </p>
               {linha.fixo && (
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
                   acesso total
                 </span>
               )}
             </div>
 
             {linha.fixo && (
-              <p className="mb-3 text-xs text-gray-400">
+              <p className="mb-3 text-xs text-gray-500">
                 O administrador tem acesso a tudo e não pode ser limitado — assim ninguém fica trancado para fora
                 do sistema.
               </p>
@@ -298,7 +298,7 @@ function MatrizPermissoes() {
 
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="text-xs text-gray-400">
+                <tr className="text-xs text-gray-500">
                   <th className="pb-1">Área</th>
                   <th className="pb-1 text-center">Ver</th>
                   <th className="pb-1 text-center">Editar</th>

@@ -26,7 +26,7 @@ export default function AbaMapa({ poligono, onChange }: Props) {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-gray-600">
         O contorno tracejado é o limite da propriedade. Use o ícone de polígono na barra de ferramentas para desenhar
         o contorno deste talhão dentro dele — sem limite de vértices, editável ou removível depois.
       </p>

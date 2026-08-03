@@ -85,7 +85,7 @@ export default function Pragas() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Controle de pragas</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           O sistema acompanha quando cada talhão recebeu cada tipo de produto e avisa quando passa do intervalo que
           você definir. Os alertas são um lembrete para sua decisão — o sistema não aplica nada sozinho.
         </p>
@@ -101,7 +101,7 @@ export default function Pragas() {
           )}
         </p>
         {!alertas?.length ? (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-500">
             Nenhum alerta. {regras?.length ? "Tudo dentro do intervalo." : "Cadastre uma regra abaixo para começar."}
           </p>
         ) : (
@@ -127,7 +127,7 @@ export default function Pragas() {
                     {a.diasVencido} dia{a.diasVencido === 1 ? "" : "s"} vencido)
                   </span>
                 )}
-                <span className="ml-1 text-xs text-gray-500">· regra "{a.regraNome}"</span>
+                <span className="ml-1 text-xs text-gray-600">· regra "{a.regraNome}"</span>
               </li>
             ))}
           </ul>
@@ -220,7 +220,7 @@ export default function Pragas() {
         <div className="overflow-hidden rounded-xl bg-white shadow-sm">
           <p className="border-b bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">Regras</p>
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-100 text-gray-500">
+            <thead className="bg-gray-100 text-gray-600">
               <tr>
                 <th className="px-4 py-2">Nome</th>
                 <th className="px-4 py-2">Função</th>
@@ -232,7 +232,7 @@ export default function Pragas() {
             </thead>
             <tbody>
               {regras.map((r) => (
-                <tr key={r.id} className={`border-t ${r.ativo ? "" : "text-gray-400"}`}>
+                <tr key={r.id} className={`border-t ${r.ativo ? "" : "text-gray-500"}`}>
                   <td className="px-4 py-2">{r.nome}</td>
                   <td className="px-4 py-2">{ROTULO_FUNCAO_INSUMO[r.funcao]}</td>
                   <td className="px-4 py-2">{r.intervaloDias} dias</td>
@@ -272,7 +272,7 @@ export default function Pragas() {
           Última aplicação por talhão (dias atrás)
         </p>
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Talhão</th>
               {funcoesMonitoradas.map((f) => (
@@ -298,7 +298,7 @@ export default function Pragas() {
                           {ap.diasAtras}d
                         </span>
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-gray-500">—</span>
                       )}
                     </td>
                   );
@@ -307,7 +307,7 @@ export default function Pragas() {
             ))}
           </tbody>
         </table>
-        <p className="border-t px-4 py-2 text-xs text-gray-400">
+        <p className="border-t px-4 py-2 text-xs text-gray-500">
           Preenchido automaticamente pelas operações que usaram produtos com função definida no cadastro de insumos.
         </p>
       </div>

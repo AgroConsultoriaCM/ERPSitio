@@ -62,7 +62,7 @@ export default function Irrigacao() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Manejo hídrico</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Registro de irrigação por setor, com chuva registrada e previsão do tempo da coordenada da propriedade.
         </p>
       </div>
@@ -79,19 +79,19 @@ export default function Irrigacao() {
         <div className="space-y-4 rounded-xl bg-white p-4 shadow-sm">
           <div className="flex flex-wrap gap-8">
             <div>
-              <p className="text-xs text-gray-400">Chuva últimos 7 dias</p>
+              <p className="text-xs text-gray-500">Chuva últimos 7 dias</p>
               <p className="text-2xl font-bold text-sky-700">{num(clima.data.chuva7DiasMm)} mm</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Últimos 30 dias</p>
+              <p className="text-xs text-gray-500">Últimos 30 dias</p>
               <p className="text-2xl font-bold text-gray-800">{num(clima.data.chuva30DiasMm)} mm</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Previsão próximos 7 dias</p>
+              <p className="text-xs text-gray-500">Previsão próximos 7 dias</p>
               <p className="text-2xl font-bold text-sky-700">{num(clima.data.chuvaPrevista7DiasMm)} mm</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Dias sem chuva (≥1 mm)</p>
+              <p className="text-xs text-gray-500">Dias sem chuva (≥1 mm)</p>
               <p
                 className={`text-2xl font-bold ${
                   (clima.data.diasSemChuva ?? 0) > 7 ? "text-amber-700" : "text-gray-800"
@@ -109,7 +109,7 @@ export default function Irrigacao() {
                 const altura = Math.max(2, ((d.chuvaMm ?? 0) / maxChuva) * 60);
                 return (
                   <div key={d.data} className="flex w-9 shrink-0 flex-col items-center gap-1">
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-gray-500">
                       {d.chuvaMm ? num(d.chuvaMm) : ""}
                     </span>
                     <div
@@ -119,7 +119,7 @@ export default function Irrigacao() {
                         d.chuvaMm,
                       )} mm`}
                     />
-                    <span className="text-[10px] text-gray-500">
+                    <span className="text-[10px] text-gray-600">
                       {new Date(d.data + "T12:00").toLocaleDateString("pt-BR", {
                         day: "2-digit",
                         month: "2-digit",
@@ -129,7 +129,7 @@ export default function Irrigacao() {
                 );
               })}
             </div>
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               Azul escuro = já ocorrido · azul claro = previsão. Fonte: Open-Meteo.
             </p>
           </div>
@@ -141,7 +141,7 @@ export default function Irrigacao() {
           Situação dos setores
         </p>
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Setor</th>
               <th className="px-4 py-2">Área</th>
@@ -176,7 +176,7 @@ export default function Irrigacao() {
           </tbody>
         </table>
         {situacao?.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">
+          <p className="px-4 py-6 text-center text-sm text-gray-500">
             Nenhum setor de irrigação cadastrado. Cadastre em "Setores de irrigação".
           </p>
         )}
@@ -235,7 +235,7 @@ export default function Irrigacao() {
       <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         <p className="border-b bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">Histórico</p>
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Data</th>
               <th className="px-4 py-2">Setor</th>
@@ -268,7 +268,7 @@ export default function Irrigacao() {
           </tbody>
         </table>
         {registros?.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma irrigação registrada ainda.</p>
+          <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhuma irrigação registrada ainda.</p>
         )}
       </div>
     </div>

@@ -36,6 +36,10 @@ import agrofitRoutes from "./routes/agrofit.routes.js";
 import sateliteRoutes from "./routes/satelite.routes.js";
 import manejoNutricionalRoutes from "./routes/manejoNutricional.routes.js";
 import laudosRoutes from "./routes/laudos.routes.js";
+import parametrosPulverizacaoRoutes from "./routes/parametrosPulverizacao.routes.js";
+import perfisBombaRoutes from "./routes/perfisBomba.routes.js";
+import caldasRoutes from "./routes/caldas.routes.js";
+import pulverizacoesRoutes from "./routes/pulverizacoes.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -96,6 +100,10 @@ export async function buildApp() {
       await api.register(sateliteRoutes);
       await api.register(manejoNutricionalRoutes);
       await api.register(laudosRoutes);
+      await api.register(parametrosPulverizacaoRoutes);
+      await api.register(perfisBombaRoutes);
+      await api.register(caldasRoutes);
+      await api.register(pulverizacoesRoutes);
     },
     { prefix: "/api/v1" },
   );

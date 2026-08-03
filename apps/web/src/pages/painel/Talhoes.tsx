@@ -23,7 +23,7 @@ export default function Talhoes() {
 
       <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Código</th>
@@ -53,7 +53,7 @@ export default function Talhoes() {
           </tbody>
         </table>
         {talhoes?.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">
+          <p className="px-4 py-6 text-center text-sm text-gray-500">
             Nenhum talhão cadastrado ainda.
           </p>
         )}

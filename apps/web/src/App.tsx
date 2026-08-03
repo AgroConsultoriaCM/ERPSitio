@@ -41,6 +41,10 @@ const Insumos = lazy(() => import("./pages/painel/Insumos"));
 const PerfisCorrecao = lazy(() => import("./pages/painel/PerfisCorrecao"));
 const AdicionarAnalise = lazy(() => import("./pages/painel/AdicionarAnalise"));
 const TiposOperacao = lazy(() => import("./pages/painel/TiposOperacao"));
+const ParametrosPulverizacao = lazy(() => import("./pages/painel/ParametrosPulverizacao"));
+const PerfisBomba = lazy(() => import("./pages/painel/PerfisBomba"));
+const Caldas = lazy(() => import("./pages/painel/Caldas"));
+const Pulverizacoes = lazy(() => import("./pages/painel/Pulverizacoes"));
 
 function Carregando() {
   return (
@@ -85,6 +89,7 @@ export default function App() {
                 </Route>
                 <Route element={<ExigePermissao modulo="operacoes" />}>
                   <Route path="atividades" element={<Atividades />} />
+                  <Route path="pulverizacoes" element={<Pulverizacoes />} />
                 </Route>
                 <Route element={<ExigePermissao modulo="pragas" />}>
                   <Route path="pragas" element={<Pragas />} />
@@ -94,6 +99,7 @@ export default function App() {
                 </Route>
                 <Route element={<ExigePermissao modulo="analises" />}>
                   <Route path="manejo-nutricional" element={<ManejoNutricional />} />
+                  <Route path="manejo-nutricional/:id" element={<ManejoNutricional />} />
                 </Route>
                 <Route element={<ExigePermissao modulo="estoque" />}>
                   <Route path="estoque" element={<Estoque />} />
@@ -120,6 +126,9 @@ export default function App() {
                   <Route path="perfis-correcao" element={<PerfisCorrecao />} />
                   <Route path="adicionar-analise" element={<AdicionarAnalise />} />
                   <Route path="tipos-operacao" element={<TiposOperacao />} />
+                  <Route path="parametros-pulverizacao" element={<ParametrosPulverizacao />} />
+                  <Route path="perfis-bomba" element={<PerfisBomba />} />
+                  <Route path="caldas" element={<Caldas />} />
                 </Route>
 
                 {/* rotas antigas -> novo lugar, para links salvos continuarem valendo */}

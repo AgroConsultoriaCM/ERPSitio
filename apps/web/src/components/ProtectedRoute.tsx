@@ -5,7 +5,7 @@ export function ProtectedRoute() {
   const { usuario, carregando } = useAuth();
 
   if (carregando) {
-    return <div className="flex h-screen items-center justify-center text-gray-500">Carregando...</div>;
+    return <div className="flex h-screen items-center justify-center text-gray-600">Carregando...</div>;
   }
 
   if (!usuario) return <Navigate to="/login" replace />;
@@ -30,7 +30,7 @@ export function ExigePermissao({ modulo }: { modulo: string }) {
   const { podeVer, carregando } = useAuth();
 
   if (carregando) {
-    return <p className="text-sm text-gray-400">Carregando...</p>;
+    return <p className="text-sm text-gray-500">Carregando...</p>;
   }
 
   if (!podeVer(modulo)) {

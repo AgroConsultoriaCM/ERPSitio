@@ -8,7 +8,7 @@ const statusCor: Record<string, string> = {
   BAIXO: "bg-red-100 text-red-800",
   ADEQUADO: "bg-green-100 text-green-800",
   ALTO: "bg-amber-100 text-amber-800",
-  SEM_REFERENCIA: "bg-gray-100 text-gray-500",
+  SEM_REFERENCIA: "bg-gray-100 text-gray-600",
 };
 
 function campoNum(
@@ -18,7 +18,7 @@ function campoNum(
 ) {
   return (
     <div>
-      <label className="mb-1 block text-xs text-gray-500">{label}</label>
+      <label className="mb-1 block text-xs text-gray-600">{label}</label>
       <input
         type="number"
         step="any"
@@ -154,7 +154,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
       <section>
         <h2 className="mb-2 text-lg font-semibold text-gray-700">Diagnóstico (última análise x perfil da cultura)</h2>
         {!diagnostico?.possuiAnalise && (
-          <p className="text-sm text-gray-500">{diagnostico?.mensagem}</p>
+          <p className="text-sm text-gray-600">{diagnostico?.mensagem}</p>
         )}
         {diagnostico?.possuiAnalise && !diagnostico.possuiPerfil && (
           <p className="text-sm text-amber-700">
@@ -164,7 +164,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
         )}
         {diagnostico?.possuiPerfil && (
           <div className="rounded-xl bg-white p-4 shadow-sm">
-            <p className="mb-3 text-sm text-gray-500">Perfil usado: {diagnostico.perfilNome}</p>
+            <p className="mb-3 text-sm text-gray-600">Perfil usado: {diagnostico.perfilNome}</p>
             <div className="flex flex-wrap gap-2">
               {diagnostico.parametros?.map((p) => (
                 <span key={p.parametro} className={`rounded-full px-3 py-1 text-xs font-medium ${statusCor[p.status]}`}>
@@ -209,7 +209,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
           <p className="mb-3 font-semibold">Novo lançamento</p>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="mb-1 block text-xs text-gray-500">Data de coleta</label>
+              <label className="mb-1 block text-xs text-gray-600">Data de coleta</label>
               <input
                 type="date"
                 value={soloForm.dataColeta}
@@ -218,7 +218,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-gray-500">Profundidade (cm)</label>
+              <label className="mb-1 block text-xs text-gray-600">Profundidade (cm)</label>
               <input
                 value={soloForm.profundidadeCm}
                 onChange={(e) => setSoloForm((f) => ({ ...f, profundidadeCm: e.target.value }))}
@@ -227,7 +227,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-gray-500">Laboratório</label>
+              <label className="mb-1 block text-xs text-gray-600">Laboratório</label>
               <input
                 value={soloForm.laboratorio}
                 onChange={(e) => setSoloForm((f) => ({ ...f, laboratorio: e.target.value }))}
@@ -285,7 +285,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
           <p className="mb-3 font-semibold">Novo lançamento</p>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="mb-1 block text-xs text-gray-500">Data de coleta</label>
+              <label className="mb-1 block text-xs text-gray-600">Data de coleta</label>
               <input
                 type="date"
                 value={foliarForm.dataColeta}
@@ -294,7 +294,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-gray-500">Estádio fenológico</label>
+              <label className="mb-1 block text-xs text-gray-600">Estádio fenológico</label>
               <input
                 value={foliarForm.estadioFenologico}
                 onChange={(e) => setFoliarForm((f) => ({ ...f, estadioFenologico: e.target.value }))}

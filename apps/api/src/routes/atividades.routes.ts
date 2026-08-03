@@ -1,9 +1,28 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { AppError, NaoEncontradoError } from "../lib/errors.js";
-import { ratearPorArea } from "../services/rateio.js";
+import { ratearPorArea, ratearPorPeso, type ParcelaRateio, type TalhaoParaRateio } from "../services/rateio.js";
 import { consumirDoEstoque, validarQuantidadesPulverizacao } from "../services/estoque.js";
 import type { PrismaClient } from "@erpsitio/db";
+
+/**
+ * Rateia por area (padrao) ou por um peso personalizado por talhao, quando
+ * fornecido - usado pela pulverizacao, que rateia por metros lineares
+ * percorridos em vez de area (ver services/pulverizacao.ts).
+ */
+function ratear(
+  talhoes: TalhaoParaRateio[],
+  custoTotal: number | null | undefined,
+  pesosPersonalizados?: Map<string, number>,
+): ParcelaRateio[] {
+  if (!pesosPersonalizados) return ratearPorArea(talhoes, custoTotal);
+  const porPeso = ratearPorPeso(
+    talhoes.map((t) => ({ id: t.id, peso: pesosPersonalizados.get(t.id) ?? 0 })),
+    custoTotal,
+  );
+  const porId = new Map(porPeso.map((p) => [p.id, p.custoRateado]));
+  return talhoes.map((t) => ({ talhaoId: t.id, areaHa: t.areaHa, custoRateado: porId.get(t.id) ?? null }));
+}
 
 // Duas formas de declarar o produto:
 //  - direto: "usei 5 L"  -> quantidade
@@ -24,7 +43,7 @@ const insumoUsadoSchema = z
 
 // A operacao aceita talhoes avulsos, grupos, ou os dois - o servidor resolve
 // os grupos em talhoes e remove duplicatas.
-const atividadeSchema = z
+export const atividadeSchema = z
   .object({
     clientId: z.string().min(1).optional(),
     tipoAtividadeId: z.string().uuid(),
@@ -57,7 +76,7 @@ const INCLUDE_COMPLETO = {
 
 // Expande grupos em talhoes e devolve a lista final (sem duplicatas), ja
 // com a area de cada um para o rateio.
-async function resolverTalhoes(
+export async function resolverTalhoes(
   prisma: PrismaClient,
   propriedadeId: string,
   talhaoIds: string[],
@@ -88,11 +107,12 @@ async function resolverTalhoes(
   return talhoes;
 }
 
-async function criarAtividade(
+export async function criarAtividade(
   prisma: PrismaClient,
   propriedadeId: string,
   responsavelId: string,
   dados: z.infer<typeof atividadeSchema>,
+  pesosPersonalizados?: Map<string, number>,
 ) {
   if (dados.clientId) {
     const existente = await prisma.atividade.findUnique({ where: { clientId: dados.clientId } });
@@ -100,7 +120,7 @@ async function criarAtividade(
   }
 
   const talhoes = await resolverTalhoes(prisma, propriedadeId, dados.talhaoIds, dados.grupoIds);
-  const parcelas = ratearPorArea(talhoes, dados.custoMaoDeObra);
+  const parcelas = ratear(talhoes, dados.custoMaoDeObra, pesosPersonalizados);
 
   const atividade = await prisma.$transaction(async (tx) => {
     const criada = await tx.atividade.create({
@@ -202,7 +222,11 @@ async function criarAtividade(
 
     // O custo dos produtos entra no rateio junto com a mao de obra.
     if (custoInsumosTotal > 0) {
-      const parcelasComInsumo = ratearPorArea(talhoes, (dados.custoMaoDeObra ?? 0) + custoInsumosTotal);
+      const parcelasComInsumo = ratear(
+        talhoes,
+        (dados.custoMaoDeObra ?? 0) + custoInsumosTotal,
+        pesosPersonalizados,
+      );
       for (const p of parcelasComInsumo) {
         await tx.atividadeTalhao.updateMany({
           where: { atividadeId: criada.id, talhaoId: p.talhaoId },

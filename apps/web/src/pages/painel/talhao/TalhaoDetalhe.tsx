@@ -88,7 +88,7 @@ export default function TalhaoDetalhe() {
 
   return (
     <div className="space-y-4">
-      <button onClick={() => navigate("/painel/cadastros/talhoes")} className="text-sm text-gray-500 hover:underline">
+      <button onClick={() => navigate("/painel/cadastros/talhoes")} className="text-sm text-gray-600 hover:underline">
         ← Voltar para talhões
       </button>
       <div className="flex items-baseline gap-3">
@@ -114,7 +114,7 @@ export default function TalhaoDetalhe() {
             key={valor}
             onClick={() => setAba(valor)}
             className={`px-4 py-2 text-sm font-medium ${
-              aba === valor ? "border-b-2 border-green-700 text-green-800" : "text-gray-500"
+              aba === valor ? "border-b-2 border-green-700 text-green-800" : "text-gray-600"
             }`}
           >
             {label}
@@ -135,22 +135,22 @@ export default function TalhaoDetalhe() {
 
           <div className="grid grid-cols-2 gap-3 rounded-md bg-gray-50 p-3 text-sm">
             <div>
-              <p className="text-gray-500">Código</p>
+              <p className="text-gray-600">Código</p>
               <p className="font-medium text-gray-700">{talhao?.codigo ?? "-"}</p>
             </div>
             <div>
-              <p className="text-gray-500">Área (do contorno)</p>
+              <p className="text-gray-600">Área (do contorno)</p>
               <p className="font-medium text-gray-700">
                 {talhao?.areaHa != null ? formatarArea(talhao.areaHa) : "-"}
               </p>
             </div>
             {plantasEstimadas != null && (
               <div className="col-span-2">
-                <p className="text-gray-500">Plantas estimadas</p>
+                <p className="text-gray-600">Plantas estimadas</p>
                 <p className="font-medium text-gray-700">~{plantasEstimadas.toLocaleString("pt-BR")} plantas</p>
               </div>
             )}
-            <p className="col-span-2 text-xs text-gray-400">
+            <p className="col-span-2 text-xs text-gray-500">
               Gerados automaticamente. A área é recalculada quando o contorno é redesenhado na aba Mapa/Polígono.
             </p>
           </div>
@@ -169,7 +169,7 @@ export default function TalhaoDetalhe() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               Necessária para o diagnóstico de solo comparar com o perfil de correção da cultura.
             </p>
           </div>

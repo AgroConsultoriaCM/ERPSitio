@@ -570,3 +570,57 @@ export interface NotaDetalhe extends Omit<NotaResumo, "quantidadeLotes"> {
   observacoes: string | null;
   itens: ItemNotaDetalhe[];
 }
+
+export interface ParametroPulverizacao {
+  id: string;
+  chuvaMmZero: number;
+  chuvaProbPctZero: number;
+  ventoIdealMinKmh: number;
+  ventoIdealMaxKmh: number;
+  ventoZeroBaixoKmh: number;
+  ventoZeroAltoKmh: number;
+  umidadeIdealMinPct: number;
+  umidadeZeroPct: number;
+  kcCultura: number;
+}
+
+export interface PerfilBomba {
+  id: string;
+  nome: string;
+  capacidadeLitros: number;
+}
+
+export interface CaldaItem {
+  id: string;
+  insumoId: string;
+  dosePor100L: number;
+  insumo?: { id: string; nome: string; unidadeMedida: string };
+}
+
+export interface Calda {
+  id: string;
+  nome: string;
+  observacoes?: string | null;
+  itens: CaldaItem[];
+}
+
+export interface RegistroPulverizacaoTalhao {
+  id: string;
+  talhaoId: string;
+  metrosLineares: number;
+  talhao?: { id: string; nome: string; codigo: string | null };
+}
+
+export interface RegistroPulverizacao {
+  id: string;
+  data: string;
+  bombaId: string;
+  bomba?: PerfilBomba;
+  numeroCargas: number;
+  volumeTotalLitros: number;
+  caldaId: string | null;
+  calda?: Calda | null;
+  caldaAdHoc?: { insumoId: string; dosePor100L: number }[] | null;
+  atividadeId: string;
+  talhoes: RegistroPulverizacaoTalhao[];
+}

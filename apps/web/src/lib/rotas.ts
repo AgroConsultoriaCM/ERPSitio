@@ -5,9 +5,11 @@ export const ROTAS = {
   mapa: "/painel/mapa",
   colheitas: "/painel/colheitas",
   operacoes: "/painel/atividades",
+  pulverizacoes: "/painel/pulverizacoes",
   pragas: "/painel/pragas",
   irrigacao: "/painel/irrigacao",
   manejoNutricional: "/painel/manejo-nutricional",
+  manejoNutricionalTalhao: (id: string) => `/painel/manejo-nutricional/${id}`,
   estoque: "/painel/estoque",
   notas: "/painel/notas",
   usuarios: "/painel/usuarios",
@@ -28,6 +30,9 @@ export const ROTAS = {
   perfisCorrecao: "/painel/cadastros/perfis-correcao",
   adicionarAnalise: "/painel/cadastros/adicionar-analise",
   tiposOperacao: "/painel/cadastros/tipos-operacao",
+  parametrosPulverizacao: "/painel/cadastros/parametros-pulverizacao",
+  perfisBomba: "/painel/cadastros/perfis-bomba",
+  caldas: "/painel/cadastros/caldas",
 } as const;
 
 export interface AbaCadastro {
@@ -58,5 +63,20 @@ export const ABAS_CADASTRO: AbaCadastro[] = [
     rota: ROTAS.adicionarAnalise,
     rotula: "Adicionar análise",
     descricao: "Importar laudos de solo, folha e composto",
+  },
+  {
+    rota: ROTAS.parametrosPulverizacao,
+    rotula: "Janela de pulverização",
+    descricao: "Parâmetros ideais de chuva, vento e umidade",
+  },
+  {
+    rota: ROTAS.perfisBomba,
+    rotula: "Bombas de pulverização",
+    descricao: "Capacidade em litros de cada bomba",
+  },
+  {
+    rota: ROTAS.caldas,
+    rotula: "Caldas",
+    descricao: "Receitas de calda para pulverização",
   },
 ];

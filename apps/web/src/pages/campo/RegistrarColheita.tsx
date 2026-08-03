@@ -186,7 +186,7 @@ export default function RegistrarColheita() {
         {salvando ? "Salvando..." : "Salvar colheita"}
       </button>
 
-      <p className="text-center text-xs text-gray-500">
+      <p className="text-center text-xs text-gray-600">
         Pode lançar várias vezes no mesmo dia, em talhões diferentes ou com outro empreiteiro.
       </p>
     </div>

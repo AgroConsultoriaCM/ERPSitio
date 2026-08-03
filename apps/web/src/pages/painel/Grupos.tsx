@@ -49,7 +49,7 @@ export default function Grupos() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Grupos de talhões</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Atalhos para lançar operações em vários talhões de uma vez. No app de campo, o encarregado escolhe o grupo
           e o sistema resolve os talhões. Um talhão pode estar em vários grupos.
         </p>
@@ -73,7 +73,7 @@ export default function Grupos() {
         <p className="mb-2 text-sm font-medium text-gray-700">
           Talhões do grupo
           {talhaoIds.length > 0 && (
-            <span className="ml-2 font-normal text-gray-500">
+            <span className="ml-2 font-normal text-gray-600">
               {talhaoIds.length} selecionado{talhaoIds.length > 1 ? "s" : ""} ·{" "}
               {areaSelecionada.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ha
             </span>
@@ -115,7 +115,7 @@ export default function Grupos() {
 
       <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Grupo</th>
               <th className="px-4 py-2">Talhões</th>
@@ -161,7 +161,7 @@ export default function Grupos() {
           </tbody>
         </table>
         {grupos?.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhum grupo cadastrado ainda.</p>
+          <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhum grupo cadastrado ainda.</p>
         )}
       </div>
     </div>

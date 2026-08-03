@@ -222,11 +222,11 @@ export default function NovaAtividade() {
                   {t.nome}
                 </span>
                 {t.areaHa != null && (
-                  <span className="ml-auto text-xs text-gray-400">{t.areaHa} ha</span>
+                  <span className="ml-auto text-xs text-gray-500">{t.areaHa} ha</span>
                 )}
               </label>
             ))}
-            {talhoes.length === 0 && <p className="p-2 text-sm text-gray-400">Nenhum talhão.</p>}
+            {talhoes.length === 0 && <p className="p-2 text-sm text-gray-500">Nenhum talhão.</p>}
           </div>
         ) : (
           <>
@@ -243,7 +243,7 @@ export default function NovaAtividade() {
               ))}
             </select>
             {grupoSelecionado && (
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-gray-600">
                 {grupoSelecionado.talhoes.map((t) => t.nome).join(", ")}
               </p>
             )}
@@ -286,7 +286,7 @@ export default function NovaAtividade() {
             placeholder="Ex: 250,00"
             className="w-full rounded-md border border-gray-300 px-3 py-3 text-base"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-gray-600">
             O valor é dividido entre os talhões proporcionalmente à área de cada um.
           </p>
         </div>
@@ -354,7 +354,7 @@ export default function NovaAtividade() {
                 {modoSobra ? (
                   <div className="mt-2 flex items-center gap-2">
                     <div className="flex-1">
-                      <label className="text-xs text-gray-500">Levou</label>
+                      <label className="text-xs text-gray-600">Levou</label>
                       <input
                         type="number"
                         min="0"
@@ -365,7 +365,7 @@ export default function NovaAtividade() {
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="text-xs text-gray-500">Voltou</label>
+                      <label className="text-xs text-gray-600">Voltou</label>
                       <input
                         type="number"
                         min="0"
@@ -376,7 +376,7 @@ export default function NovaAtividade() {
                       />
                     </div>
                     <div className="w-20 text-center">
-                      <p className="text-xs text-gray-500">Usou</p>
+                      <p className="text-xs text-gray-600">Usou</p>
                       <p className="text-sm font-semibold text-green-800">
                         {usado != null && usado >= 0 ? `${usado} ${linha.unidade}` : "-"}
                       </p>
@@ -393,7 +393,7 @@ export default function NovaAtividade() {
                       onChange={(e) => atualizarLinha(index, "quantidade", e.target.value)}
                       className="flex-1 rounded-md border border-gray-300 px-2 py-2 text-sm"
                     />
-                    <span className="w-10 text-xs text-gray-500">{linha.unidade}</span>
+                    <span className="w-10 text-xs text-gray-600">{linha.unidade}</span>
                   </div>
                 )}
               </div>
@@ -401,7 +401,7 @@ export default function NovaAtividade() {
           })}
         </div>
         {linhasInsumo.length > 0 && (
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-gray-600">
             O custo sai do preço da compra e é rateado entre os talhões por área.
           </p>
         )}

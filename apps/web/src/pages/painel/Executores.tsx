@@ -48,7 +48,7 @@ export default function Executores() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Executores</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Quem realiza os serviços: sua própria equipe, empreiteiros de colheita e prestadores. Cadastrar aqui evita
           redigitar o nome a cada lançamento e permite ver o custo por prestador.
         </p>
@@ -105,7 +105,7 @@ export default function Executores() {
 
       <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Tipo</th>
@@ -116,7 +116,7 @@ export default function Executores() {
           </thead>
           <tbody>
             {executores?.map((e) => (
-              <tr key={e.id} className={`border-t ${e.ativo ? "" : "text-gray-400"}`}>
+              <tr key={e.id} className={`border-t ${e.ativo ? "" : "text-gray-500"}`}>
                 <td className="px-4 py-2">{e.nome}</td>
                 <td className="px-4 py-2">{ROTULO_TIPO_EXECUTOR[e.tipo]}</td>
                 <td className="px-4 py-2">{e.contato ?? "-"}</td>
@@ -146,7 +146,7 @@ export default function Executores() {
           </tbody>
         </table>
         {executores?.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhum executor cadastrado.</p>
+          <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhum executor cadastrado.</p>
         )}
       </div>
     </div>

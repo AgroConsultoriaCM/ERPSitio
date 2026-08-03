@@ -88,7 +88,7 @@ export default function Propriedade() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Propriedade</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Cadastre o contorno da propriedade primeiro — os talhões serão desenhados dentro dele, e todos os mapas do
           sistema vão centralizar automaticamente aqui.
         </p>
@@ -131,7 +131,7 @@ export default function Propriedade() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Use o ícone de polígono para desenhar, ou o de edição para arrastar os vértices e ajustar os limites. Sem
           limite de vértices. <strong>O contorno salva sozinho</strong> a cada alteração — não precisa do botão
           acima, que é só para nome e localização.

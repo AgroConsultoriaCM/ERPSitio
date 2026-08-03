@@ -63,7 +63,7 @@ export default function NovoSetor() {
   if (!carregandoPropriedade && !propriedade?.poligono) {
     return (
       <div className="space-y-4">
-        <button onClick={() => navigate("/painel/cadastros/setores")} className="text-sm text-gray-500 hover:underline">
+        <button onClick={() => navigate("/painel/cadastros/setores")} className="text-sm text-gray-600 hover:underline">
           ← Voltar para setores
         </button>
         <h1 className="text-2xl font-bold text-gray-800">Novo setor de irrigação</h1>
@@ -80,7 +80,7 @@ export default function NovoSetor() {
 
   return (
     <div className="space-y-4">
-      <button onClick={() => navigate("/painel/cadastros/setores")} className="text-sm text-gray-500 hover:underline">
+      <button onClick={() => navigate("/painel/cadastros/setores")} className="text-sm text-gray-600 hover:underline">
         ← Voltar para setores
       </button>
       <h1 className="text-2xl font-bold text-gray-800">Novo setor de irrigação</h1>
@@ -121,11 +121,11 @@ export default function NovoSetor() {
 
         <div className="grid grid-cols-2 gap-3 rounded-md bg-gray-50 p-3 text-sm">
           <div>
-            <p className="text-gray-500">Código</p>
+            <p className="text-gray-600">Código</p>
             <p className="font-medium text-gray-700">gerado automaticamente</p>
           </div>
           <div>
-            <p className="text-gray-500">Área</p>
+            <p className="text-gray-600">Área</p>
             <p className="font-medium text-gray-700">
               {areaHa != null ? formatarArea(areaHa) : "calculada ao desenhar"}
             </p>
@@ -134,7 +134,7 @@ export default function NovoSetor() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           O tracejado escuro é o limite da propriedade e os contornos claros são os talhões (apenas referência — o
           setor pode cruzá-los livremente). O setor precisa ficar dentro da propriedade.
         </p>
@@ -190,7 +190,7 @@ export default function NovoSetor() {
         {criar.isPending ? "Criando..." : "Criar setor"}
       </button>
       {!podeSalvar && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-600">
           {!nome
             ? "Informe o nome do setor."
             : !poligono

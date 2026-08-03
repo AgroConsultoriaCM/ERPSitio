@@ -23,7 +23,7 @@ const MICRONUTRIENTES_FOLIAR = [
 
 const campoNumerico = (label: string, valor: string, onChange: (v: string) => void) => (
   <div>
-    <label className="mb-1 block text-xs text-gray-500">{label}</label>
+    <label className="mb-1 block text-xs text-gray-600">{label}</label>
     <input
       type="number"
       step="any"
@@ -42,7 +42,7 @@ const campoFaixa = (
   onMax: (v: string) => void,
 ) => (
   <div>
-    <label className="mb-1 block text-xs text-gray-500">{label}</label>
+    <label className="mb-1 block text-xs text-gray-600">{label}</label>
     <div className="flex gap-1">
       <input
         type="number"
@@ -211,7 +211,7 @@ function PainelSolo({ nomesCultura }: { nomesCultura: string[] }) {
           <SeletorCultura nomesCultura={nomesCultura} value={culturaNome} onChange={setCulturaNome} />
         </div>
 
-        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">Macronutrientes e pH</p>
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-500">Macronutrientes e pH</p>
         <div className="mt-2 grid grid-cols-3 gap-3">
           {campoNumerico("pH mínimo", campos.phIdealMin, (v) => setCampos((c) => ({ ...c, phIdealMin: v })))}
           {campoNumerico("pH máximo", campos.phIdealMax, (v) => setCampos((c) => ({ ...c, phIdealMax: v })))}
@@ -235,7 +235,7 @@ function PainelSolo({ nomesCultura }: { nomesCultura: string[] }) {
           )}
         </div>
 
-        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-500">
           Relações (equilíbrio catiônico)
         </p>
         <div className="mt-2 grid grid-cols-3 gap-3">
@@ -250,7 +250,7 @@ function PainelSolo({ nomesCultura }: { nomesCultura: string[] }) {
           )}
         </div>
 
-        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">Micronutrientes</p>
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-500">Micronutrientes</p>
         <div className="mt-2 grid grid-cols-3 gap-3">
           {MICRONUTRIENTES.map(([chave, label]) =>
             campoNumerico(label, micros[chave], (v) => setMicros((c) => ({ ...c, [chave]: v }))),
@@ -283,7 +283,7 @@ function PainelSolo({ nomesCultura }: { nomesCultura: string[] }) {
 
       <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Cultura</th>
@@ -460,7 +460,7 @@ function PainelFoliar({ nomesCultura }: { nomesCultura: string[] }) {
           <SeletorCultura nomesCultura={nomesCultura} value={culturaNome} onChange={setCulturaNome} />
         </div>
 
-        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-500">
           Faixa ideal (mínimo e máximo) por nutriente
         </p>
         <div className="mt-2 grid grid-cols-3 gap-3">
@@ -508,7 +508,7 @@ function PainelFoliar({ nomesCultura }: { nomesCultura: string[] }) {
           )}
         </div>
 
-        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">Micronutrientes</p>
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-500">Micronutrientes</p>
         <div className="mt-2 grid grid-cols-3 gap-3">
           {MICRONUTRIENTES_FOLIAR.map(([chave, label]) =>
             campoFaixa(
@@ -547,7 +547,7 @@ function PainelFoliar({ nomesCultura }: { nomesCultura: string[] }) {
 
       <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Cultura</th>
@@ -597,7 +597,7 @@ export default function PerfisCorrecao() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Perfis de correção</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Valores ideais por cultura, usados para comparar automaticamente com as análises dos talhões. O perfil vale
           pela espécie (Limão, Abacate) — não por variedade, então uma variedade nova não exige perfil novo.
         </p>
@@ -607,7 +607,7 @@ export default function PerfisCorrecao() {
         <button
           onClick={() => setAba("solo")}
           className={`px-4 py-2 text-sm font-medium ${
-            aba === "solo" ? "border-b-2 border-green-700 text-green-700" : "text-gray-500"
+            aba === "solo" ? "border-b-2 border-green-700 text-green-700" : "text-gray-600"
           }`}
         >
           Análise de solo
@@ -615,7 +615,7 @@ export default function PerfisCorrecao() {
         <button
           onClick={() => setAba("foliar")}
           className={`px-4 py-2 text-sm font-medium ${
-            aba === "foliar" ? "border-b-2 border-green-700 text-green-700" : "text-gray-500"
+            aba === "foliar" ? "border-b-2 border-green-700 text-green-700" : "text-gray-600"
           }`}
         >
           Análise foliar
@@ -624,12 +624,12 @@ export default function PerfisCorrecao() {
 
       {aba === "solo" ? (
         <>
-          <p className="text-sm text-gray-500">Um valor ideal por nutriente — a análise de solo compara contra ele.</p>
+          <p className="text-sm text-gray-600">Um valor ideal por nutriente — a análise de solo compara contra ele.</p>
           <PainelSolo nomesCultura={nomesCultura} />
         </>
       ) : (
         <>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-600">
             Faixa (mínimo e máximo) por nutriente — a análise foliar é interpretada como dentro ou fora da faixa.
           </p>
           <PainelFoliar nomesCultura={nomesCultura} />

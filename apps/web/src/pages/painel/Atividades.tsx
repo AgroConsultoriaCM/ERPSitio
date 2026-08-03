@@ -23,7 +23,7 @@ export default function Atividades() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Operações</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Poda, desbrota, pulverização, fertirrigação e demais serviços lançados pelo encarregado. O custo de
           terceiros é rateado entre os talhões proporcionalmente à área.
         </p>
@@ -31,7 +31,7 @@ export default function Atividades() {
 
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-3 py-2">Data</th>
               <th className="px-3 py-2">Operação</th>
@@ -57,7 +57,7 @@ export default function Atividades() {
                         {t.talhao.codigo ? `${t.talhao.codigo} · ` : ""}
                         {t.talhao.nome}
                         {t.custoRateado != null && (
-                          <span className="ml-1 text-xs text-gray-400">({moeda(t.custoRateado)})</span>
+                          <span className="ml-1 text-xs text-gray-500">({moeda(t.custoRateado)})</span>
                         )}
                       </li>
                     ))}
@@ -97,7 +97,7 @@ export default function Atividades() {
           )}
         </table>
         {atividades?.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma operação lançada ainda.</p>
+          <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhuma operação lançada ainda.</p>
         )}
       </div>
     </div>

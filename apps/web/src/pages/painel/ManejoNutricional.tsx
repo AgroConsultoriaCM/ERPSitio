@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CartesianGrid,
   Line,
@@ -12,15 +13,17 @@ import {
 } from "recharts";
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   CloudOff,
   FlaskConical,
+  ImageOff,
   Leaf,
   Satellite,
   Sprout,
   TestTube,
 } from "lucide-react";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, getAccessToken } from "../../lib/api";
 import { ROTAS } from "../../lib/rotas";
 import { Aviso, Cartao, EstadoVazio, Etiqueta, TituloSecao, numero } from "../../components/ui";
 
@@ -62,6 +65,9 @@ interface TalhaoNutricional {
   dataAnaliseSoloAnterior: string | null;
   dataAnaliseFoliarAnterior: string | null;
   statusGeralSolo: StatusGeral;
+  statusGeralFoliar: StatusGeral;
+  statusPorNutrienteSolo: Record<string, StatusGeral>;
+  statusPorNutrienteFoliar: Record<string, StatusGeral>;
   adubacoes: Adubacao[];
   alertas: Alerta[];
 }
@@ -94,7 +100,7 @@ const COR_STATUS_GERAL: Record<StatusGeral, string> = {
   SEM_REFERENCIA: "bg-terra-200",
 };
 
-const TITULO_STATUS_GERAL: Record<StatusGeral, string> = {
+const TITULO_STATUS: Record<StatusGeral, string> = {
   BAIXO: "faltando bastante frente ao perfil da cultura",
   MARGEM: "na margem inferior do perfil da cultura",
   ADEQUADO: "dentro ou um pouco acima do perfil da cultura",
@@ -102,11 +108,17 @@ const TITULO_STATUS_GERAL: Record<StatusGeral, string> = {
   SEM_REFERENCIA: "sem perfil de correção cadastrado para esta cultura ainda",
 };
 
-function BolinhaStatusGeral({ status }: { status: StatusGeral }) {
+/** Do pior para o melhor, para combinar o status geral de solo+folha num resumo só (cards da overview). */
+const PRIORIDADE: StatusGeral[] = ["BAIXO", "ALTO", "MARGEM", "ADEQUADO", "SEM_REFERENCIA"];
+function piorStatus(a: StatusGeral, b: StatusGeral): StatusGeral {
+  return PRIORIDADE.indexOf(a) <= PRIORIDADE.indexOf(b) ? a : b;
+}
+
+function Bolinha({ status, className = "h-2.5 w-2.5" }: { status: StatusGeral; className?: string }) {
   return (
     <span
-      title={`Última análise de solo: ${TITULO_STATUS_GERAL[status]}`}
-      className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${COR_STATUS_GERAL[status]}`}
+      title={TITULO_STATUS[status]}
+      className={`inline-block shrink-0 rounded-full ${COR_STATUS_GERAL[status]} ${className}`}
     />
   );
 }
@@ -131,19 +143,27 @@ function Numero({
   chave,
   valor,
   variacao,
+  status,
 }: {
   chave: string;
   valor: unknown;
   /** % frente à análise anterior (a penúltima coleta). Ausente quando não há com o que comparar. */
   variacao?: number;
+  /** Status deste nutriente x perfil da cultura — a bolinha do card. Omitida quando não há referência. */
+  status?: StatusGeral;
 }) {
   if (valor == null || valor === "") return null;
   return (
     <div className="relative rounded-lg bg-terra-50 px-2.5 py-1.5">
+      {status && status !== "SEM_REFERENCIA" && (
+        <span className="absolute left-1.5 top-1.5">
+          <Bolinha status={status} className="h-2 w-2" />
+        </span>
+      )}
       {variacao != null && (
         <span
-          className={`absolute right-1 top-1 text-[9px] font-bold leading-none ${
-            variacao < 0 ? "text-red-600" : variacao > 0 ? "text-mata-600" : "text-terra-400"
+          className={`absolute right-1 top-1 text-[10px] font-bold leading-none ${
+            variacao < 0 ? "text-red-600" : variacao > 0 ? "text-mata-600" : "text-terra-500"
           }`}
           title="Variação frente à análise anterior (a penúltima coleta)"
         >
@@ -152,15 +172,75 @@ function Numero({
         </span>
       )}
       {/* Sem "uppercase": os rótulos já vêm na grafia química certa (Mg, Ca, H+Al) - forçar caixa alta virava "MG", "CA". */}
-      <p className="text-[10px] tracking-wide text-terra-400">{ROTULO_NUTRIENTE[chave] ?? chave}</p>
-      <p className="numero text-sm font-semibold text-terra-800">
+      <p className="text-center text-xs tracking-wide text-terra-500">{ROTULO_NUTRIENTE[chave] ?? chave}</p>
+      <p className="numero text-center text-base font-semibold text-terra-800">
         {typeof valor === "number" ? numero(valor, 2) : String(valor)}
       </p>
     </div>
   );
 }
 
-function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
+/** Busca a imagem NDVI autenticada (Bearer, não cookie) como blob — <img src> puro não manda o token. */
+function useImagemSatelite(talhaoId: string, ativo: boolean) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [erro, setErro] = useState(false);
+  const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    if (!ativo) return;
+    let objectUrl: string | null = null;
+    let cancelado = false;
+    setCarregando(true);
+    setErro(false);
+
+    const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333/api/v1";
+    fetch(`${API_URL}/talhoes/${talhaoId}/ndvi.png?dias=60&largura=640`, {
+      headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("falhou");
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelado) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => !cancelado && setErro(true))
+      .finally(() => !cancelado && setCarregando(false));
+
+    return () => {
+      cancelado = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [talhaoId, ativo]);
+
+  return { url, erro, carregando };
+}
+
+function PainelSatelite({ talhaoId }: { talhaoId: string }) {
+  const { url, erro, carregando } = useImagemSatelite(talhaoId, true);
+  return (
+    <div className="overflow-hidden rounded-lg bg-terra-50">
+      {carregando && (
+        <div className="flex h-64 items-center justify-center text-sm text-terra-500">
+          Buscando imagem de satélite…
+        </div>
+      )}
+      {!carregando && erro && (
+        <div className="flex h-64 flex-col items-center justify-center gap-1.5 text-sm text-terra-500">
+          <ImageOff size={20} />
+          Imagem indisponível (satélite não configurado ou sem cena recente)
+        </div>
+      )}
+      {!carregando && url && (
+        <img src={url} alt="NDVI do talhão, últimos 60 dias" className="h-64 w-full object-contain" />
+      )}
+    </div>
+  );
+}
+
+function GraficoOsavi({ t }: { t: TalhaoNutricional }) {
   const serie = t.serieOsavi
     .filter((l) => l.pixels > 0 && l.osaviMedio != null)
     .map((l) => ({
@@ -169,172 +249,202 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
       osavi: Number(l.osaviMedio?.toFixed(3)),
     }));
 
-  // Marca no gráfico quando houve adubação: é o que permite olhar a curva e a
-  // aplicação na mesma linha do tempo. Correlação para o agrônomo julgar —
-  // entre uma coisa e outra há chuva, colheita e poda.
   const marcas = t.adubacoes
     .map((a) => ({ rotulo: mesCurto(a.data), foliar: a.temFoliar }))
     .filter((m) => serie.some((s) => s.rotulo === m.rotulo));
 
+  return (
+    <div>
+      <p className="mb-1.5 flex items-center justify-between text-sm font-semibold text-terra-700">
+        <span className="flex items-center gap-1.5">
+          <Satellite size={14} className="text-terra-500" />
+          Vigor (OSAVI) — 13 meses
+        </span>
+        {t.variacaoAnual != null && (
+          <span
+            title="Frente ao mesmo mês, um ano antes"
+            className={
+              t.variacaoAnual <= -10 ? "text-red-700" : t.variacaoAnual < 0 ? "text-amber-700" : "text-mata-700"
+            }
+          >
+            {t.variacaoAnual > 0 ? "+" : ""}
+            {t.variacaoAnual}% vs. ano passado
+          </span>
+        )}
+      </p>
+      {serie.length < 2 ? (
+        <div className="flex h-64 items-center justify-center rounded-lg bg-terra-50 text-sm text-terra-500">
+          sem cenas limpas suficientes
+        </div>
+      ) : (
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={serie} margin={{ top: 6, right: 6, left: -16, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="2 5" stroke="#e7e3db" vertical={false} />
+              <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: "#7a6f59" }} tickLine={false} interval="preserveStartEnd" minTickGap={14} />
+              <YAxis tick={{ fontSize: 11, fill: "#7a6f59" }} tickLine={false} axisLine={false} width={40} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e7e3db", fontSize: 12 }} formatter={(v: number) => [numero(v, 3), "OSAVI"]} />
+              {marcas.map((m, i) => (
+                <ReferenceLine key={i} x={m.rotulo} stroke={m.foliar ? "#c9dd1c" : "#8fbf9e"} strokeDasharray="3 3" />
+              ))}
+              <Line type="monotone" dataKey="osavi" stroke="#2a6844" strokeWidth={2.5} dot={{ r: 2.5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      {marcas.length > 0 && (
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-terra-600">
+          <span className="flex items-center gap-1">
+            <i className="h-2 w-3 border-t-2 border-dashed border-[#8fbf9e]" /> adubação de solo
+          </span>
+          <span className="flex items-center gap-1">
+            <i className="h-2 w-3 border-t-2 border-dashed border-[#c9dd1c]" /> nutrição foliar
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Cartão compacto de resumo, um por talhão, na overview. */
+function CartaoResumo({ t }: { t: TalhaoNutricional }) {
+  const status = piorStatus(t.statusGeralSolo, t.statusGeralFoliar);
   const critico = t.alertas.some((a) => a.gravidade === "critico");
   const temAlerta = t.alertas.length > 0;
+  const serie = t.serieOsavi.filter((l) => l.pixels > 0 && l.osaviMedio != null).slice(-8).map((l) => ({
+    rotulo: mesCurto(l.data),
+    osavi: Number(l.osaviMedio?.toFixed(3)),
+  }));
 
   return (
-    <Cartao className={critico ? "border-red-200" : temAlerta ? "border-amber-200" : ""}>
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+    <Link
+      to={ROTAS.manejoNutricionalTalhao(t.talhaoId)}
+      className={`group block rounded-2xl border bg-white p-4 shadow-cartao transition duration-200 ease-suave hover:-translate-y-0.5 hover:shadow-cartao-alto ${
+        critico ? "border-red-200" : temAlerta ? "border-amber-200" : "border-terra-100"
+      }`}
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
         <div>
-          <Link
-            to={`${ROTAS.talhoes}/${t.talhaoId}`}
-            className="group flex items-center gap-1.5 text-base font-semibold text-terra-900 hover:text-mata-700"
-          >
+          <p className="flex items-center gap-1.5 text-base font-semibold text-terra-900">
+            <Bolinha status={status} />
             {t.codigo ? `${t.codigo} · ` : ""}
             {t.nome}
-            <ArrowRight
-              size={14}
-              className="opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100"
-            />
-          </Link>
-          <p className="text-xs text-terra-500">
+          </p>
+          <p className="text-sm text-terra-600">
             {t.cultura ?? "sem cultura"}
             {t.areaHa != null && ` · ${numero(t.areaHa, 2)} ha`}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {t.alertas.map((a, i) => (
-            <Etiqueta key={i} tom={a.gravidade === "critico" ? "perigo" : "alerta"}>
-              {a.mensagem}
-            </Etiqueta>
-          ))}
-          {!temAlerta && <Etiqueta tom="mata">nutrição em dia</Etiqueta>}
-        </div>
+        <ArrowRight size={16} className="mt-1 shrink-0 text-terra-300 transition group-hover:translate-x-0.5 group-hover:text-mata-600" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div>
-          <p className="mb-1.5 flex items-center justify-between text-xs font-semibold text-terra-600">
-            <span className="flex items-center gap-1.5">
-              <Satellite size={13} className="text-terra-400" />
-              Vigor (OSAVI) — 13 meses
-            </span>
-            {t.variacaoAnual != null && (
-              <span
-                title="Frente ao mesmo mês, um ano antes"
-                className={
-                  t.variacaoAnual <= -10
-                    ? "text-red-700"
-                    : t.variacaoAnual < 0
-                      ? "text-amber-700"
-                      : "text-mata-700"
-                }
-              >
-                {t.variacaoAnual > 0 ? "+" : ""}
-                {t.variacaoAnual}% vs. ano passado
-              </span>
-            )}
-          </p>
-          {serie.length < 2 ? (
-            <div className="flex h-36 items-center justify-center rounded-lg bg-terra-50 text-xs text-terra-400">
-              sem cenas limpas suficientes
-            </div>
-          ) : (
-            <div className="h-36 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={serie} margin={{ top: 6, right: 6, left: -26, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="2 5" stroke="#e7e3db" vertical={false} />
-                  <XAxis
-                    dataKey="rotulo"
-                    tick={{ fontSize: 10, fill: "#94886f" }}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                    minTickGap={14}
-                  />
-                  <YAxis tick={{ fontSize: 10, fill: "#94886f" }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 10, border: "1px solid #e7e3db", fontSize: 12 }}
-                    formatter={(v: number) => [numero(v, 3), "OSAVI"]}
-                  />
-                  {marcas.map((m, i) => (
-                    <ReferenceLine
-                      key={i}
-                      x={m.rotulo}
-                      stroke={m.foliar ? "#c9dd1c" : "#8fbf9e"}
-                      strokeDasharray="3 3"
-                    />
-                  ))}
-                  <Line type="monotone" dataKey="osavi" stroke="#2a6844" strokeWidth={2.5} dot={{ r: 2.5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          {marcas.length > 0 && (
-            <p className="mt-1 flex flex-wrap items-center gap-x-3 text-[10px] text-terra-500">
-              <span className="flex items-center gap-1">
-                <i className="h-2 w-3 border-t-2 border-dashed border-[#8fbf9e]" /> adubação de solo
-              </span>
-              <span className="flex items-center gap-1">
-                <i className="h-2 w-3 border-t-2 border-dashed border-[#c9dd1c]" /> nutrição foliar
-              </span>
+      {serie.length >= 2 && (
+        <div className="h-12 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={serie}>
+              <Line type="monotone" dataKey="osavi" stroke="#2a6844" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {t.alertas.slice(0, 2).map((a, i) => (
+          <Etiqueta key={i} tom={a.gravidade === "critico" ? "perigo" : "alerta"}>
+            {a.mensagem}
+          </Etiqueta>
+        ))}
+        {!temAlerta && <Etiqueta tom="mata">nutrição em dia</Etiqueta>}
+      </div>
+    </Link>
+  );
+}
+
+/** Detalhe completo de um talhão: análises com bolinha por nutriente, satélite e adubações. */
+function DetalheTalhao({ t }: { t: TalhaoNutricional }) {
+  return (
+    <div className="escalonar space-y-4">
+      <Link to={ROTAS.manejoNutricional} className="flex items-center gap-1.5 text-sm font-medium text-terra-600 hover:text-mata-700">
+        <ArrowLeft size={15} />
+        Voltar para todos os talhões
+      </Link>
+
+      <Cartao>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <Link to={`${ROTAS.talhoes}/${t.talhaoId}`} className="group flex items-center gap-1.5 text-xl font-semibold text-terra-900 hover:text-mata-700">
+              {t.codigo ? `${t.codigo} · ` : ""}
+              {t.nome}
+              <ArrowRight size={16} className="opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
+            </Link>
+            <p className="text-sm text-terra-600">
+              {t.cultura ?? "sem cultura"}
+              {t.areaHa != null && ` · ${numero(t.areaHa, 2)} ha`}
             </p>
-          )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {t.alertas.map((a, i) => (
+              <Etiqueta key={i} tom={a.gravidade === "critico" ? "perigo" : "alerta"}>
+                {a.mensagem}
+              </Etiqueta>
+            ))}
+            {t.alertas.length === 0 && <Etiqueta tom="mata">nutrição em dia</Etiqueta>}
+          </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="relative">
-            <p className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold text-terra-600">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <GraficoOsavi t={t} />
+          <div>
+            <p className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-terra-700">
+              <Satellite size={14} className="text-terra-500" />
+              Imagem de satélite (NDVI, 60 dias)
+            </p>
+            <PainelSatelite talhaoId={t.talhaoId} />
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div>
+            <p className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm font-semibold text-terra-700">
               <span className="flex items-center gap-1.5">
-                <TestTube size={13} className="text-terra-400" />
+                <TestTube size={14} className="text-terra-500" />
                 Última análise de solo
                 {t.analiseSolo?.dataColeta && (
-                  <span className="font-normal text-terra-400">
-                    · {dataCurta(String(t.analiseSolo.dataColeta))}
-                  </span>
+                  <span className="font-normal text-terra-500">· {dataCurta(String(t.analiseSolo.dataColeta))}</span>
                 )}
               </span>
               {t.dataAnaliseSoloAnterior && (
-                <span className="font-normal text-terra-400">
-                  (comparado com {dataCurta(t.dataAnaliseSoloAnterior)})
-                </span>
+                <span className="font-normal text-terra-500">(comparado com {dataCurta(t.dataAnaliseSoloAnterior)})</span>
               )}
             </p>
             {t.analiseSolo ? (
-              <>
-                <div className="grid grid-cols-3 gap-1.5 pr-4 sm:grid-cols-4">
-                  {CAMPOS_SOLO.map((chave) => (
-                    <Numero
-                      key={chave}
-                      chave={chave}
-                      valor={t.analiseSolo![chave]}
-                      variacao={t.variacaoSolo[chave]}
-                    />
-                  ))}
-                </div>
-                {/* Bolinha de status: resumo da última análise x perfil de correção da cultura. */}
-                <div className="absolute -bottom-1 -right-1">
-                  <BolinhaStatusGeral status={t.statusGeralSolo} />
-                </div>
-              </>
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                {CAMPOS_SOLO.map((chave) => (
+                  <Numero
+                    key={chave}
+                    chave={chave}
+                    valor={t.analiseSolo![chave]}
+                    variacao={t.variacaoSolo[chave]}
+                    status={t.statusPorNutrienteSolo[chave]}
+                  />
+                ))}
+              </div>
             ) : (
-              <p className="rounded-lg bg-terra-50 px-3 py-2 text-xs text-terra-400">
-                nenhuma análise de solo lançada
-              </p>
+              <p className="rounded-lg bg-terra-50 px-3 py-2 text-sm text-terra-500">nenhuma análise de solo lançada</p>
             )}
           </div>
 
           <div>
-            <p className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold text-terra-600">
+            <p className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm font-semibold text-terra-700">
               <span className="flex items-center gap-1.5">
-                <Leaf size={13} className="text-terra-400" />
+                <Leaf size={14} className="text-terra-500" />
                 Última análise foliar
                 {t.analiseFoliar?.dataColeta && (
-                  <span className="font-normal text-terra-400">
-                    · {dataCurta(String(t.analiseFoliar.dataColeta))}
-                  </span>
+                  <span className="font-normal text-terra-500">· {dataCurta(String(t.analiseFoliar.dataColeta))}</span>
                 )}
               </span>
               {t.dataAnaliseFoliarAnterior && (
-                <span className="font-normal text-terra-400">
-                  (comparado com {dataCurta(t.dataAnaliseFoliarAnterior)})
-                </span>
+                <span className="font-normal text-terra-500">(comparado com {dataCurta(t.dataAnaliseFoliarAnterior)})</span>
               )}
             </p>
             {t.analiseFoliar ? (
@@ -345,53 +455,55 @@ function CartaoTalhao({ t }: { t: TalhaoNutricional }) {
                     chave={chave}
                     valor={t.analiseFoliar![chave]}
                     variacao={t.variacaoFoliar[chave]}
+                    status={t.statusPorNutrienteFoliar[chave]}
                   />
                 ))}
               </div>
             ) : (
-              <p className="rounded-lg bg-terra-50 px-3 py-2 text-xs text-terra-400">
-                nenhuma análise foliar lançada
-              </p>
+              <p className="rounded-lg bg-terra-50 px-3 py-2 text-sm text-terra-500">nenhuma análise foliar lançada</p>
             )}
           </div>
         </div>
-      </div>
 
-      <div className="mt-4 border-t border-terra-100 pt-3">
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-terra-600">
-          <Sprout size={13} className="text-terra-400" />
-          Adubações nos últimos 12 meses ({t.adubacoes.length})
-        </p>
-        {t.adubacoes.length === 0 ? (
-          <p className="rounded-lg bg-terra-50 px-3 py-2 text-xs text-terra-400">
-            nenhuma adubação lançada no período
+        <div className="mt-4 border-t border-terra-100 pt-3">
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-terra-700">
+            <Sprout size={14} className="text-terra-500" />
+            Adubações nos últimos 12 meses ({t.adubacoes.length})
           </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {t.adubacoes.slice(0, 6).map((a, i) => (
-              <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                <span className="numero text-xs text-terra-500">{dataCurta(a.data)}</span>
-                <span className="font-medium text-terra-800">{a.tipoAtividade}</span>
-                <span className="text-terra-500">
-                  {a.produtos
-                    .map((p) => `${p.nome} (${numero(p.quantidade, 2)} ${p.unidade})`)
-                    .join(" · ")}
-                </span>
-                {a.temFoliar && <Etiqueta tom="limao">foliar</Etiqueta>}
-                {a.temSolo && <Etiqueta tom="mata">solo</Etiqueta>}
-              </li>
-            ))}
-            {t.adubacoes.length > 6 && (
-              <li className="text-xs text-terra-400">e mais {t.adubacoes.length - 6}…</li>
-            )}
-          </ul>
-        )}
+          {t.adubacoes.length === 0 ? (
+            <p className="rounded-lg bg-terra-50 px-3 py-2 text-sm text-terra-500">nenhuma adubação lançada no período</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {t.adubacoes.map((a, i) => (
+                <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                  <span className="numero text-sm text-terra-600">{dataCurta(a.data)}</span>
+                  <span className="font-medium text-terra-800">{a.tipoAtividade}</span>
+                  <span className="text-terra-600">
+                    {a.produtos.map((p) => `${p.nome} (${numero(p.quantidade, 2)} ${p.unidade})`).join(" · ")}
+                  </span>
+                  {a.temFoliar && <Etiqueta tom="limao">foliar</Etiqueta>}
+                  {a.temSolo && <Etiqueta tom="mata">solo</Etiqueta>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Cartao>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-terra-50 px-3 py-2.5 text-xs text-terra-600">
+        <span className="font-medium text-terra-700">Bolinha em cada nutriente — comparação com o perfil da cultura:</span>
+        <span className="flex items-center gap-1.5"><Bolinha status="BAIXO" className="h-2 w-2" /> faltando</span>
+        <span className="flex items-center gap-1.5"><Bolinha status="MARGEM" className="h-2 w-2" /> margem inferior</span>
+        <span className="flex items-center gap-1.5"><Bolinha status="ADEQUADO" className="h-2 w-2" /> dentro do ideal</span>
+        <span className="flex items-center gap-1.5"><Bolinha status="ALTO" className="h-2 w-2" /> bem acima</span>
       </div>
-    </Cartao>
+    </div>
   );
 }
 
 export default function ManejoNutricional() {
+  const { id } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
   const consulta = useQuery({
     queryKey: ["manejo-nutricional"],
     queryFn: () => api.get<Resposta>("/manejo-nutricional"),
@@ -405,7 +517,7 @@ export default function ManejoNutricional() {
   if (consulta.isLoading) {
     return (
       <div className="space-y-4">
-        <TituloSecao icone={FlaskConical} descricao="Cruzando vigor, análises e adubações dos 7 talhões">
+        <TituloSecao icone={FlaskConical} descricao="Cruzando vigor, análises e adubações dos talhões">
           Manejo nutricional
         </TituloSecao>
         <Cartao>
@@ -418,51 +530,58 @@ export default function ManejoNutricional() {
   if (consulta.isError) {
     return (
       <Aviso tom="neutro" titulo="Relatório indisponível" icone={CloudOff}>
-        {consulta.error instanceof ApiError
-          ? consulta.error.message
-          : "Não foi possível montar o relatório."}
+        {consulta.error instanceof ApiError ? consulta.error.message : "Não foi possível montar o relatório."}
       </Aviso>
     );
   }
 
   const dados = consulta.data!;
-  const comCritico = dados.talhoes.filter((t) =>
-    t.alertas.some((a) => a.gravidade === "critico"),
-  ).length;
+
+  if (id) {
+    const talhao = dados.talhoes.find((t) => t.talhaoId === id);
+    if (!talhao) {
+      navigate(ROTAS.manejoNutricional, { replace: true });
+      return null;
+    }
+    return <DetalheTalhao t={talhao} />;
+  }
+
+  const comCritico = dados.talhoes.filter((t) => t.alertas.some((a) => a.gravidade === "critico")).length;
   const semAlerta = dados.talhoes.filter((t) => t.alertas.length === 0).length;
+  const piorTalhao = dados.talhoes
+    .filter((t) => t.osaviMedioAno != null)
+    .sort((a, b) => (a.variacaoAnual ?? 0) - (b.variacaoAnual ?? 0))[0];
 
   return (
     <div className="escalonar space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-terra-900">Manejo nutricional</h1>
-          <p className="mt-1 text-sm text-terra-500">
-            Treze meses de vigor por satélite, as últimas análises de solo e folha e as adubações do
-            período — solo e foliar — na mesma linha do tempo, talhão a talhão.
+          <p className="mt-1 text-sm text-terra-600">
+            Visão geral dos {dados.talhoes.length} talhões — clique num card para ver vigor por satélite,
+            análises e adubações em detalhe.
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-terra-400">
-            {dados.ultimaSincronizacao
-              ? `última leitura: ${mesAnoLongo(dados.ultimaSincronizacao)}`
-              : "ainda sem leitura sincronizada"}
+          <span className="text-sm text-terra-500">
+            {dados.ultimaSincronizacao ? `última leitura: ${mesAnoLongo(dados.ultimaSincronizacao)}` : "ainda sem leitura sincronizada"}
           </span>
-          <span className="text-[11px] text-terra-300">atualiza sozinho, todo domingo de madrugada</span>
+          <span className="text-xs text-terra-400">atualiza sozinho, todo domingo de madrugada</span>
         </div>
       </header>
 
       {!dados.satelite && (
         <Aviso tom="alerta" titulo="Satélite não configurado" icone={Satellite}>
-          As credenciais do Copernicus não estão no servidor, então a curva de vigor fica vazia. As
-          análises e adubações continuam sendo mostradas.
+          As credenciais do Copernicus não estão no servidor, então a curva de vigor fica vazia. As análises
+          e adubações continuam sendo mostradas.
         </Aviso>
       )}
 
       {dados.satelite && !dados.ultimaSincronizacao && (
         <Aviso tom="alerta" titulo="Nenhuma leitura sincronizada ainda" icone={Satellite}>
-          O agendador ainda não rodou pela primeira vez. Na primeira sincronização o sistema busca
-          alguns anos de uma vez; depois disso, atualiza sozinho toda semana.
+          O agendador ainda não rodou pela primeira vez. Na primeira sincronização o sistema busca alguns
+          anos de uma vez; depois disso, atualiza sozinho toda semana.
         </Aviso>
       )}
 
@@ -480,56 +599,41 @@ export default function ManejoNutricional() {
           <p className="numero mt-1 text-2xl font-bold text-red-700">{comCritico}</p>
         </div>
         <div className="cartao p-4">
-          <p className="rotulo">Adubações no ano</p>
-          <p className="numero mt-1 text-2xl font-bold text-terra-800">
-            {dados.talhoes.reduce((s, t) => s + t.adubacoes.length, 0)}
-          </p>
+          <p className="rotulo">{piorTalhao ? "Talhão com maior queda de vigor" : "Adubações no ano"}</p>
+          {piorTalhao ? (
+            <Link to={ROTAS.manejoNutricionalTalhao(piorTalhao.talhaoId)} className="mt-1 block text-lg font-bold text-terra-800 hover:text-mata-700">
+              {piorTalhao.nome}
+              {piorTalhao.variacaoAnual != null && (
+                <span className="ml-1.5 numero text-sm font-semibold text-red-700">{piorTalhao.variacaoAnual}%</span>
+              )}
+            </Link>
+          ) : (
+            <p className="numero mt-1 text-2xl font-bold text-terra-800">
+              {dados.talhoes.reduce((s, t) => s + t.adubacoes.length, 0)}
+            </p>
+          )}
         </div>
       </div>
 
       {dados.talhoes.length === 0 ? (
         <Cartao>
-          <EstadoVazio
-            icone={FlaskConical}
-            titulo="Nenhum talhão cadastrado"
-            descricao="Cadastre os talhões para acompanhar o manejo nutricional."
-          />
+          <EstadoVazio icone={FlaskConical} titulo="Nenhum talhão cadastrado" descricao="Cadastre os talhões para acompanhar o manejo nutricional." />
         </Cartao>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {dados.talhoes.map((t) => (
-            <CartaoTalhao key={t.talhaoId} t={t} />
+            <CartaoResumo key={t.talhaoId} t={t} />
           ))}
         </div>
       )}
 
-      <div className="flex items-start gap-2 rounded-lg bg-terra-50 px-3 py-2.5 text-xs leading-relaxed text-terra-500">
+      <div className="flex items-start gap-2 rounded-lg bg-terra-50 px-3 py-2.5 text-xs leading-relaxed text-terra-600">
         <AlertTriangle size={14} className="mt-0.5 shrink-0" />
         <span>
-          As linhas tracejadas marcam quando houve adubação, para você olhar a curva e a aplicação na
-          mesma linha do tempo. <strong>Isso é correlação, não causa</strong> — entre uma adubação e
-          uma mudança de vigor há chuva, colheita, poda e florada. O relatório aponta lacunas
-          objetivas (análise vencida, talhão sem adubação, vigor caindo) e deixa o diagnóstico com
-          você. · {dados.fonte}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-terra-50 px-3 py-2.5 text-xs text-terra-500">
-        <span className="font-medium text-terra-600">Bolinha no canto da última análise de solo:</span>
-        <span className="flex items-center gap-1.5">
-          <BolinhaStatusGeral status="BAIXO" /> faltando bastante
-        </span>
-        <span className="flex items-center gap-1.5">
-          <BolinhaStatusGeral status="MARGEM" /> margem inferior
-        </span>
-        <span className="flex items-center gap-1.5">
-          <BolinhaStatusGeral status="ADEQUADO" /> dentro do ideal
-        </span>
-        <span className="flex items-center gap-1.5">
-          <BolinhaStatusGeral status="ALTO" /> bem acima
-        </span>
-        <span className="flex items-center gap-1.5">
-          <BolinhaStatusGeral status="SEM_REFERENCIA" /> sem perfil cadastrado para a cultura
+          O gráfico de cada talhão marca quando houve adubação, para olhar a curva e a aplicação na mesma
+          linha do tempo. <strong>Isso é correlação, não causa</strong> — entre uma adubação e uma mudança
+          de vigor há chuva, colheita, poda e florada. O relatório aponta lacunas objetivas (análise
+          vencida, talhão sem adubação, vigor caindo) e deixa o diagnóstico com você. · {dados.fonte}
         </span>
       </div>
     </div>

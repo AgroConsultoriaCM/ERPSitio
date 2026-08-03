@@ -70,7 +70,7 @@ export default function NovoTalhao() {
   if (!carregandoPropriedade && !propriedade?.poligono) {
     return (
       <div className="space-y-4">
-        <button onClick={() => navigate("/painel/cadastros/talhoes")} className="text-sm text-gray-500 hover:underline">
+        <button onClick={() => navigate("/painel/cadastros/talhoes")} className="text-sm text-gray-600 hover:underline">
           ← Voltar para talhões
         </button>
         <h1 className="text-2xl font-bold text-gray-800">Novo talhão</h1>
@@ -88,7 +88,7 @@ export default function NovoTalhao() {
 
   return (
     <div className="space-y-4">
-      <button onClick={() => navigate("/painel/cadastros/talhoes")} className="text-sm text-gray-500 hover:underline">
+      <button onClick={() => navigate("/painel/cadastros/talhoes")} className="text-sm text-gray-600 hover:underline">
         ← Voltar para talhões
       </button>
       <h1 className="text-2xl font-bold text-gray-800">Novo talhão</h1>
@@ -124,7 +124,7 @@ export default function NovoTalhao() {
               Nenhuma cultura cadastrada ainda — cadastre em "Culturas" para poder vincular aqui.
             </p>
           ) : (
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               Necessária para o diagnóstico de solo comparar com o perfil de correção da cultura.
             </p>
           )}
@@ -169,18 +169,18 @@ export default function NovoTalhao() {
 
         <div className="grid grid-cols-2 gap-3 rounded-md bg-gray-50 p-3 text-sm">
           <div>
-            <p className="text-gray-500">Código</p>
+            <p className="text-gray-600">Código</p>
             <p className="font-medium text-gray-700">gerado automaticamente</p>
           </div>
           <div>
-            <p className="text-gray-500">Área</p>
+            <p className="text-gray-600">Área</p>
             <p className="font-medium text-gray-700">
               {areaHa != null ? formatarArea(areaHa) : "calculada ao desenhar"}
             </p>
           </div>
           {plantasEstimadas != null && (
             <div className="col-span-2">
-              <p className="text-gray-500">Plantas estimadas</p>
+              <p className="text-gray-600">Plantas estimadas</p>
               <p className="font-medium text-gray-700">
                 ~{plantasEstimadas.toLocaleString("pt-BR")} plantas
               </p>
@@ -190,7 +190,7 @@ export default function NovoTalhao() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           O contorno tracejado é o limite da propriedade. Desenhe o contorno do talhão dentro dele usando o ícone de
           polígono — a área é calculada sozinha a partir do desenho.
         </p>
@@ -231,7 +231,7 @@ export default function NovoTalhao() {
         {criar.isPending ? "Criando..." : "Criar talhão"}
       </button>
       {!podeSalvar && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-600">
           {!nome
             ? "Informe o nome do talhão."
             : !poligono

@@ -57,6 +57,10 @@ model Propriedade {
   analisesFisicas       AnaliseFisicaSolo[]
   lotesComposto         LoteComposto[]
   analisesComposto      AnaliseComposto[]
+  parametroPulverizacao ParametroPulverizacao?
+  perfisBomba           PerfilBomba[]
+  caldas                Calda[]
+  registrosPulverizacao RegistroPulverizacao[]
 }
 
 // Permissao de um papel sobre um modulo do sistema. Quando nao ha linha
@@ -173,6 +177,7 @@ model Talhao {
   atividadesItens AtividadeTalhao[]
   leiturasSatelite LeituraSatelite[]
   analisesFisicas  AnaliseFisicaSolo[]
+  pulverizacoes    RegistroPulverizacaoTalhao[]
 
   @@index([propriedadeId])
   @@index([culturaId])
@@ -331,6 +336,7 @@ model Atividade {
   talhoes               AtividadeTalhao[]
   insumos               AtividadeInsumo[]
   movimentacoesEstoque  MovimentacaoEstoque[]
+  registroPulverizacao  RegistroPulverizacao?
 
   @@index([propriedadeId])
   @@index([data])
@@ -435,6 +441,7 @@ model Insumo {
   lotes                 LoteInsumo[]
   mapeamentosNota       MapeamentoProdutoNota[]
   lotesComposto         LoteComposto[]
+  caldaItens            CaldaItem[]
 
   @@index([propriedadeId])
 }
@@ -1126,5 +1133,138 @@ model LeituraSatelite {
 
   @@unique([talhaoId, periodo])
   @@index([propriedadeId])
+  @@index([talhaoId])
+}
+
+// ---------------------------------------------------------------------------
+// Janela de pulverizacao: parametros ideais editaveis (antes eram constantes
+// fixas em src/lib/clima.ts). Uma linha por propriedade, nao uma lista - e
+// "o" conjunto de parametros do sitio, nao varios perfis.
+// ---------------------------------------------------------------------------
+
+model ParametroPulverizacao {
+  id            String      @id @default(uuid())
+  propriedadeId String      @unique
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  /// Chuva do dia (mm) a partir da qual o score de chuva chega a 0. Abaixo
+  /// disso, interpola linear entre 0mm (100%) e este valor (0%).
+  chuvaMmZero      Float @default(5)
+  /// Probabilidade de chuva (%) a partir da qual o score de chuva (por
+  /// probabilidade) chega a 0.
+  chuvaProbPctZero Float @default(70)
+
+  /// Faixa de vento (km/h) com score 100% - abaixo disso ha risco de inversao
+  /// termica, acima ha risco de deriva.
+  ventoIdealMinKmh  Float @default(3)
+  ventoIdealMaxKmh  Float @default(8)
+  /// Fora da faixa ideal, o score cai ate 0% nestes limites.
+  ventoZeroBaixoKmh Float @default(1)
+  ventoZeroAltoKmh  Float @default(15)
+
+  /// Umidade relativa (%) com score 100% a partir daqui; cai ate 0% na outra.
+  umidadeIdealMinPct Float @default(55)
+  umidadeZeroPct     Float @default(30)
+
+  /// Coeficiente de cultura (Kc) para o balanco hidrico - era constante
+  /// KC_CITROS_ADULTO = 0.7 fixa no codigo.
+  kcCultura Float @default(0.7)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Pulverizacao: bombas, caldas e o registro que rateia produto por talhao
+// pelos metros lineares percorridos (area / espacamento entre linhas), nao
+// pela area - e o que o trator realmente percorre pulverizando.
+// ---------------------------------------------------------------------------
+
+model PerfilBomba {
+  id               String   @id @default(uuid())
+  nome             String
+  capacidadeLitros Float
+  propriedadeId    String
+  propriedade      Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  registros RegistroPulverizacao[]
+
+  @@index([propriedadeId])
+}
+
+/// Receita de calda: um ou mais produtos com dose por 100L, reutilizavel.
+model Calda {
+  id            String   @id @default(uuid())
+  nome          String
+  observacoes   String?
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  itens     CaldaItem[]
+  registros RegistroPulverizacao[]
+
+  @@index([propriedadeId])
+}
+
+model CaldaItem {
+  id          String  @id @default(uuid())
+  caldaId     String
+  calda       Calda   @relation(fields: [caldaId], references: [id], onDelete: Cascade)
+  insumoId    String
+  insumo      Insumo  @relation(fields: [insumoId], references: [id])
+  /// Dose por 100L de calda, na unidade do produto (mL se liquido, g se solido
+  /// - mesma convencao de Insumo.dosePor100L).
+  dosePor100L Float
+
+  @@index([caldaId])
+  @@index([insumoId])
+}
+
+/// Um evento de pulverizacao: quantas cargas de bomba, qual calda (cadastrada
+/// ou montada na hora), em quais talhoes. Gera uma Atividade de verdade por
+/// baixo (mesmo estoque FIFO, mesmo controle de pragas por Insumo.funcoes),
+/// so o rateio do CUSTO entre talhoes usa metros lineares em vez de area.
+model RegistroPulverizacao {
+  id              String   @id @default(uuid())
+  data            DateTime
+  bombaId         String
+  bomba           PerfilBomba @relation(fields: [bombaId], references: [id])
+  numeroCargas    Float
+  /// Litros totais = numeroCargas * bomba.capacidadeLitros, guardado para nao
+  /// depender do valor atual da bomba se ela mudar de capacidade depois.
+  volumeTotalLitros Float
+  caldaId         String?
+  calda           Calda?   @relation(fields: [caldaId], references: [id])
+  /// Se a calda foi montada na hora (sem cadastrar), guarda os itens aqui:
+  /// [{ insumoId, dosePor100L }]. Um dos dois (caldaId ou caldaAdHoc) sempre
+  /// preenchido.
+  caldaAdHoc      Json?
+  atividadeId     String   @unique
+  atividade       Atividade @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+  propriedadeId   String
+  propriedade     Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  talhoes RegistroPulverizacaoTalhao[]
+
+  @@index([propriedadeId])
+  @@index([data])
+}
+
+/// Metros lineares por talhao neste evento - guardado (nao recalculado depois)
+/// porque o espacamento do talhao pode mudar com o tempo.
+model RegistroPulverizacaoTalhao {
+  id                 String   @id @default(uuid())
+  registroId         String
+  registro           RegistroPulverizacao @relation(fields: [registroId], references: [id], onDelete: Cascade)
+  talhaoId           String
+  talhao             Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  metrosLineares     Float
+
+  @@unique([registroId, talhaoId])
   @@index([talhaoId])
 }

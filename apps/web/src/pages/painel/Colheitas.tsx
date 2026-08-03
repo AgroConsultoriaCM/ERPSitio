@@ -136,7 +136,7 @@ export default function Colheitas() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Colheitas</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           O encarregado lança as caixas no campo. Aqui você complementa com o peso colhido, o refugo e o preço
           pago, separado entre fruta boa e refugo. <strong>A unidade do preço vem da cultura do talhão</strong>:
           limão vai por caixa de 27,2 kg, abacate vai por quilo — cada linha mostra qual usar. O sistema
@@ -150,7 +150,7 @@ export default function Colheitas() {
             Acumulado por talhão
           </p>
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-100 text-gray-500">
+            <thead className="bg-gray-100 text-gray-600">
               <tr>
                 <th className="px-4 py-2">Talhão</th>
                 <th className="px-4 py-2">Caixas</th>
@@ -253,7 +253,7 @@ export default function Colheitas() {
 
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-3 py-2">Data</th>
               <th className="px-3 py-2">Talhão</th>
@@ -266,13 +266,13 @@ export default function Colheitas() {
               <th className="px-3 py-2">kg/cx</th>
               <th className="px-3 py-2">
                 Venda · bom
-                <span className="block text-[10px] font-normal normal-case text-gray-400">
+                <span className="block text-[10px] font-normal normal-case text-gray-500">
                   preço conforme a cultura
                 </span>
               </th>
               <th className="px-3 py-2">
                 Venda · refugo
-                <span className="block text-[10px] font-normal normal-case text-gray-400">
+                <span className="block text-[10px] font-normal normal-case text-gray-500">
                   preço conforme a cultura
                 </span>
               </th>
@@ -294,7 +294,7 @@ export default function Colheitas() {
                   <td className="px-3 py-2">
                     {c.talhao?.nome}
                     {c.talhao?.cultura ? (
-                      <span className="block text-xs text-gray-400">{c.talhao.cultura.nome}</span>
+                      <span className="block text-xs text-gray-500">{c.talhao.cultura.nome}</span>
                     ) : (
                       <span
                         className="block text-xs font-medium text-amber-600"
@@ -334,7 +334,7 @@ export default function Colheitas() {
                       <>
                         {num(c.pesoRefugoKg)}
                         {c.percentualRefugo != null && (
-                          <span className="ml-1 text-xs text-gray-400">({c.percentualRefugo}%)</span>
+                          <span className="ml-1 text-xs text-gray-500">({c.percentualRefugo}%)</span>
                         )}
                       </>
                     )}
@@ -353,12 +353,12 @@ export default function Colheitas() {
                           onChange={(e) => setPrecoCaixaBom(e.target.value)}
                           className="w-28 rounded border border-gray-300 px-2 py-1"
                         />
-                        <span className="block text-[10px] text-gray-400">{unidadePreco(c)}</span>
+                        <span className="block text-[10px] text-gray-500">{unidadePreco(c)}</span>
                       </>
                     ) : (
                       <>
                         <span className="font-medium text-gray-800">{moeda(c.valorVendaBom)}</span>
-                        <span className="block text-xs text-gray-400">
+                        <span className="block text-xs text-gray-500">
                           {memoriaCalculo(c, c.precoCaixaBom, c.precoKgBom, c.pesoLiquidoKg)}
                         </span>
                       </>
@@ -374,14 +374,14 @@ export default function Colheitas() {
                           onChange={(e) => setPrecoCaixaRefugo(e.target.value)}
                           className="w-28 rounded border border-gray-300 px-2 py-1"
                         />
-                        <span className="block text-[10px] text-gray-400">{unidadePreco(c)}</span>
+                        <span className="block text-[10px] text-gray-500">{unidadePreco(c)}</span>
                       </>
                     ) : (
                       <>
                         <span className="font-medium text-gray-800">
                           {moeda(c.valorVendaRefugo)}
                         </span>
-                        <span className="block text-xs text-gray-400">
+                        <span className="block text-xs text-gray-500">
                           {memoriaCalculo(c, c.precoCaixaRefugo, c.precoKgRefugo, c.pesoRefugoKg)}
                         </span>
                       </>
@@ -403,7 +403,7 @@ export default function Colheitas() {
                         >
                           Salvar
                         </button>
-                        <button onClick={() => setEditandoId(null)} className="text-gray-500">
+                        <button onClick={() => setEditandoId(null)} className="text-gray-600">
                           Cancelar
                         </button>
                       </>
@@ -455,7 +455,7 @@ export default function Colheitas() {
           )}
         </table>
         {colheitas?.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma colheita lançada ainda.</p>
+          <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhuma colheita lançada ainda.</p>
         )}
       </div>
     </div>

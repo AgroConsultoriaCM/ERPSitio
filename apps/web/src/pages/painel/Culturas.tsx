@@ -53,7 +53,7 @@ export default function Culturas() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Culturas</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           O peso da caixa define em que unidade o preço da colheita é lançado. Limão taiti é vendido
           por caixa de 27,2 kg; abacate, por quilo — nesse caso, deixe o campo vazio.
         </p>
@@ -84,7 +84,7 @@ export default function Culturas() {
               onChange={(e) => setPesoCaixaKg(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-600">
               {pesoCaixaKg.trim()
                 ? `O preço da colheita será lançado por caixa de ${pesoCaixaKg} kg.`
                 : "O preço da colheita será lançado por quilo."}
@@ -117,7 +117,7 @@ export default function Culturas() {
 
       <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-500">
+          <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Variedade</th>
@@ -134,7 +134,7 @@ export default function Culturas() {
                   {c.pesoCaixaKg != null ? (
                     <>
                       por caixa
-                      <span className="ml-1 text-xs text-gray-400">
+                      <span className="ml-1 text-xs text-gray-500">
                         ({c.pesoCaixaKg.toLocaleString("pt-BR")} kg)
                       </span>
                     </>

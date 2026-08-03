@@ -47,7 +47,7 @@ export default function AbaSafras({ talhaoId }: { talhaoId: string }) {
             className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
           <div>
-            <label className="mb-1 block text-xs text-gray-500">Início</label>
+            <label className="mb-1 block text-xs text-gray-600">Início</label>
             <input
               type="date"
               value={dataInicio}
@@ -56,7 +56,7 @@ export default function AbaSafras({ talhaoId }: { talhaoId: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-gray-500">Fim (opcional)</label>
+            <label className="mb-1 block text-xs text-gray-600">Fim (opcional)</label>
             <input
               type="date"
               value={dataFim}
@@ -79,7 +79,7 @@ export default function AbaSafras({ talhaoId }: { talhaoId: string }) {
           <li key={s.id} className="flex items-center justify-between rounded-lg bg-white p-3 shadow-sm">
             <div>
               <p className="font-medium">{s.nome}</p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-600">
                 {new Date(s.dataInicio).toLocaleDateString("pt-BR")}
                 {s.dataFim ? ` – ${new Date(s.dataFim).toLocaleDateString("pt-BR")}` : ""}
               </p>

@@ -33,7 +33,7 @@ export default function Mapa() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-gray-800">Mapa da propriedade</h1>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-gray-600">
         Clique numa área para ver detalhes. O contorno da propriedade (tracejado) é editado na tela "Propriedade";
         talhões e setores, nas telas correspondentes.
       </p>
@@ -82,7 +82,7 @@ export default function Mapa() {
                   <Tooltip sticky>{s.codigo ? `${s.codigo} · ${s.nome}` : s.nome}</Tooltip>
                   <Popup>
                     <p className="font-semibold">{s.nome}</p>
-                    <p className="text-sm text-gray-500">Setor de irrigação {s.codigo ?? ""}</p>
+                    <p className="text-sm text-gray-600">Setor de irrigação {s.codigo ?? ""}</p>
                     {s.areaHa != null && <p className="text-sm">{s.areaHa} ha</p>}
                     <Link to={`/painel/cadastros/setores/${s.id}`} className="text-sm text-sky-700 underline">
                       Ver setor

@@ -73,7 +73,7 @@ export default function Estoque() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Estoque</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Cada entrada vira um lote com o preço pago. Quando um produto é usado numa operação, o sistema baixa do
           lote mais antigo (ou do que você escolher) e leva o custo real para o talhão.
         </p>
@@ -83,17 +83,17 @@ export default function Estoque() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Valor em estoque</p>
+          <p className="text-sm text-gray-600">Valor em estoque</p>
           <p className="mt-1 text-2xl font-bold text-green-800">{moeda(valorEmEstoque)}</p>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Lotes com saldo</p>
+          <p className="text-sm text-gray-600">Lotes com saldo</p>
           <p className="mt-1 text-2xl font-bold text-gray-800">
             {lotes?.filter((l) => l.quantidadeRestante > 0).length ?? 0}
           </p>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Produtos cadastrados</p>
+          <p className="text-sm text-gray-600">Produtos cadastrados</p>
           <p className="mt-1 text-2xl font-bold text-gray-800">{insumos?.length ?? 0}</p>
         </div>
       </div>
@@ -165,7 +165,7 @@ export default function Estoque() {
               Registrar entrada
             </button>
             {quantidade && precoUnitario && (
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-gray-600">
                 Total: {moeda(Number(quantidade) * Number(precoUnitario))}
               </span>
             )}
@@ -184,7 +184,7 @@ export default function Estoque() {
             key={v}
             onClick={() => setAba(v)}
             className={`px-4 py-2 text-sm font-medium ${
-              aba === v ? "border-b-2 border-green-700 text-green-800" : "text-gray-500"
+              aba === v ? "border-b-2 border-green-700 text-green-800" : "text-gray-600"
             }`}
           >
             {label}
@@ -195,7 +195,7 @@ export default function Estoque() {
       {aba === "lotes" && (
         <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-100 text-gray-500">
+            <thead className="bg-gray-100 text-gray-600">
               <tr>
                 <th className="px-3 py-2">Data</th>
                 <th className="px-3 py-2">Produto</th>
@@ -214,7 +214,7 @@ export default function Estoque() {
                 const insumo = insumos?.find((i) => i.id === l.insumoId);
                 const esgotado = l.quantidadeRestante <= 0;
                 return (
-                  <tr key={l.id} className={`border-t ${esgotado ? "text-gray-400" : ""}`}>
+                  <tr key={l.id} className={`border-t ${esgotado ? "text-gray-500" : ""}`}>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {new Date(l.data).toLocaleDateString("pt-BR")}
                     </td>
@@ -233,7 +233,7 @@ export default function Estoque() {
                     </td>
                     <td className="px-3 py-2">{moeda(l.precoUnitario)}</td>
                     <td className="px-3 py-2">{moeda(l.quantidadeRestante * l.precoUnitario)}</td>
-                    <td className="px-3 py-2 text-xs text-gray-500">
+                    <td className="px-3 py-2 text-xs text-gray-600">
                       {[l.fornecedor, l.numeroNota].filter(Boolean).join(" · ") || "-"}
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -252,7 +252,7 @@ export default function Estoque() {
             </tbody>
           </table>
           {lotes?.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-gray-400">
+            <p className="px-4 py-6 text-center text-sm text-gray-500">
               Nenhuma entrada registrada. Comece pelo inventário inicial do que você já tem em estoque.
             </p>
           )}
@@ -262,7 +262,7 @@ export default function Estoque() {
       {aba === "movimentacoes" && (
         <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-100 text-gray-500">
+            <thead className="bg-gray-100 text-gray-600">
               <tr>
                 <th className="px-3 py-2">Data</th>
                 <th className="px-3 py-2">Produto</th>
@@ -294,13 +294,13 @@ export default function Estoque() {
                     {num(m.quantidade)} {m.insumo.unidadeMedida}
                   </td>
                   <td className="px-3 py-2">{moeda(m.custoTotal)}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500">{m.observacoes ?? "-"}</td>
+                  <td className="px-3 py-2 text-xs text-gray-600">{m.observacoes ?? "-"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {movimentacoes?.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma movimentação ainda.</p>
+            <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhuma movimentação ainda.</p>
           )}
         </div>
       )}

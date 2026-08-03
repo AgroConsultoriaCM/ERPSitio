@@ -114,7 +114,7 @@ export type StatusGeral = "BAIXO" | "MARGEM" | "ADEQUADO" | "ALTO" | "SEM_REFERE
  * de partida razoavel, nao literatura fechada - ajustar se a prática mostrar
  * outra coisa.
  */
-function classificarQuatroNiveis(
+export function classificarQuatroNiveis(
   valor: number | null | undefined,
   min: number | null | undefined,
   max: number | null | undefined,
@@ -159,47 +159,151 @@ function numeroDoJson(json: unknown, chave: string): number | null {
   return typeof v === "number" ? v : null;
 }
 
+/**
+ * Status de CADA parâmetro de solo contra o perfil, um a um - é o que
+ * alimenta a bolinha em cada card do Manejo Nutricional, não só o resumo
+ * geral. As chaves batem com os nomes usados no restante do sistema (mesmos
+ * de `CAMPOS_SOLO` no frontend).
+ */
+export function classificarPorNutrienteSolo(
+  analise: AnaliseSoloEntrada | null,
+  perfil: PerfilCorrecaoEntrada | null,
+): Record<string, StatusGeral> {
+  if (!perfil || !analise) {
+    const vazio: Record<string, StatusGeral> = {};
+    for (const chave of [
+      "ph", "materiaOrganica", "fosforo", "enxofre", "potassio", "calcio", "magnesio",
+      "saturacaoBases", "relacaoCaMg", "relacaoMgK", "relacaoCaMgK", ...MICRONUTRIENTES_COMPARADOS,
+    ]) {
+      vazio[chave] = "SEM_REFERENCIA";
+    }
+    return vazio;
+  }
+
+  const relCaMg = calcularRelacao(analise.calcio, analise.magnesio);
+  const relMgK = calcularRelacao(analise.magnesio, analise.potassio);
+  const relCaMgK = calcularRelacao(
+    analise.calcio !== null && analise.magnesio !== null ? analise.calcio + analise.magnesio : null,
+    analise.potassio,
+  );
+
+  const resultado: Record<string, StatusGeral> = {
+    ph: classificarQuatroNiveis(analise.ph, perfil.phIdealMin, perfil.phIdealMax),
+    materiaOrganica: classificarQuatroNiveis(analise.materiaOrganica, perfil.materiaOrganicaIdeal, null),
+    fosforo: classificarQuatroNiveis(analise.fosforo, perfil.fosforoIdeal, null),
+    enxofre: classificarQuatroNiveis(analise.enxofre, perfil.enxofreIdeal, null),
+    potassio: classificarQuatroNiveis(analise.potassio, perfil.potassioIdeal, null),
+    calcio: classificarQuatroNiveis(analise.calcio, perfil.calcioIdeal, null),
+    magnesio: classificarQuatroNiveis(analise.magnesio, perfil.magnesioIdeal, null),
+    saturacaoBases: classificarQuatroNiveis(analise.saturacaoBases, perfil.saturacaoBasesIdeal, null),
+    relacaoCaMg: classificarQuatroNiveis(relCaMg, perfil.relacaoCaMgIdeal, null),
+    relacaoMgK: classificarQuatroNiveis(relMgK, perfil.relacaoMgKIdeal, null),
+    relacaoCaMgK: classificarQuatroNiveis(relCaMgK, perfil.relacaoCaMgKIdeal, null),
+  };
+  for (const chave of MICRONUTRIENTES_COMPARADOS) {
+    resultado[chave] = classificarQuatroNiveis(
+      numeroDoJson(analise.micronutrientes, chave),
+      numeroDoJson(perfil.micronutrientesIdeais, chave),
+      null,
+    );
+  }
+  return resultado;
+}
+
 export function classificarStatusGeralSolo(
   analise: AnaliseSoloEntrada,
   perfil: PerfilCorrecaoEntrada | null,
 ): StatusGeral {
-  if (!perfil) return "SEM_REFERENCIA";
+  const avaliacoes = Object.values(classificarPorNutrienteSolo(analise, perfil)).filter(
+    (s): s is Exclude<StatusGeral, "SEM_REFERENCIA"> => s !== "SEM_REFERENCIA",
+  );
 
-  const avaliacoes = [
-    classificarQuatroNiveis(analise.ph, perfil.phIdealMin, perfil.phIdealMax),
-    classificarQuatroNiveis(analise.materiaOrganica, perfil.materiaOrganicaIdeal, null),
-    classificarQuatroNiveis(analise.fosforo, perfil.fosforoIdeal, null),
-    classificarQuatroNiveis(analise.enxofre, perfil.enxofreIdeal, null),
-    classificarQuatroNiveis(analise.potassio, perfil.potassioIdeal, null),
-    classificarQuatroNiveis(analise.calcio, perfil.calcioIdeal, null),
-    classificarQuatroNiveis(analise.magnesio, perfil.magnesioIdeal, null),
-    classificarQuatroNiveis(analise.saturacaoBases, perfil.saturacaoBasesIdeal, null),
-    classificarQuatroNiveis(
-      calcularRelacao(analise.calcio, analise.magnesio),
-      perfil.relacaoCaMgIdeal,
-      null,
-    ),
-    classificarQuatroNiveis(
-      calcularRelacao(analise.magnesio, analise.potassio),
-      perfil.relacaoMgKIdeal,
-      null,
-    ),
-    classificarQuatroNiveis(
-      calcularRelacao(
-        analise.calcio !== null && analise.magnesio !== null ? analise.calcio + analise.magnesio : null,
-        analise.potassio,
-      ),
-      perfil.relacaoCaMgKIdeal,
-      null,
-    ),
-    ...MICRONUTRIENTES_COMPARADOS.map((chave) =>
-      classificarQuatroNiveis(
-        numeroDoJson(analise.micronutrientes, chave),
-        numeroDoJson(perfil.micronutrientesIdeais, chave),
-        null,
-      ),
-    ),
-  ].filter((s): s is Exclude<StatusGeral, "SEM_REFERENCIA"> => s !== "SEM_REFERENCIA");
+  if (avaliacoes.length === 0) return "SEM_REFERENCIA";
+  return PRIORIDADE_STATUS.find((p) => (avaliacoes as StatusGeral[]).includes(p)) ?? "ADEQUADO";
+}
+
+// --- mesma logica, para folha (faixa min/max em TODO nutriente, nao so pH) -
+
+interface AnaliseFoliarEntrada {
+  nitrogenio: number | null;
+  fosforo: number | null;
+  potassio: number | null;
+  calcio: number | null;
+  magnesio: number | null;
+  enxofre: number | null;
+  micronutrientes?: unknown;
+}
+
+interface PerfilCorrecaoFoliarEntrada {
+  nitrogenioIdealMin: number | null;
+  nitrogenioIdealMax: number | null;
+  fosforoIdealMin: number | null;
+  fosforoIdealMax: number | null;
+  potassioIdealMin: number | null;
+  potassioIdealMax: number | null;
+  calcioIdealMin: number | null;
+  calcioIdealMax: number | null;
+  magnesioIdealMin: number | null;
+  magnesioIdealMax: number | null;
+  enxofreIdealMin: number | null;
+  enxofreIdealMax: number | null;
+  boroIdealMin: number | null;
+  boroIdealMax: number | null;
+  cobreIdealMin: number | null;
+  cobreIdealMax: number | null;
+  ferroIdealMin: number | null;
+  ferroIdealMax: number | null;
+  manganesIdealMin: number | null;
+  manganesIdealMax: number | null;
+  molibdenioIdealMin: number | null;
+  molibdenioIdealMax: number | null;
+  zincoIdealMin: number | null;
+  zincoIdealMax: number | null;
+}
+
+const MICRONUTRIENTES_FOLIAR = ["boro", "cobre", "ferro", "manganes", "molibdenio", "zinco"] as const;
+
+export function classificarPorNutrienteFoliar(
+  analise: AnaliseFoliarEntrada | null,
+  perfil: PerfilCorrecaoFoliarEntrada | null,
+): Record<string, StatusGeral> {
+  if (!perfil || !analise) {
+    const vazio: Record<string, StatusGeral> = {};
+    for (const chave of ["nitrogenio", "fosforo", "potassio", "calcio", "magnesio", "enxofre", ...MICRONUTRIENTES_FOLIAR]) {
+      vazio[chave] = "SEM_REFERENCIA";
+    }
+    return vazio;
+  }
+
+  const resultado: Record<string, StatusGeral> = {
+    nitrogenio: classificarQuatroNiveis(analise.nitrogenio, perfil.nitrogenioIdealMin, perfil.nitrogenioIdealMax),
+    fosforo: classificarQuatroNiveis(analise.fosforo, perfil.fosforoIdealMin, perfil.fosforoIdealMax),
+    potassio: classificarQuatroNiveis(analise.potassio, perfil.potassioIdealMin, perfil.potassioIdealMax),
+    calcio: classificarQuatroNiveis(analise.calcio, perfil.calcioIdealMin, perfil.calcioIdealMax),
+    magnesio: classificarQuatroNiveis(analise.magnesio, perfil.magnesioIdealMin, perfil.magnesioIdealMax),
+    enxofre: classificarQuatroNiveis(analise.enxofre, perfil.enxofreIdealMin, perfil.enxofreIdealMax),
+  };
+  const faixasMicro: [string, number | null, number | null][] = [
+    ["boro", perfil.boroIdealMin, perfil.boroIdealMax],
+    ["cobre", perfil.cobreIdealMin, perfil.cobreIdealMax],
+    ["ferro", perfil.ferroIdealMin, perfil.ferroIdealMax],
+    ["manganes", perfil.manganesIdealMin, perfil.manganesIdealMax],
+    ["molibdenio", perfil.molibdenioIdealMin, perfil.molibdenioIdealMax],
+    ["zinco", perfil.zincoIdealMin, perfil.zincoIdealMax],
+  ];
+  for (const [chave, min, max] of faixasMicro) {
+    resultado[chave] = classificarQuatroNiveis(numeroDoJson(analise.micronutrientes, chave), min, max);
+  }
+  return resultado;
+}
+
+export function classificarStatusGeralFoliar(
+  analise: AnaliseFoliarEntrada,
+  perfil: PerfilCorrecaoFoliarEntrada | null,
+): StatusGeral {
+  const avaliacoes = Object.values(classificarPorNutrienteFoliar(analise, perfil)).filter(
+    (s): s is Exclude<StatusGeral, "SEM_REFERENCIA"> => s !== "SEM_REFERENCIA",
+  );
 
   if (avaliacoes.length === 0) return "SEM_REFERENCIA";
   return PRIORIDADE_STATUS.find((p) => (avaliacoes as StatusGeral[]).includes(p)) ?? "ADEQUADO";
