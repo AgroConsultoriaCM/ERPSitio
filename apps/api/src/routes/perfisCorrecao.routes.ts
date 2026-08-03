@@ -17,6 +17,9 @@ const perfilSchema = z.object({
   magnesioIdeal: z.number().optional().nullable(),
   saturacaoBasesIdeal: z.number().optional().nullable(),
   ctcReferencia: z.number().optional().nullable(),
+  relacaoCaMgIdeal: z.number().optional().nullable(),
+  relacaoMgKIdeal: z.number().optional().nullable(),
+  relacaoCaMgKIdeal: z.number().optional().nullable(),
   micronutrientesIdeais: z
     .record(z.number())
     .optional()

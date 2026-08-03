@@ -17,7 +17,7 @@
  *   QUIMICA  - pH, M.O., P, S, Ca, Mg, Na, K, Al, H+Al, SB, CTC, V%, m%
  *   FISICA   - argila, silte, areia e fracoes (nao muda com o tempo)
  *   MICRO    - boro, cobre, ferro, manganes, zinco
- *   FOLIAR   - tecido vegetal: N, P, K, Ca, Mg, S, B, Cu, Fe, Mn, Zn, Si
+ *   FOLIAR   - tecido vegetal: N, P, K, Ca, Mg, S, B, Cu, Fe, Mn, Mo, Zn, Si
  *   ORGANICO - composto/esterco: %MO, %CO, %N, %P2O5, %K2O... (nao e solo)
  *
  * Provado contra os 13 laudos reais do sitio: 33 amostras, todas as colunas
@@ -169,6 +169,10 @@ const MAPA_COLUNAS: { chave: string; padrao: RegExp }[] = [
   { chave: "cobre", padrao: /\bCOBRE\b|^CU\b/ },
   { chave: "ferro", padrao: /\bFERRO\b|^FE\b/ },
   { chave: "manganes", padrao: /\bMANGANES\b|^MN\b/ },
+  // So o nome por extenso, sem simbolo "MO": colidiria com M.O. (materia
+  // organica) depois que o texto vira maiusculo - nao ha laudo real de
+  // referencia com Mo para confirmar o formato do cabecalho.
+  { chave: "molibdenio", padrao: /MOLIBD/ },
   { chave: "zinco", padrao: /\bZINCO\b|^ZN\b/ },
 ];
 
@@ -191,7 +195,7 @@ const UNIDADE_PADRAO: Partial<Record<TipoLaudo, Record<string, string>>> = {
   FOLIAR: {
     nitrogenio: "GKG", fosforo: "GKG", potassio: "GKG", calcio: "GKG", magnesio: "GKG",
     enxofre: "GKG", boro: "MGKG", cobre: "MGKG", ferro: "MGKG", manganes: "MGKG",
-    zinco: "MGKG", silicio: "GKG",
+    molibdenio: "MGKG", zinco: "MGKG", silicio: "GKG",
   },
 };
 
@@ -289,7 +293,7 @@ const UNIDADE_EXIBICAO: Partial<Record<TipoLaudo, Record<string, string>>> = {
   FOLIAR: {
     nitrogenio: "g/kg", fosforo: "g/kg", potassio: "g/kg", calcio: "g/kg", magnesio: "g/kg",
     enxofre: "g/kg", boro: "mg/kg", cobre: "mg/kg", ferro: "mg/kg", manganes: "mg/kg",
-    zinco: "mg/kg", silicio: "g/kg",
+    molibdenio: "mg/kg", zinco: "mg/kg", silicio: "g/kg",
   },
   FISICA: {
     argila: "%", silte: "%", areiaTotal: "%", areiaMuitoGrossa: "%", areiaGrossa: "%",

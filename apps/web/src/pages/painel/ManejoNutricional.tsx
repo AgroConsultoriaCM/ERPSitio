@@ -72,18 +72,18 @@ const ROTULO_NUTRIENTE: Record<string, string> = {
   calcio: "Ca", magnesio: "Mg", aluminio: "Al", hAl: "H+Al", somaBases: "SB",
   ctc: "CTC", saturacaoBases: "V%", saturacaoAluminio: "m%",
   boro: "B", cobre: "Cu", ferro: "Fe", manganes: "Mn", zinco: "Zn", silicio: "Si",
-  nitrogenio: "N",
+  molibdenio: "Mo", nitrogenio: "N",
 };
 
 /** Ordem de exibição: os medidos direto primeiro, os calculados por último. */
 const CAMPOS_SOLO = [
   "ph", "materiaOrganica", "fosforo", "enxofre", "potassio", "calcio", "magnesio",
-  "boro", "cobre", "ferro", "manganes", "zinco", "silicio",
+  "boro", "cobre", "ferro", "manganes", "zinco", "silicio", "molibdenio",
   "aluminio", "hAl", "somaBases", "ctc", "saturacaoBases", "saturacaoAluminio",
 ] as const;
 const CAMPOS_FOLIAR = [
   "nitrogenio", "fosforo", "potassio", "calcio", "magnesio", "enxofre",
-  "boro", "cobre", "ferro", "manganes", "zinco", "silicio",
+  "boro", "cobre", "ferro", "manganes", "zinco", "silicio", "molibdenio",
 ] as const;
 
 const COR_STATUS_GERAL: Record<StatusGeral, string> = {

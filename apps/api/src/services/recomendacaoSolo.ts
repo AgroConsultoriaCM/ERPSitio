@@ -52,9 +52,21 @@ interface PerfilCorrecaoEntrada {
   calcioIdeal: number | null;
   magnesioIdeal: number | null;
   saturacaoBasesIdeal: number | null;
+  /** Relacoes de equilibrio cationico - comparadas contra o Ca/Mg/K calculado da propria analise. */
+  relacaoCaMgIdeal: number | null;
+  relacaoMgKIdeal: number | null;
+  relacaoCaMgKIdeal: number | null;
   /** { boro: 1.2, cobre: 0.5, ... } - ideal minimo de cada micronutriente. */
   micronutrientesIdeais?: unknown;
 }
+
+/** Ca/Mg, Mg/K ou (Ca+Mg)/K - null se faltar alguma parte ou o divisor for zero. */
+function calcularRelacao(numerador: number | null, denominador: number | null): number | null {
+  if (numerador === null || denominador === null || denominador === 0) return null;
+  return numerador / denominador;
+}
+
+const arred2 = (v: number) => Math.round(v * 100) / 100;
 
 /** Micronutrientes com "ideal minimo" no mesmo espirito de P/K/Ca/Mg. */
 const MICRONUTRIENTES_COMPARADOS = ["boro", "cobre", "ferro", "manganes", "zinco"] as const;
@@ -162,6 +174,24 @@ export function classificarStatusGeralSolo(
     classificarQuatroNiveis(analise.calcio, perfil.calcioIdeal, null),
     classificarQuatroNiveis(analise.magnesio, perfil.magnesioIdeal, null),
     classificarQuatroNiveis(analise.saturacaoBases, perfil.saturacaoBasesIdeal, null),
+    classificarQuatroNiveis(
+      calcularRelacao(analise.calcio, analise.magnesio),
+      perfil.relacaoCaMgIdeal,
+      null,
+    ),
+    classificarQuatroNiveis(
+      calcularRelacao(analise.magnesio, analise.potassio),
+      perfil.relacaoMgKIdeal,
+      null,
+    ),
+    classificarQuatroNiveis(
+      calcularRelacao(
+        analise.calcio !== null && analise.magnesio !== null ? analise.calcio + analise.magnesio : null,
+        analise.potassio,
+      ),
+      perfil.relacaoCaMgKIdeal,
+      null,
+    ),
     ...MICRONUTRIENTES_COMPARADOS.map((chave) =>
       classificarQuatroNiveis(
         numeroDoJson(analise.micronutrientes, chave),
@@ -246,6 +276,37 @@ export function gerarDiagnosticoSolo(
       faixaIdealMax: null,
       status: classificarMinimoIdeal(analise.saturacaoBases, perfil.saturacaoBasesIdeal),
     },
+    ...(() => {
+      const relCaMg = calcularRelacao(analise.calcio, analise.magnesio);
+      const relMgK = calcularRelacao(analise.magnesio, analise.potassio);
+      const relCaMgK = calcularRelacao(
+        analise.calcio !== null && analise.magnesio !== null ? analise.calcio + analise.magnesio : null,
+        analise.potassio,
+      );
+      return [
+        {
+          parametro: "Relação Ca/Mg",
+          valorMedido: relCaMg === null ? null : arred2(relCaMg),
+          faixaIdealMin: perfil.relacaoCaMgIdeal,
+          faixaIdealMax: null,
+          status: classificarMinimoIdeal(relCaMg, perfil.relacaoCaMgIdeal),
+        },
+        {
+          parametro: "Relação Mg/K",
+          valorMedido: relMgK === null ? null : arred2(relMgK),
+          faixaIdealMin: perfil.relacaoMgKIdeal,
+          faixaIdealMax: null,
+          status: classificarMinimoIdeal(relMgK, perfil.relacaoMgKIdeal),
+        },
+        {
+          parametro: "Relação (Ca+Mg)/K",
+          valorMedido: relCaMgK === null ? null : arred2(relCaMgK),
+          faixaIdealMin: perfil.relacaoCaMgKIdeal,
+          faixaIdealMax: null,
+          status: classificarMinimoIdeal(relCaMgK, perfil.relacaoCaMgKIdeal),
+        },
+      ];
+    })(),
     ...([
       ["boro", "Boro - B (mg/dm³)"],
       ["cobre", "Cobre - Cu (mg/dm³)"],

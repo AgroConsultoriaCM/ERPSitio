@@ -83,6 +83,7 @@ const ROTULO_VALOR: Record<string, string> = {
   areiaMuitoFina: "AMF", argilaDispersaAgua: "Argila disp.",
   grauFloculacao: "Grau flocul.", grauDispersao: "Grau disp.",
   boro: "B", cobre: "Cu", ferro: "Fe", manganes: "Mn", zinco: "Zn", silicio: "Si",
+  molibdenio: "Mo",
   nitrogenio: "N", carbonoOrganico: "C.O.", p2o5Total: "P₂O₅", k2o: "K₂O",
   umidade: "Umidade", relacaoCN: "C/N",
 };
@@ -102,7 +103,7 @@ const CAMPOS_POR_TIPO: Record<TipoLaudo, string[]> = {
   ],
   FOLIAR: [
     "nitrogenio", "fosforo", "potassio", "calcio", "magnesio", "enxofre",
-    "boro", "cobre", "ferro", "manganes", "zinco", "silicio",
+    "boro", "cobre", "ferro", "manganes", "molibdenio", "zinco", "silicio",
   ],
   FISICA: [
     "argila", "silte", "areiaTotal", "areiaMuitoGrossa", "areiaGrossa", "areiaMedia",
@@ -129,7 +130,7 @@ const UNIDADE_POR_TIPO: Record<TipoLaudo, Record<string, string>> = {
   FOLIAR: {
     nitrogenio: "g/kg", fosforo: "g/kg", potassio: "g/kg", calcio: "g/kg", magnesio: "g/kg",
     enxofre: "g/kg", boro: "mg/kg", cobre: "mg/kg", ferro: "mg/kg", manganes: "mg/kg",
-    zinco: "mg/kg", silicio: "g/kg",
+    molibdenio: "mg/kg", zinco: "mg/kg", silicio: "g/kg",
   },
   FISICA: {
     argila: "%", silte: "%", areiaTotal: "%", areiaMuitoGrossa: "%", areiaGrossa: "%",

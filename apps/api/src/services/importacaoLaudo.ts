@@ -98,7 +98,7 @@ const CAMPOS_COMPOSTO = [
   "calcio", "magnesio", "enxofre", "ph", "umidade", "relacaoCN",
 ] as const;
 
-const MICRONUTRIENTES = ["boro", "cobre", "ferro", "manganes", "zinco", "silicio"] as const;
+const MICRONUTRIENTES = ["boro", "cobre", "ferro", "manganes", "zinco", "silicio", "molibdenio"] as const;
 
 function apenas(valores: Record<string, number>, chaves: readonly string[]) {
   const saida: Record<string, number> = {};

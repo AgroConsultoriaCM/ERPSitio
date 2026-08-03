@@ -369,6 +369,9 @@ export interface PerfilCorrecaoSolo {
   magnesioIdeal?: number | null;
   saturacaoBasesIdeal?: number | null;
   ctcReferencia?: number | null;
+  relacaoCaMgIdeal?: number | null;
+  relacaoMgKIdeal?: number | null;
+  relacaoCaMgKIdeal?: number | null;
   micronutrientesIdeais?: Record<string, number> | null;
   observacoes?: string | null;
 }
@@ -390,6 +393,18 @@ export interface PerfilCorrecaoFoliar {
   magnesioIdealMax?: number | null;
   enxofreIdealMin?: number | null;
   enxofreIdealMax?: number | null;
+  boroIdealMin?: number | null;
+  boroIdealMax?: number | null;
+  cobreIdealMin?: number | null;
+  cobreIdealMax?: number | null;
+  ferroIdealMin?: number | null;
+  ferroIdealMax?: number | null;
+  manganesIdealMin?: number | null;
+  manganesIdealMax?: number | null;
+  molibdenioIdealMin?: number | null;
+  molibdenioIdealMax?: number | null;
+  zincoIdealMin?: number | null;
+  zincoIdealMax?: number | null;
   observacoes?: string | null;
 }
 

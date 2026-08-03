@@ -11,6 +11,16 @@ const MICRONUTRIENTES = [
   ["zinco", "Zinco ideal"],
 ] as const;
 
+/** Painel padrão de micronutrientes foliares (Malavolta): B, Cu, Fe, Mn, Mo, Zn. */
+const MICRONUTRIENTES_FOLIAR = [
+  ["boro", "Boro ideal"],
+  ["cobre", "Cobre ideal"],
+  ["ferro", "Ferro ideal"],
+  ["manganes", "Manganês ideal"],
+  ["molibdenio", "Molibdênio ideal"],
+  ["zinco", "Zinco ideal"],
+] as const;
+
 const campoNumerico = (label: string, valor: string, onChange: (v: string) => void) => (
   <div>
     <label className="mb-1 block text-xs text-gray-500">{label}</label>
@@ -90,6 +100,9 @@ const CAMPOS_SOLO_VAZIOS = {
   magnesioIdeal: "",
   saturacaoBasesIdeal: "",
   ctcReferencia: "",
+  relacaoCaMgIdeal: "",
+  relacaoMgKIdeal: "",
+  relacaoCaMgKIdeal: "",
 };
 
 const MICROS_VAZIOS: Record<string, string> = { boro: "", cobre: "", ferro: "", manganes: "", zinco: "" };
@@ -132,6 +145,9 @@ function PainelSolo({ nomesCultura }: { nomesCultura: string[] }) {
       magnesioIdeal: p.magnesioIdeal?.toString() ?? "",
       saturacaoBasesIdeal: p.saturacaoBasesIdeal?.toString() ?? "",
       ctcReferencia: p.ctcReferencia?.toString() ?? "",
+      relacaoCaMgIdeal: p.relacaoCaMgIdeal?.toString() ?? "",
+      relacaoMgKIdeal: p.relacaoMgKIdeal?.toString() ?? "",
+      relacaoCaMgKIdeal: p.relacaoCaMgKIdeal?.toString() ?? "",
     });
     setMicros({
       boro: p.micronutrientesIdeais?.boro?.toString() ?? "",
@@ -162,6 +178,9 @@ function PainelSolo({ nomesCultura }: { nomesCultura: string[] }) {
         magnesioIdeal: numOuNull(campos.magnesioIdeal),
         saturacaoBasesIdeal: numOuNull(campos.saturacaoBasesIdeal),
         ctcReferencia: numOuNull(campos.ctcReferencia),
+        relacaoCaMgIdeal: numOuNull(campos.relacaoCaMgIdeal),
+        relacaoMgKIdeal: numOuNull(campos.relacaoMgKIdeal),
+        relacaoCaMgKIdeal: numOuNull(campos.relacaoCaMgKIdeal),
         micronutrientesIdeais: Object.keys(micronutrientesIdeais).length ? micronutrientesIdeais : null,
         observacoes: observacoes || undefined,
       };
@@ -213,6 +232,21 @@ function PainelSolo({ nomesCultura }: { nomesCultura: string[] }) {
           )}
           {campoNumerico("CTC de referência", campos.ctcReferencia, (v) =>
             setCampos((c) => ({ ...c, ctcReferencia: v })),
+          )}
+        </div>
+
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
+          Relações (equilíbrio catiônico)
+        </p>
+        <div className="mt-2 grid grid-cols-3 gap-3">
+          {campoNumerico("Relação Ca/Mg ideal", campos.relacaoCaMgIdeal, (v) =>
+            setCampos((c) => ({ ...c, relacaoCaMgIdeal: v })),
+          )}
+          {campoNumerico("Relação Mg/K ideal", campos.relacaoMgKIdeal, (v) =>
+            setCampos((c) => ({ ...c, relacaoMgKIdeal: v })),
+          )}
+          {campoNumerico("Relação (Ca+Mg)/K ideal", campos.relacaoCaMgKIdeal, (v) =>
+            setCampos((c) => ({ ...c, relacaoCaMgKIdeal: v })),
           )}
         </div>
 
@@ -297,6 +331,18 @@ const CAMPOS_FOLIAR_VAZIOS = {
   magnesioIdealMax: "",
   enxofreIdealMin: "",
   enxofreIdealMax: "",
+  boroIdealMin: "",
+  boroIdealMax: "",
+  cobreIdealMin: "",
+  cobreIdealMax: "",
+  ferroIdealMin: "",
+  ferroIdealMax: "",
+  manganesIdealMin: "",
+  manganesIdealMax: "",
+  molibdenioIdealMin: "",
+  molibdenioIdealMax: "",
+  zincoIdealMin: "",
+  zincoIdealMax: "",
 };
 
 function PainelFoliar({ nomesCultura }: { nomesCultura: string[] }) {
@@ -337,6 +383,18 @@ function PainelFoliar({ nomesCultura }: { nomesCultura: string[] }) {
       magnesioIdealMax: p.magnesioIdealMax?.toString() ?? "",
       enxofreIdealMin: p.enxofreIdealMin?.toString() ?? "",
       enxofreIdealMax: p.enxofreIdealMax?.toString() ?? "",
+      boroIdealMin: p.boroIdealMin?.toString() ?? "",
+      boroIdealMax: p.boroIdealMax?.toString() ?? "",
+      cobreIdealMin: p.cobreIdealMin?.toString() ?? "",
+      cobreIdealMax: p.cobreIdealMax?.toString() ?? "",
+      ferroIdealMin: p.ferroIdealMin?.toString() ?? "",
+      ferroIdealMax: p.ferroIdealMax?.toString() ?? "",
+      manganesIdealMin: p.manganesIdealMin?.toString() ?? "",
+      manganesIdealMax: p.manganesIdealMax?.toString() ?? "",
+      molibdenioIdealMin: p.molibdenioIdealMin?.toString() ?? "",
+      molibdenioIdealMax: p.molibdenioIdealMax?.toString() ?? "",
+      zincoIdealMin: p.zincoIdealMin?.toString() ?? "",
+      zincoIdealMax: p.zincoIdealMax?.toString() ?? "",
     });
     setObservacoes(p.observacoes ?? "");
   }
@@ -359,6 +417,18 @@ function PainelFoliar({ nomesCultura }: { nomesCultura: string[] }) {
         magnesioIdealMax: numOuNull(campos.magnesioIdealMax),
         enxofreIdealMin: numOuNull(campos.enxofreIdealMin),
         enxofreIdealMax: numOuNull(campos.enxofreIdealMax),
+        boroIdealMin: numOuNull(campos.boroIdealMin),
+        boroIdealMax: numOuNull(campos.boroIdealMax),
+        cobreIdealMin: numOuNull(campos.cobreIdealMin),
+        cobreIdealMax: numOuNull(campos.cobreIdealMax),
+        ferroIdealMin: numOuNull(campos.ferroIdealMin),
+        ferroIdealMax: numOuNull(campos.ferroIdealMax),
+        manganesIdealMin: numOuNull(campos.manganesIdealMin),
+        manganesIdealMax: numOuNull(campos.manganesIdealMax),
+        molibdenioIdealMin: numOuNull(campos.molibdenioIdealMin),
+        molibdenioIdealMax: numOuNull(campos.molibdenioIdealMax),
+        zincoIdealMin: numOuNull(campos.zincoIdealMin),
+        zincoIdealMax: numOuNull(campos.zincoIdealMax),
         observacoes: observacoes || undefined,
       };
       return editandoId
@@ -435,6 +505,19 @@ function PainelFoliar({ nomesCultura }: { nomesCultura: string[] }) {
             campos.enxofreIdealMax,
             (v) => setCampos((c) => ({ ...c, enxofreIdealMin: v })),
             (v) => setCampos((c) => ({ ...c, enxofreIdealMax: v })),
+          )}
+        </div>
+
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">Micronutrientes</p>
+        <div className="mt-2 grid grid-cols-3 gap-3">
+          {MICRONUTRIENTES_FOLIAR.map(([chave, label]) =>
+            campoFaixa(
+              label,
+              campos[`${chave}IdealMin`],
+              campos[`${chave}IdealMax`],
+              (v) => setCampos((c) => ({ ...c, [`${chave}IdealMin`]: v })),
+              (v) => setCampos((c) => ({ ...c, [`${chave}IdealMax`]: v })),
+            ),
           )}
         </div>
 

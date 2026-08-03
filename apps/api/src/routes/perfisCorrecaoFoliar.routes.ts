@@ -19,6 +19,18 @@ const perfilSchema = z.object({
   magnesioIdealMax: z.number().optional().nullable(),
   enxofreIdealMin: z.number().optional().nullable(),
   enxofreIdealMax: z.number().optional().nullable(),
+  boroIdealMin: z.number().optional().nullable(),
+  boroIdealMax: z.number().optional().nullable(),
+  cobreIdealMin: z.number().optional().nullable(),
+  cobreIdealMax: z.number().optional().nullable(),
+  ferroIdealMin: z.number().optional().nullable(),
+  ferroIdealMax: z.number().optional().nullable(),
+  manganesIdealMin: z.number().optional().nullable(),
+  manganesIdealMax: z.number().optional().nullable(),
+  molibdenioIdealMin: z.number().optional().nullable(),
+  molibdenioIdealMax: z.number().optional().nullable(),
+  zincoIdealMin: z.number().optional().nullable(),
+  zincoIdealMax: z.number().optional().nullable(),
   observacoes: z.string().optional(),
 });
 

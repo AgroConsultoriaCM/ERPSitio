@@ -650,6 +650,11 @@ model PerfilCorrecaoSolo {
   magnesioIdeal         Float?
   saturacaoBasesIdeal   Float?
   ctcReferencia         Float?
+  /// Relacoes de equilibrio cationico - nao vem direto do laudo, e calculada
+  /// na hora do diagnostico a partir do Ca/Mg/K da propria analise.
+  relacaoCaMgIdeal      Float?
+  relacaoMgKIdeal       Float?
+  relacaoCaMgKIdeal     Float?
   /// Um "ideal" por micronutriente: { boro: 0.5, cobre: 1.2, ... }.
   micronutrientesIdeais Json?
   observacoes           String?
@@ -682,6 +687,20 @@ model PerfilCorrecaoFoliar {
   magnesioIdealMax   Float?
   enxofreIdealMin    Float?
   enxofreIdealMax    Float?
+  /// Micronutrientes foliares - painel padrao (Malavolta): B, Cu, Fe, Mn, Mo,
+  /// Zn. Diferente do solo, aqui cada um tem faixa min/max, nao um so ideal.
+  boroIdealMin       Float?
+  boroIdealMax       Float?
+  cobreIdealMin      Float?
+  cobreIdealMax      Float?
+  ferroIdealMin      Float?
+  ferroIdealMax      Float?
+  manganesIdealMin   Float?
+  manganesIdealMax   Float?
+  molibdenioIdealMin Float?
+  molibdenioIdealMax Float?
+  zincoIdealMin      Float?
+  zincoIdealMax      Float?
   observacoes        String?
   propriedadeId      String
   propriedade        Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)

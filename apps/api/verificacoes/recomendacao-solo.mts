@@ -38,6 +38,9 @@ const perfil = {
   calcioIdeal: 40,
   magnesioIdeal: 15,
   saturacaoBasesIdeal: 70,
+  relacaoCaMgIdeal: null as number | null,
+  relacaoMgKIdeal: null as number | null,
+  relacaoCaMgKIdeal: null as number | null,
   micronutrientesIdeais: null as unknown,
 };
 
@@ -96,6 +99,41 @@ console.log("\n== micronutrientes (dentro do JSON, mesma logica dos demais) ==")
   conferir(
     "medir um micronutriente sem ideal cadastrado (ferro) nao muda o resultado dos demais",
     classificarStatusGeralSolo({ ...analiseBase, micronutrientes: { ferro: 0.001 } }, perfilComMicros),
+    "ADEQUADO",
+  );
+}
+
+console.log("\n== relações de equilíbrio catiônico (Ca/Mg, Mg/K, (Ca+Mg)/K) - calculadas, não digitadas ==");
+{
+  // analiseBase: Ca 40, Mg 15, K 3.5 -> Ca/Mg 2,667; Mg/K 4,286; (Ca+Mg)/K 15,714
+  conferir(
+    "Ca/Mg calculado igual ao ideal -> adequado",
+    classificarStatusGeralSolo(analiseBase, { ...perfil, relacaoCaMgIdeal: 40 / 15 }),
+    "ADEQUADO",
+  );
+  conferir(
+    "Ca/Mg calculado bem abaixo do ideal -> baixo",
+    classificarStatusGeralSolo(analiseBase, { ...perfil, relacaoCaMgIdeal: 6 }),
+    "BAIXO",
+  );
+  conferir(
+    "Mg/K calculado bem abaixo do ideal -> baixo",
+    classificarStatusGeralSolo(analiseBase, { ...perfil, relacaoMgKIdeal: 10 }),
+    "BAIXO",
+  );
+  conferir(
+    "(Ca+Mg)/K calculado dentro do ideal -> adequado",
+    classificarStatusGeralSolo(analiseBase, { ...perfil, relacaoCaMgKIdeal: 55 / 3.5 }),
+    "ADEQUADO",
+  );
+  conferir(
+    "sem nenhum ideal de relação cadastrado, nao entra na conta",
+    classificarStatusGeralSolo(analiseBase, perfil),
+    "ADEQUADO",
+  );
+  conferir(
+    "potassio ausente -> nenhuma das 3 relações pode ser calculada, mas o resto continua adequado",
+    classificarStatusGeralSolo({ ...analiseBase, potassio: null }, { ...perfil, relacaoMgKIdeal: 4 }),
     "ADEQUADO",
   );
 }

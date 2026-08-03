@@ -164,7 +164,7 @@ export function montarAlertas(dados: {
 }
 
 /** Micronutrientes ficam num JSON (mesma chave nos dois tipos de análise). */
-const MICRONUTRIENTES = ["boro", "cobre", "ferro", "manganes", "zinco", "silicio"] as const;
+const MICRONUTRIENTES = ["boro", "cobre", "ferro", "manganes", "zinco", "silicio", "molibdenio"] as const;
 
 /** Nutrientes com % de variação mostrada em cada bloco da tela: todos os macro e micro da análise, mais os calculados. */
 const NUTRIENTES_SOLO_COMPARADOS = [
