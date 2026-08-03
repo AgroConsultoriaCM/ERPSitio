@@ -695,6 +695,10 @@ model AnaliseFoliar {
   talhaoId           String
   talhao             Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
   dataColeta         DateTime
+  /// Faltava aqui - os outros tres modelos de analise (solo, fisica) ja
+  /// tinham. Confirmar um laudo foliar quebrava com "Unknown argument
+  /// laboratorio" porque o codigo grava esse campo para todo tipo.
+  laboratorio        String?
   estadioFenologico  String?
   nitrogenio         Float?
   fosforo            Float?

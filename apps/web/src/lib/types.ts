@@ -398,6 +398,7 @@ export interface AnaliseFoliar {
   id: string;
   talhaoId: string;
   dataColeta: string;
+  laboratorio?: string | null;
   estadioFenologico?: string | null;
   nitrogenio?: number | null;
   fosforo?: number | null;
