@@ -11,24 +11,44 @@ const statusCor: Record<string, string> = {
   SEM_REFERENCIA: "bg-gray-100 text-gray-600",
 };
 
-function campoNum(
-  label: string,
-  valor: string,
-  onChange: (v: string) => void,
-) {
+/** Unidade de cada campo — mostrada sempre, em tooltip, para não confundir na hora de digitar/conferir. */
+const UNIDADE_SOLO: Record<string, string> = {
+  ph: "CaCl₂", materiaOrganica: "g/dm³", fosforo: "mg/dm³", enxofre: "mg/dm³",
+  potassio: "mmolc/dm³", calcio: "mmolc/dm³", magnesio: "mmolc/dm³", aluminio: "mmolc/dm³",
+  hAl: "mmolc/dm³", somaBases: "mmolc/dm³", ctc: "mmolc/dm³", saturacaoBases: "%", saturacaoAluminio: "%",
+};
+const UNIDADE_FOLIAR: Record<string, string> = {
+  nitrogenio: "g/kg", fosforo: "g/kg", potassio: "g/kg", calcio: "g/kg", magnesio: "g/kg", enxofre: "g/kg",
+};
+
+function campoNum(label: string, unidade: string | undefined, valor: string, onChange: (v: string) => void) {
   return (
     <div>
-      <label className="mb-1 block text-xs text-gray-600">{label}</label>
+      <label className="mb-1 flex items-center gap-1 text-xs text-gray-600" title={unidade ? `Unidade: ${unidade}` : undefined}>
+        {label}
+        {unidade && <span className="text-gray-400">({unidade})</span>}
+      </label>
       <input
         type="number"
         step="any"
         value={valor}
         onChange={(e) => onChange(e.target.value)}
+        title={unidade ? `${label}, em ${unidade}` : label}
         className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
       />
     </div>
   );
 }
+
+const SOLO_VAZIO: Record<string, string> = {
+  dataColeta: "", profundidadeCm: "", laboratorio: "", ph: "", materiaOrganica: "", fosforo: "",
+  enxofre: "", potassio: "", calcio: "", magnesio: "", aluminio: "", hAl: "", somaBases: "",
+  ctc: "", saturacaoBases: "", saturacaoAluminio: "",
+};
+const FOLIAR_VAZIO: Record<string, string> = {
+  dataColeta: "", estadioFenologico: "", nitrogenio: "", fosforo: "", potassio: "", calcio: "",
+  magnesio: "", enxofre: "",
+};
 
 export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
   const qc = useQueryClient();
@@ -46,29 +66,40 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
     queryFn: () => api.get<AnaliseFoliar[]>(`/analises-foliar?talhaoId=${talhaoId}`),
   });
 
-  const [soloForm, setSoloForm] = useState<Record<string, string>>({
-    dataColeta: "",
-    profundidadeCm: "",
-    laboratorio: "",
-    ph: "",
-    materiaOrganica: "",
-    fosforo: "",
-    enxofre: "",
-    potassio: "",
-    calcio: "",
-    magnesio: "",
-    aluminio: "",
-    hAl: "",
-    somaBases: "",
-    ctc: "",
-    saturacaoBases: "",
-    saturacaoAluminio: "",
-  });
+  const [editandoSoloId, setEditandoSoloId] = useState<string | null>(null);
+  const [soloForm, setSoloForm] = useState<Record<string, string>>(SOLO_VAZIO);
+
+  function editarSolo(a: AnaliseSolo) {
+    setEditandoSoloId(a.id);
+    setSoloForm({
+      dataColeta: a.dataColeta.slice(0, 10),
+      profundidadeCm: a.profundidadeCm ?? "",
+      laboratorio: a.laboratorio ?? "",
+      ph: a.ph?.toString() ?? "",
+      materiaOrganica: a.materiaOrganica?.toString() ?? "",
+      fosforo: a.fosforo?.toString() ?? "",
+      enxofre: a.enxofre?.toString() ?? "",
+      potassio: a.potassio?.toString() ?? "",
+      calcio: a.calcio?.toString() ?? "",
+      magnesio: a.magnesio?.toString() ?? "",
+      aluminio: a.aluminio?.toString() ?? "",
+      hAl: a.hAl?.toString() ?? "",
+      somaBases: a.somaBases?.toString() ?? "",
+      ctc: a.ctc?.toString() ?? "",
+      saturacaoBases: a.saturacaoBases?.toString() ?? "",
+      saturacaoAluminio: a.saturacaoAluminio?.toString() ?? "",
+    });
+  }
+
+  function cancelarSolo() {
+    setEditandoSoloId(null);
+    setSoloForm(SOLO_VAZIO);
+  }
 
   const salvarSolo = useMutation({
     mutationFn: () => {
       const n = (v: string) => (v ? Number(v) : null);
-      return api.post("/analises-solo", {
+      const body = {
         talhaoId,
         dataColeta: soloForm.dataColeta,
         profundidadeCm: soloForm.profundidadeCm || null,
@@ -86,12 +117,13 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
         ctc: n(soloForm.ctc),
         saturacaoBases: n(soloForm.saturacaoBases),
         saturacaoAluminio: n(soloForm.saturacaoAluminio),
-      });
+      };
+      return editandoSoloId ? api.patch(`/analises-solo/${editandoSoloId}`, body) : api.post("/analises-solo", body);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["analises-solo", talhaoId] });
       qc.invalidateQueries({ queryKey: ["diagnostico", talhaoId] });
-      setSoloForm((f) => ({ ...Object.fromEntries(Object.keys(f).map((k) => [k, ""])) }));
+      cancelarSolo();
     },
   });
 
@@ -103,21 +135,32 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
     },
   });
 
-  const [foliarForm, setFoliarForm] = useState<Record<string, string>>({
-    dataColeta: "",
-    estadioFenologico: "",
-    nitrogenio: "",
-    fosforo: "",
-    potassio: "",
-    calcio: "",
-    magnesio: "",
-    enxofre: "",
-  });
+  const [editandoFoliarId, setEditandoFoliarId] = useState<string | null>(null);
+  const [foliarForm, setFoliarForm] = useState<Record<string, string>>(FOLIAR_VAZIO);
+
+  function editarFoliar(a: AnaliseFoliar) {
+    setEditandoFoliarId(a.id);
+    setFoliarForm({
+      dataColeta: a.dataColeta.slice(0, 10),
+      estadioFenologico: a.estadioFenologico ?? "",
+      nitrogenio: a.nitrogenio?.toString() ?? "",
+      fosforo: a.fosforo?.toString() ?? "",
+      potassio: a.potassio?.toString() ?? "",
+      calcio: a.calcio?.toString() ?? "",
+      magnesio: a.magnesio?.toString() ?? "",
+      enxofre: a.enxofre?.toString() ?? "",
+    });
+  }
+
+  function cancelarFoliar() {
+    setEditandoFoliarId(null);
+    setFoliarForm(FOLIAR_VAZIO);
+  }
 
   const salvarFoliar = useMutation({
     mutationFn: () => {
       const n = (v: string) => (v ? Number(v) : null);
-      return api.post("/analises-foliar", {
+      const body = {
         talhaoId,
         dataColeta: foliarForm.dataColeta,
         estadioFenologico: foliarForm.estadioFenologico || undefined,
@@ -127,11 +170,14 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
         calcio: n(foliarForm.calcio),
         magnesio: n(foliarForm.magnesio),
         enxofre: n(foliarForm.enxofre),
-      });
+      };
+      return editandoFoliarId
+        ? api.patch(`/analises-foliar/${editandoFoliarId}`, body)
+        : api.post("/analises-foliar", body);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["analises-foliar", talhaoId] });
-      setFoliarForm((f) => ({ ...Object.fromEntries(Object.keys(f).map((k) => [k, ""])) }));
+      cancelarFoliar();
     },
   });
 
@@ -167,7 +213,11 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
             <p className="mb-3 text-sm text-gray-600">Perfil usado: {diagnostico.perfilNome}</p>
             <div className="flex flex-wrap gap-2">
               {diagnostico.parametros?.map((p) => (
-                <span key={p.parametro} className={`rounded-full px-3 py-1 text-xs font-medium ${statusCor[p.status]}`}>
+                <span
+                  key={p.parametro}
+                  title={`Medido: ${p.valorMedido ?? "sem valor"}${p.faixaIdealMin != null ? ` · Ideal: ${p.faixaIdealMin}${p.faixaIdealMax != null ? `–${p.faixaIdealMax}` : ""}` : ""}`}
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${statusCor[p.status]}`}
+                >
                   {p.parametro}: {p.valorMedido ?? "-"} ({p.status.replace("_", " ").toLowerCase()})
                 </span>
               ))}
@@ -175,7 +225,9 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
             {diagnostico.observacaoCalagem && (
               <p className="mt-3 text-sm text-gray-700">
                 {diagnostico.necessidadeCalagemToneladasPorHectare != null && (
-                  <strong>Necessidade de calagem estimada: {diagnostico.necessidadeCalagemToneladasPorHectare} t/ha. </strong>
+                  <strong title="Toneladas de calcário por hectare, PRNT 100%">
+                    Necessidade de calagem estimada: {diagnostico.necessidadeCalagemToneladasPorHectare} t/ha.{" "}
+                  </strong>
                 )}
                 {diagnostico.observacaoCalagem}
               </p>
@@ -206,7 +258,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
       <section>
         <h2 className="mb-2 text-lg font-semibold text-gray-700">Análises de solo</h2>
         <div className="max-w-3xl rounded-xl bg-white p-4 shadow-sm">
-          <p className="mb-3 font-semibold">Novo lançamento</p>
+          <p className="mb-3 font-semibold">{editandoSoloId ? "Editar análise" : "Novo lançamento"}</p>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-xs text-gray-600">Data de coleta</label>
@@ -223,6 +275,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
                 value={soloForm.profundidadeCm}
                 onChange={(e) => setSoloForm((f) => ({ ...f, profundidadeCm: e.target.value }))}
                 placeholder="ex.: 0-20"
+                title="Profundidade da coleta, em centímetros (cm)"
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
@@ -234,46 +287,60 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
-            {campoNum("pH", soloForm.ph, (v) => setSoloForm((f) => ({ ...f, ph: v })))}
-            {campoNum("Matéria orgânica", soloForm.materiaOrganica, (v) => setSoloForm((f) => ({ ...f, materiaOrganica: v })))}
-            {campoNum("Fósforo (P)", soloForm.fosforo, (v) => setSoloForm((f) => ({ ...f, fosforo: v })))}
-            {campoNum("Enxofre (S)", soloForm.enxofre, (v) => setSoloForm((f) => ({ ...f, enxofre: v })))}
-            {campoNum("Potássio (K)", soloForm.potassio, (v) => setSoloForm((f) => ({ ...f, potassio: v })))}
-            {campoNum("Cálcio (Ca)", soloForm.calcio, (v) => setSoloForm((f) => ({ ...f, calcio: v })))}
-            {campoNum("Magnésio (Mg)", soloForm.magnesio, (v) => setSoloForm((f) => ({ ...f, magnesio: v })))}
-            {campoNum("Alumínio (Al)", soloForm.aluminio, (v) => setSoloForm((f) => ({ ...f, aluminio: v })))}
-            {campoNum("H+Al", soloForm.hAl, (v) => setSoloForm((f) => ({ ...f, hAl: v })))}
-            {campoNum("Soma de bases (SB)", soloForm.somaBases, (v) => setSoloForm((f) => ({ ...f, somaBases: v })))}
-            {campoNum("CTC", soloForm.ctc, (v) => setSoloForm((f) => ({ ...f, ctc: v })))}
-            {campoNum("Saturação por bases (V%)", soloForm.saturacaoBases, (v) => setSoloForm((f) => ({ ...f, saturacaoBases: v })))}
-            {campoNum("Saturação por alumínio (m%)", soloForm.saturacaoAluminio, (v) => setSoloForm((f) => ({ ...f, saturacaoAluminio: v })))}
+            {campoNum("pH", UNIDADE_SOLO.ph, soloForm.ph, (v) => setSoloForm((f) => ({ ...f, ph: v })))}
+            {campoNum("Matéria orgânica", UNIDADE_SOLO.materiaOrganica, soloForm.materiaOrganica, (v) => setSoloForm((f) => ({ ...f, materiaOrganica: v })))}
+            {campoNum("Fósforo (P)", UNIDADE_SOLO.fosforo, soloForm.fosforo, (v) => setSoloForm((f) => ({ ...f, fosforo: v })))}
+            {campoNum("Enxofre (S)", UNIDADE_SOLO.enxofre, soloForm.enxofre, (v) => setSoloForm((f) => ({ ...f, enxofre: v })))}
+            {campoNum("Potássio (K)", UNIDADE_SOLO.potassio, soloForm.potassio, (v) => setSoloForm((f) => ({ ...f, potassio: v })))}
+            {campoNum("Cálcio (Ca)", UNIDADE_SOLO.calcio, soloForm.calcio, (v) => setSoloForm((f) => ({ ...f, calcio: v })))}
+            {campoNum("Magnésio (Mg)", UNIDADE_SOLO.magnesio, soloForm.magnesio, (v) => setSoloForm((f) => ({ ...f, magnesio: v })))}
+            {campoNum("Alumínio (Al)", UNIDADE_SOLO.aluminio, soloForm.aluminio, (v) => setSoloForm((f) => ({ ...f, aluminio: v })))}
+            {campoNum("H+Al", UNIDADE_SOLO.hAl, soloForm.hAl, (v) => setSoloForm((f) => ({ ...f, hAl: v })))}
+            {campoNum("Soma de bases (SB)", UNIDADE_SOLO.somaBases, soloForm.somaBases, (v) => setSoloForm((f) => ({ ...f, somaBases: v })))}
+            {campoNum("CTC", UNIDADE_SOLO.ctc, soloForm.ctc, (v) => setSoloForm((f) => ({ ...f, ctc: v })))}
+            {campoNum("Saturação por bases (V%)", UNIDADE_SOLO.saturacaoBases, soloForm.saturacaoBases, (v) => setSoloForm((f) => ({ ...f, saturacaoBases: v })))}
+            {campoNum("Saturação por alumínio (m%)", UNIDADE_SOLO.saturacaoAluminio, soloForm.saturacaoAluminio, (v) => setSoloForm((f) => ({ ...f, saturacaoAluminio: v })))}
           </div>
-          <button
-            onClick={() => salvarSolo.mutate()}
-            disabled={!soloForm.dataColeta || salvarSolo.isPending}
-            className="mt-3 rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            Salvar análise de solo
-          </button>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => salvarSolo.mutate()}
+              disabled={!soloForm.dataColeta || salvarSolo.isPending}
+              className="rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {editandoSoloId ? "Salvar alterações" : "Salvar análise de solo"}
+            </button>
+            {editandoSoloId && (
+              <button onClick={cancelarSolo} className="rounded-md border px-4 py-2 text-sm">
+                Cancelar
+              </button>
+            )}
+          </div>
         </div>
 
         <ul className="mt-3 space-y-2">
           {analisesSolo?.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm shadow-sm">
-              <span>
+              <span
+                title={`pH em ${UNIDADE_SOLO.ph} · P/S em ${UNIDADE_SOLO.fosforo} · Ca/Mg/K em ${UNIDADE_SOLO.potassio}`}
+              >
                 <span className="font-medium">{new Date(a.dataColeta).toLocaleDateString("pt-BR")}</span>
                 {" — "}pH {a.ph ?? "-"}, V% {a.saturacaoBases ?? "-"}, P {a.fosforo ?? "-"}, K {a.potassio ?? "-"}
                 {a.laboratorio ? ` (${a.laboratorio})` : ""}
               </span>
-              <button
-                onClick={() => {
-                  if (confirm("Excluir esta análise de solo? Não pode ser desfeito.")) excluirSolo.mutate(a.id);
-                }}
-                disabled={excluirSolo.isPending}
-                className="shrink-0 text-red-600 hover:underline disabled:opacity-50"
-              >
-                Excluir
-              </button>
+              <span className="flex shrink-0 gap-3">
+                <button onClick={() => editarSolo(a)} className="text-green-700 hover:underline">
+                  Editar
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Excluir esta análise de solo? Não pode ser desfeito.")) excluirSolo.mutate(a.id);
+                  }}
+                  disabled={excluirSolo.isPending}
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                >
+                  Excluir
+                </button>
+              </span>
             </li>
           ))}
         </ul>
@@ -282,7 +349,7 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
       <section>
         <h2 className="mb-2 text-lg font-semibold text-gray-700">Análises foliares</h2>
         <div className="max-w-3xl rounded-xl bg-white p-4 shadow-sm">
-          <p className="mb-3 font-semibold">Novo lançamento</p>
+          <p className="mb-3 font-semibold">{editandoFoliarId ? "Editar análise" : "Novo lançamento"}</p>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-xs text-gray-600">Data de coleta</label>
@@ -301,39 +368,51 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
-            {campoNum("Nitrogênio (N)", foliarForm.nitrogenio, (v) => setFoliarForm((f) => ({ ...f, nitrogenio: v })))}
-            {campoNum("Fósforo (P)", foliarForm.fosforo, (v) => setFoliarForm((f) => ({ ...f, fosforo: v })))}
-            {campoNum("Potássio (K)", foliarForm.potassio, (v) => setFoliarForm((f) => ({ ...f, potassio: v })))}
-            {campoNum("Cálcio (Ca)", foliarForm.calcio, (v) => setFoliarForm((f) => ({ ...f, calcio: v })))}
-            {campoNum("Magnésio (Mg)", foliarForm.magnesio, (v) => setFoliarForm((f) => ({ ...f, magnesio: v })))}
-            {campoNum("Enxofre (S)", foliarForm.enxofre, (v) => setFoliarForm((f) => ({ ...f, enxofre: v })))}
+            {campoNum("Nitrogênio (N)", UNIDADE_FOLIAR.nitrogenio, foliarForm.nitrogenio, (v) => setFoliarForm((f) => ({ ...f, nitrogenio: v })))}
+            {campoNum("Fósforo (P)", UNIDADE_FOLIAR.fosforo, foliarForm.fosforo, (v) => setFoliarForm((f) => ({ ...f, fosforo: v })))}
+            {campoNum("Potássio (K)", UNIDADE_FOLIAR.potassio, foliarForm.potassio, (v) => setFoliarForm((f) => ({ ...f, potassio: v })))}
+            {campoNum("Cálcio (Ca)", UNIDADE_FOLIAR.calcio, foliarForm.calcio, (v) => setFoliarForm((f) => ({ ...f, calcio: v })))}
+            {campoNum("Magnésio (Mg)", UNIDADE_FOLIAR.magnesio, foliarForm.magnesio, (v) => setFoliarForm((f) => ({ ...f, magnesio: v })))}
+            {campoNum("Enxofre (S)", UNIDADE_FOLIAR.enxofre, foliarForm.enxofre, (v) => setFoliarForm((f) => ({ ...f, enxofre: v })))}
           </div>
-          <button
-            onClick={() => salvarFoliar.mutate()}
-            disabled={!foliarForm.dataColeta || salvarFoliar.isPending}
-            className="mt-3 rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            Salvar análise foliar
-          </button>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => salvarFoliar.mutate()}
+              disabled={!foliarForm.dataColeta || salvarFoliar.isPending}
+              className="rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {editandoFoliarId ? "Salvar alterações" : "Salvar análise foliar"}
+            </button>
+            {editandoFoliarId && (
+              <button onClick={cancelarFoliar} className="rounded-md border px-4 py-2 text-sm">
+                Cancelar
+              </button>
+            )}
+          </div>
         </div>
 
         <ul className="mt-3 space-y-2">
           {analisesFoliar?.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm shadow-sm">
-              <span>
+              <span title={`N/P/K/Ca/Mg/S em ${UNIDADE_FOLIAR.nitrogenio}`}>
                 <span className="font-medium">{new Date(a.dataColeta).toLocaleDateString("pt-BR")}</span>
                 {" — "}N {a.nitrogenio ?? "-"}, P {a.fosforo ?? "-"}, K {a.potassio ?? "-"}
                 {a.estadioFenologico ? ` (${a.estadioFenologico})` : ""}
               </span>
-              <button
-                onClick={() => {
-                  if (confirm("Excluir esta análise foliar? Não pode ser desfeito.")) excluirFoliar.mutate(a.id);
-                }}
-                disabled={excluirFoliar.isPending}
-                className="shrink-0 text-red-600 hover:underline disabled:opacity-50"
-              >
-                Excluir
-              </button>
+              <span className="flex shrink-0 gap-3">
+                <button onClick={() => editarFoliar(a)} className="text-green-700 hover:underline">
+                  Editar
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Excluir esta análise foliar? Não pode ser desfeito.")) excluirFoliar.mutate(a.id);
+                  }}
+                  disabled={excluirFoliar.isPending}
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                >
+                  Excluir
+                </button>
+              </span>
             </li>
           ))}
         </ul>

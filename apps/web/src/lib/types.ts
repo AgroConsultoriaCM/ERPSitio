@@ -620,7 +620,7 @@ export interface RegistroPulverizacao {
   volumeTotalLitros: number;
   caldaId: string | null;
   calda?: Calda | null;
-  caldaAdHoc?: { insumoId: string; dosePor100L: number }[] | null;
+  caldaAdHoc?: { insumoId: string; doseTotalPorCarga: number }[] | null;
   atividadeId: string;
   talhoes: RegistroPulverizacaoTalhao[];
 }

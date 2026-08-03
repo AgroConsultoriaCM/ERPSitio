@@ -9,7 +9,7 @@ import type { Calda, Insumo, PerfilBomba, RegistroPulverizacao, TipoAtividade, T
 
 interface LinhaAdHoc {
   insumoId: string;
-  dosePor100L: string;
+  doseTotalPorCarga: string;
 }
 
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
@@ -35,7 +35,7 @@ export default function Pulverizacoes() {
   const [numeroCargas, setNumeroCargas] = useState("");
   const [modoCalda, setModoCalda] = useState<"cadastrada" | "adhoc">("cadastrada");
   const [caldaId, setCaldaId] = useState("");
-  const [itensAdHoc, setItensAdHoc] = useState<LinhaAdHoc[]>([{ insumoId: "", dosePor100L: "" }]);
+  const [itensAdHoc, setItensAdHoc] = useState<LinhaAdHoc[]>([{ insumoId: "", doseTotalPorCarga: "" }]);
   const [observacoes, setObservacoes] = useState("");
 
   const tipoPulverizacao = tipos?.find((t) => t.nome.toLowerCase().includes("pulveriz"));
@@ -45,7 +45,7 @@ export default function Pulverizacoes() {
     setBombaId("");
     setNumeroCargas("");
     setCaldaId("");
-    setItensAdHoc([{ insumoId: "", dosePor100L: "" }]);
+    setItensAdHoc([{ insumoId: "", doseTotalPorCarga: "" }]);
     setObservacoes("");
   }
 
@@ -67,8 +67,8 @@ export default function Pulverizacoes() {
         body.caldaId = caldaId;
       } else {
         body.caldaAdHoc = itensAdHoc
-          .filter((i) => i.insumoId && i.dosePor100L)
-          .map((i) => ({ insumoId: i.insumoId, dosePor100L: Number(i.dosePor100L) }));
+          .filter((i) => i.insumoId && i.doseTotalPorCarga)
+          .map((i) => ({ insumoId: i.insumoId, doseTotalPorCarga: Number(i.doseTotalPorCarga) }));
       }
       return api.post("/pulverizacoes", body);
     },
@@ -78,7 +78,7 @@ export default function Pulverizacoes() {
     },
   });
 
-  const itensAdHocValidos = itensAdHoc.filter((i) => i.insumoId && i.dosePor100L);
+  const itensAdHocValidos = itensAdHoc.filter((i) => i.insumoId && i.doseTotalPorCarga);
   const podeLancar =
     (tipoAtividadeId || tipoPulverizacao) &&
     talhaoIds.length > 0 &&
@@ -203,36 +203,51 @@ export default function Pulverizacoes() {
           </select>
         ) : (
           <div className="mt-2 space-y-2">
-            {itensAdHoc.map((item, idx) => (
-              <div key={idx} className="flex gap-2">
-                <select
-                  value={item.insumoId}
-                  onChange={(e) => setItensAdHoc((arr) => arr.map((it, i) => (i === idx ? { ...it, insumoId: e.target.value } : it)))}
-                  className="flex-1 rounded-md border border-terra-300 px-2 py-1.5 text-sm"
-                >
-                  <option value="">Produto...</option>
-                  {insumos?.map((ins) => (
-                    <option key={ins.id} value={ins.id}>
-                      {ins.nome}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="dose/100L"
-                  value={item.dosePor100L}
-                  onChange={(e) => setItensAdHoc((arr) => arr.map((it, i) => (i === idx ? { ...it, dosePor100L: e.target.value } : it)))}
-                  className="w-28 rounded-md border border-terra-300 px-2 py-1.5 text-sm"
-                />
-                {itensAdHoc.length > 1 && (
-                  <button onClick={() => setItensAdHoc((arr) => arr.filter((_, i) => i !== idx))} className="text-red-600">
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
-            <button onClick={() => setItensAdHoc((arr) => [...arr, { insumoId: "", dosePor100L: "" }])} className="text-sm text-mata-700">
+            <p className="text-xs text-terra-500">
+              Quanto do produto entra em CADA carga da bomba (o que você mede ao encher o tanque) — o
+              sistema multiplica pelo número de cargas.
+            </p>
+            {itensAdHoc.map((item, idx) => {
+              const unidade = insumos?.find((ins) => ins.id === item.insumoId)?.unidadeMedida;
+              return (
+                <div key={idx} className="flex gap-2">
+                  <select
+                    value={item.insumoId}
+                    onChange={(e) => setItensAdHoc((arr) => arr.map((it, i) => (i === idx ? { ...it, insumoId: e.target.value } : it)))}
+                    className="flex-1 rounded-md border border-terra-300 px-2 py-1.5 text-sm"
+                  >
+                    <option value="">Produto...</option>
+                    {insumos?.map((ins) => (
+                      <option key={ins.id} value={ins.id}>
+                        {ins.nome} ({ins.unidadeMedida})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="relative w-32">
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="dose/carga"
+                      title={unidade ? `Dose total por carga, em ${unidade}` : "Dose total por carga"}
+                      value={item.doseTotalPorCarga}
+                      onChange={(e) => setItensAdHoc((arr) => arr.map((it, i) => (i === idx ? { ...it, doseTotalPorCarga: e.target.value } : it)))}
+                      className="w-full rounded-md border border-terra-300 px-2 py-1.5 pr-8 text-sm"
+                    />
+                    {unidade && (
+                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-terra-400">
+                        {unidade}
+                      </span>
+                    )}
+                  </div>
+                  {itensAdHoc.length > 1 && (
+                    <button onClick={() => setItensAdHoc((arr) => arr.filter((_, i) => i !== idx))} className="text-red-600">
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <button onClick={() => setItensAdHoc((arr) => [...arr, { insumoId: "", doseTotalPorCarga: "" }])} className="text-sm text-mata-700">
               + adicionar produto
             </button>
           </div>

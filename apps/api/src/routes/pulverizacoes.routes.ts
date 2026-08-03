@@ -19,8 +19,12 @@ const pulverizacaoSchema = z
     bombaId: z.string().uuid(),
     numeroCargas: z.number().positive(),
     caldaId: z.string().uuid().optional(),
+    // Ad-hoc pede dose TOTAL por carga (o que o operador realmente mede ao
+    // encher a bomba), nao dose/100L - isso fica so na calda cadastrada
+    // (receita reutilizavel, precisa ser normalizada para servir qualquer
+    // tamanho de bomba).
     caldaAdHoc: z
-      .array(z.object({ insumoId: z.string().uuid(), dosePor100L: z.number().positive() }))
+      .array(z.object({ insumoId: z.string().uuid(), doseTotalPorCarga: z.number().positive() }))
       .min(1)
       .optional(),
   })
@@ -92,15 +96,21 @@ export default async function pulverizacoesRoutes(fastify: FastifyInstance) {
 
       const volumeTotalLitros = Math.round(dados.numeroCargas * bomba.capacidadeLitros * 100) / 100;
 
-      // Itens da calda: cadastrada ou montada na hora, mesma forma dos dois.
-      let itensCalda: { insumoId: string; dosePor100L: number }[];
+      // Itens da calda: cadastrada (dose/100L, normalizada) ou montada na
+      // hora (dose TOTAL por carga, o que o operador mede ao encher a
+      // bomba) - a conta de quantidade é diferente para cada uma.
+      let insumosIds: string[];
+      let quantidadePorInsumo: Map<string, number>;
       if (dados.caldaId) {
         const calda = await fastify.prisma.calda.findFirst({
           where: { id: dados.caldaId, propriedadeId },
           include: { itens: true },
         });
         if (!calda) throw new NaoEncontradoError("Calda não encontrada");
-        itensCalda = calda.itens;
+        insumosIds = calda.itens.map((i) => i.insumoId);
+        quantidadePorInsumo = new Map(
+          calda.itens.map((i) => [i.insumoId, ((volumeTotalLitros / 100) * i.dosePor100L)]),
+        );
       } else {
         const idsInformados = dados.caldaAdHoc!.map((i) => i.insumoId);
         const insumosValidos = await fastify.prisma.insumo.findMany({
@@ -110,19 +120,22 @@ export default async function pulverizacoesRoutes(fastify: FastifyInstance) {
         if (insumosValidos.length !== new Set(idsInformados).size) {
           throw new AppError("Algum produto da calda montada na hora não pertence a esta propriedade.", 422);
         }
-        itensCalda = dados.caldaAdHoc!;
+        insumosIds = idsInformados;
+        quantidadePorInsumo = new Map(
+          dados.caldaAdHoc!.map((i) => [i.insumoId, i.doseTotalPorCarga * dados.numeroCargas]),
+        );
       }
 
       const insumosDb = await fastify.prisma.insumo.findMany({
-        where: { id: { in: itensCalda.map((i) => i.insumoId) } },
+        where: { id: { in: insumosIds } },
         select: { id: true, unidadeMedida: true },
       });
       const unidadePorInsumo = new Map(insumosDb.map((i) => [i.id, i.unidadeMedida]));
 
-      const insumosParaAtividade = itensCalda.map((item) => ({
-        insumoId: item.insumoId,
-        quantidade: Math.round(((volumeTotalLitros / 100) * item.dosePor100L) * 1000) / 1000,
-        unidade: unidadePorInsumo.get(item.insumoId) ?? "",
+      const insumosParaAtividade = insumosIds.map((insumoId) => ({
+        insumoId,
+        quantidade: Math.round((quantidadePorInsumo.get(insumoId) ?? 0) * 1000) / 1000,
+        unidade: unidadePorInsumo.get(insumoId) ?? "",
       }));
 
       const dadosAtividade = atividadeSchema.parse({

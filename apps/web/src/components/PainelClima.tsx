@@ -44,6 +44,7 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
   const boa = proximaJanelaBoa(janela);
   const balanco = balancoHidrico(clima.dias, 7, parametros.kcCultura);
   const previsao = clima.dias.filter((d) => !d.passado);
+  const maxChuva = Math.max(2, ...previsao.map((d) => d.chuvaMm ?? 0));
 
   return (
     <div className="cartao overflow-hidden">
@@ -135,38 +136,47 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
                 </span>
                 <span className="numero text-sm text-terra-500">{diaCurto(d.data)}</span>
 
-                <div className="mt-2 flex h-14 w-full items-end justify-center">
-                  <div className={`relative h-14 w-6 overflow-hidden rounded-t ${cor.track}`}>
-                    <div
-                      className={`absolute inset-x-0 bottom-0 animate-crescer origin-bottom rounded-t bg-gradient-to-t ${cor.fill}`}
-                      style={{ height: `${score}%` }}
-                    />
-                  </div>
+                {/* Probabilidade de chuva, em cima da barra que ela descreve. */}
+                <span
+                  className="numero mt-1.5 text-xs font-semibold text-agua-600"
+                  title="Probabilidade de chuva no dia"
+                >
+                  {d.probabilidadeChuva != null ? `${Math.round(d.probabilidadeChuva)}%` : "—"}
+                </span>
+
+                {/* Candle de chuva: altura proporcional aos mm previstos no dia. */}
+                <div className="mt-1 flex h-14 w-full items-end justify-center" title={`${numero(d.chuvaMm ?? 0)} mm previstos`}>
+                  <div
+                    className={`w-6 origin-bottom animate-crescer rounded-t ${
+                      (d.chuvaMm ?? 0) > 0 ? "bg-gradient-to-t from-agua-500 to-agua-300" : "bg-terra-200"
+                    }`}
+                    style={{ height: `${Math.max(4, ((d.chuvaMm ?? 0) / maxChuva) * 52)}px` }}
+                  />
                 </div>
 
-                <span className="numero mt-1.5 text-base font-semibold text-terra-800">
+                <span className="numero mt-1.5 text-base font-semibold text-terra-800" title="Chuva prevista para o dia, em milímetros (mm)">
                   {(d.chuvaMm ?? 0) > 0 ? numero(d.chuvaMm) : "0"} mm
                 </span>
-                <span className="numero text-sm text-terra-500">
+                <span className="numero text-sm text-terra-500" title="Temperatura mínima / máxima prevista, em °C">
                   {d.tempMin != null && d.tempMax != null
                     ? `${Math.round(d.tempMin)}° / ${Math.round(d.tempMax)}°`
                     : ""}
                 </span>
 
                 <div className="mt-2 flex w-full items-center justify-center gap-2.5 border-t border-terra-100 pt-2 text-terra-600">
-                  <span className="flex items-center gap-1" title="Umidade relativa média">
+                  <span className="flex items-center gap-1" title="Umidade relativa média do dia (%)">
                     <Droplets size={12} className="text-agua-500" />
                     <span className="numero text-xs">
                       {d.umidadeMediaPct != null ? `${Math.round(d.umidadeMediaPct)}%` : "—"}
                     </span>
                   </span>
-                  <span className="flex items-center gap-1" title="Vento máximo">
+                  <span className="flex items-center gap-1" title="Vento máximo previsto, em km/h">
                     <Wind size={12} className="text-terra-500" />
                     <span className="numero text-xs">
                       {d.ventoMaxKmh != null ? `${Math.round(d.ventoMaxKmh)}` : "—"}
                     </span>
                   </span>
-                  <span className="flex items-center gap-1" title="Índice UV máximo">
+                  <span className="flex items-center gap-1" title="Índice UV máximo previsto (escala 0-11+)">
                     <SunMedium size={12} className="text-amber-500" />
                     <span className="numero text-xs">
                       {d.indiceUv != null ? numero(d.indiceUv, 0) : "—"}
@@ -174,7 +184,16 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
                   </span>
                 </div>
 
-                <span className="numero mt-2.5 text-xs font-semibold text-terra-500">{score}%</span>
+                {/* Score de pulverização: barra deitada, sempre 0-100% preenchida. */}
+                <div className="mt-2.5 w-full" title={`Score de pulverização: ${score}% (${cor.rotulo})`}>
+                  <div className={`h-2 w-full overflow-hidden rounded-full ${cor.track}`}>
+                    <div
+                      className={`h-2 origin-left animate-crescer-x rounded-full bg-gradient-to-r ${cor.fill}`}
+                      style={{ width: `${score}%` }}
+                    />
+                  </div>
+                  <span className="numero mt-1 block text-center text-xs font-semibold text-terra-500">{score}%</span>
+                </div>
               </div>
             );
           })}

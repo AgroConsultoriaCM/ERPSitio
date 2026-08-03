@@ -92,6 +92,20 @@ const CAMPOS_FOLIAR = [
   "boro", "cobre", "ferro", "manganes", "zinco", "silicio", "molibdenio",
 ] as const;
 
+/** Unidade de cada campo — igual à convenção Athenas usada na importação de laudos. Mostrada sempre, em tooltip. */
+const UNIDADE_SOLO: Record<string, string> = {
+  ph: "CaCl₂", materiaOrganica: "g/dm³", fosforo: "mg/dm³", enxofre: "mg/dm³",
+  potassio: "mmolc/dm³", calcio: "mmolc/dm³", magnesio: "mmolc/dm³", aluminio: "mmolc/dm³",
+  hAl: "mmolc/dm³", somaBases: "mmolc/dm³", ctc: "mmolc/dm³", saturacaoBases: "%", saturacaoAluminio: "%",
+  boro: "mg/dm³", cobre: "mg/dm³", ferro: "mg/dm³", manganes: "mg/dm³", zinco: "mg/dm³",
+  silicio: "mg/dm³", molibdenio: "mg/dm³",
+};
+const UNIDADE_FOLIAR: Record<string, string> = {
+  nitrogenio: "g/kg", fosforo: "g/kg", potassio: "g/kg", calcio: "g/kg", magnesio: "g/kg", enxofre: "g/kg",
+  boro: "mg/kg", cobre: "mg/kg", ferro: "mg/kg", manganes: "mg/kg", zinco: "mg/kg",
+  silicio: "g/kg", molibdenio: "mg/kg",
+};
+
 const COR_STATUS_GERAL: Record<StatusGeral, string> = {
   BAIXO: "bg-red-500",
   MARGEM: "bg-amber-400",
@@ -144,6 +158,7 @@ function Numero({
   valor,
   variacao,
   status,
+  unidade,
 }: {
   chave: string;
   valor: unknown;
@@ -151,10 +166,16 @@ function Numero({
   variacao?: number;
   /** Status deste nutriente x perfil da cultura — a bolinha do card. Omitida quando não há referência. */
   status?: StatusGeral;
+  /** Unidade de medida deste valor (mg/dm³, g/kg...) — sempre em tooltip, nunca camuflada. */
+  unidade?: string;
 }) {
   if (valor == null || valor === "") return null;
+  const nomeCompleto = ROTULO_NUTRIENTE[chave] ?? chave;
   return (
-    <div className="relative rounded-lg bg-terra-50 px-2.5 py-1.5">
+    <div
+      className="relative rounded-lg bg-terra-50 px-2.5 py-1.5"
+      title={unidade ? `${nomeCompleto}: ${typeof valor === "number" ? numero(valor, 2) : valor} ${unidade}` : nomeCompleto}
+    >
       {status && status !== "SEM_REFERENCIA" && (
         <span className="absolute left-1.5 top-1.5">
           <Bolinha status={status} className="h-2 w-2" />
@@ -172,10 +193,11 @@ function Numero({
         </span>
       )}
       {/* Sem "uppercase": os rótulos já vêm na grafia química certa (Mg, Ca, H+Al) - forçar caixa alta virava "MG", "CA". */}
-      <p className="text-center text-xs tracking-wide text-terra-500">{ROTULO_NUTRIENTE[chave] ?? chave}</p>
+      <p className="text-center text-xs tracking-wide text-terra-500">{nomeCompleto}</p>
       <p className="numero text-center text-base font-semibold text-terra-800">
         {typeof valor === "number" ? numero(valor, 2) : String(valor)}
       </p>
+      {unidade && <p className="text-center text-[10px] leading-none text-terra-400">{unidade}</p>}
     </div>
   );
 }
@@ -426,6 +448,7 @@ function DetalheTalhao({ t }: { t: TalhaoNutricional }) {
                     valor={t.analiseSolo![chave]}
                     variacao={t.variacaoSolo[chave]}
                     status={t.statusPorNutrienteSolo[chave]}
+                    unidade={UNIDADE_SOLO[chave]}
                   />
                 ))}
               </div>
@@ -456,6 +479,7 @@ function DetalheTalhao({ t }: { t: TalhaoNutricional }) {
                     valor={t.analiseFoliar![chave]}
                     variacao={t.variacaoFoliar[chave]}
                     status={t.statusPorNutrienteFoliar[chave]}
+                    unidade={UNIDADE_FOLIAR[chave]}
                   />
                 ))}
               </div>

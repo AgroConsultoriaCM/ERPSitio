@@ -116,6 +116,13 @@ export default {
           from: { transform: "scaleY(0)" },
           to: { transform: "scaleY(1)" },
         },
+        // Mesma ideia de "crescer", mas para barra deitada (score de
+        // pulverização) - a vertical (scaleY) achataria a barra em vez de
+        // preenchê-la da esquerda para a direita.
+        "crescer-x": {
+          from: { transform: "scaleX(0)" },
+          to: { transform: "scaleX(1)" },
+        },
       },
       animation: {
         "surgir-de-baixo": "surgir-de-baixo 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
@@ -123,6 +130,7 @@ export default {
         pulsar: "pulsar 2s ease-in-out infinite",
         brilho: "brilho 1.6s infinite",
         crescer: "crescer 0.5s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "crescer-x": "crescer-x 0.5s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },
