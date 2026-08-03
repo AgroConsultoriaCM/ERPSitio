@@ -32,7 +32,12 @@ services:
     # vez que o projeto for configurado, gere a migration inicial uma vez
     # (veja o README, secao "Primeira configuracao") antes de subir este
     # servico normalmente.
-    command: sh -c "npm install && npm run generate --workspace packages/db && npm run migrate --workspace packages/db && (npm run seed --workspace packages/db || true) && npm run dev --workspace apps/api"
+    #
+    # "apk add openssl" primeiro: o motor do Prisma precisa de libssl, e
+    # node:20-alpine nao vem com ela - sem isso "migrate deploy" falha com
+    # "Could not parse schema engine response" (a mensagem real, sobre
+    # OpenSSL, fica escondida antes dela).
+    command: sh -c "apk add --no-cache openssl && npm install && npm run generate --workspace packages/db && npm run migrate --workspace packages/db && (npm run seed --workspace packages/db || true) && npm run dev --workspace apps/api"
     environment:
       DATABASE_URL: ${DATABASE_URL}
       API_PORT: ${API_PORT:-3333}
@@ -43,6 +48,13 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
       SEED_ADMIN_SENHA: ${SEED_ADMIN_SENHA}
+      # Integrações externas opcionais - sem elas o sistema sobe igual, só o
+      # recurso correspondente fica indisponível (ver env.ts).
+      AGROFIT_CONSUMER_KEY: ${AGROFIT_CONSUMER_KEY}
+      AGROFIT_CONSUMER_SECRET: ${AGROFIT_CONSUMER_SECRET}
+      COPERNICUS_CLIENT_ID: ${COPERNICUS_CLIENT_ID}
+      COPERNICUS_CLIENT_SECRET: ${COPERNICUS_CLIENT_SECRET}
+      OCR_SPACE_API_KEY: ${OCR_SPACE_API_KEY}
     ports:
       - "${API_PORT:-3333}:3333"
     depends_on:

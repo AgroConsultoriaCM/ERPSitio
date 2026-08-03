@@ -161,10 +161,10 @@ async function main() {
   }
 
   const insumosSeed = [
-    { nome: "Ureia", categoria: "FERTILIZANTE" as const, unidadeMedida: "kg" },
-    { nome: "Calcário Dolomítico", categoria: "FERTILIZANTE" as const, unidadeMedida: "kg" },
-    { nome: "Fungicida Base Cobre", categoria: "DEFENSIVO" as const, unidadeMedida: "L" },
-    { nome: "Caixa de Colheita 20kg", categoria: "EMBALAGEM" as const, unidadeMedida: "un" },
+    { nome: "Ureia", categoria: "FERTILIZANTE" as const, unidadeMedida: "kg", funcoes: ["FERTILIZANTE_SOLO" as const] },
+    { nome: "Calcário Dolomítico", categoria: "FERTILIZANTE" as const, unidadeMedida: "kg", funcoes: ["FERTILIZANTE_SOLO" as const] },
+    { nome: "Fungicida Base Cobre", categoria: "DEFENSIVO" as const, unidadeMedida: "L", funcoes: ["FUNGICIDA" as const] },
+    { nome: "Caixa de Colheita 20kg", categoria: "EMBALAGEM" as const, unidadeMedida: "un", funcoes: [] },
   ];
   for (const insumo of insumosSeed) {
     const existente = await prisma.insumo.findFirst({

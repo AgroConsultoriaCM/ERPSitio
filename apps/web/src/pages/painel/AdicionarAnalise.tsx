@@ -85,6 +85,62 @@ const ROTULO_VALOR: Record<string, string> = {
   umidade: "Umidade", relacaoCN: "C/N",
 };
 
+/**
+ * Todo campo que cada tipo de laudo pode ter — usado na digitação 100%
+ * manual, quando o sistema não consegue extrair nada do arquivo (PDF sem
+ * planilha) e o usuário monta a amostra clicando "+ adicionar valor".
+ * Espelha CAMPOS_QUIMICA/CAMPOS_FOLIAR/CAMPOS_FISICA/CAMPOS_COMPOSTO em
+ * importacaoLaudo.ts no servidor.
+ */
+const CAMPOS_POR_TIPO: Record<TipoLaudo, string[]> = {
+  QUIMICA: [
+    "ph", "materiaOrganica", "fosforo", "enxofre", "calcio", "magnesio", "sodio",
+    "potassio", "aluminio", "hAl", "somaBases", "ctc", "saturacaoBases", "saturacaoAluminio",
+    "boro", "cobre", "ferro", "manganes", "zinco",
+  ],
+  FOLIAR: [
+    "nitrogenio", "fosforo", "potassio", "calcio", "magnesio", "enxofre",
+    "boro", "cobre", "ferro", "manganes", "zinco", "silicio",
+  ],
+  FISICA: [
+    "argila", "silte", "areiaTotal", "areiaMuitoGrossa", "areiaGrossa", "areiaMedia",
+    "areiaFina", "areiaMuitoFina", "argilaDispersaAgua", "grauFloculacao", "grauDispersao",
+  ],
+  MICRO: ["boro", "cobre", "ferro", "manganes", "zinco"],
+  ORGANICO: [
+    "materiaOrganica", "carbonoOrganico", "nitrogenio", "p2o5Total", "p2o5Ac", "p2o5Agua",
+    "k2o", "calcio", "magnesio", "enxofre", "ph", "umidade", "relacaoCN",
+    "boro", "cobre", "ferro", "manganes", "zinco",
+  ],
+};
+
+/** Unidade de cada campo, por tipo — mesma referência do servidor (analiseLaudo.ts), para quando o valor ainda não veio na resposta (campo recém-adicionado à mão). */
+const UNIDADE_POR_TIPO: Record<TipoLaudo, Record<string, string>> = {
+  QUIMICA: {
+    ph: "CaCl₂", materiaOrganica: "g/dm³", fosforo: "mg/dm³", enxofre: "mg/dm³",
+    calcio: "mmolc/dm³", magnesio: "mmolc/dm³", sodio: "mmolc/dm³", potassio: "mmolc/dm³",
+    aluminio: "mmolc/dm³", hAl: "mmolc/dm³", somaBases: "mmolc/dm³", ctc: "mmolc/dm³",
+    saturacaoBases: "%", saturacaoAluminio: "%",
+    boro: "mg/dm³", cobre: "mg/dm³", ferro: "mg/dm³", manganes: "mg/dm³", zinco: "mg/dm³",
+  },
+  MICRO: { boro: "mg/dm³", cobre: "mg/dm³", ferro: "mg/dm³", manganes: "mg/dm³", zinco: "mg/dm³" },
+  FOLIAR: {
+    nitrogenio: "g/kg", fosforo: "g/kg", potassio: "g/kg", calcio: "g/kg", magnesio: "g/kg",
+    enxofre: "g/kg", boro: "mg/kg", cobre: "mg/kg", ferro: "mg/kg", manganes: "mg/kg",
+    zinco: "mg/kg", silicio: "g/kg",
+  },
+  FISICA: {
+    argila: "%", silte: "%", areiaTotal: "%", areiaMuitoGrossa: "%", areiaGrossa: "%",
+    areiaMedia: "%", areiaFina: "%", areiaMuitoFina: "%", argilaDispersaAgua: "%",
+    grauFloculacao: "%", grauDispersao: "%",
+  },
+  ORGANICO: {
+    materiaOrganica: "%", carbonoOrganico: "%", nitrogenio: "%", p2o5Total: "%", p2o5Ac: "%",
+    p2o5Agua: "%", k2o: "%", calcio: "%", magnesio: "%", enxofre: "%", boro: "%", cobre: "%",
+    ferro: "%", manganes: "%", zinco: "%", umidade: "%", ph: "CaCl₂", relacaoCN: "razão",
+  },
+};
+
 const ABAS: { id: Situacao; rotulo: string }[] = [
   { id: "PENDENTE", rotulo: "Pendentes" },
   { id: "IMPORTADO", rotulo: "Importados" },
@@ -141,8 +197,10 @@ function LinhaAmostra({
   lotes,
   destino,
   valores,
+  extras,
   onDestino,
   onValor,
+  onAdicionarCampo,
 }: {
   amostra: Amostra;
   laudo: Laudo;
@@ -150,12 +208,18 @@ function LinhaAmostra({
   lotes: LoteComposto[];
   destino: Destino;
   valores: Record<string, number>;
+  /** Campos adicionados à mão nesta sessão (digitação manual), além dos que vieram do arquivo. */
+  extras: string[];
   onDestino: (v: Destino) => void;
   onValor: (chave: string, v: number) => void;
+  onAdicionarCampo: (chave: string) => void;
 }) {
   const [aberta, setAberta] = useState(false);
-  const chaves = Object.keys(amostra.valores);
+  const [novoCampo, setNovoCampo] = useState("");
+  const chaves = [...new Set([...Object.keys(amostra.valores), ...extras])];
   const ehComposto = laudo.tipo === "ORGANICO";
+  const podeAdicionar = laudo.situacao === "PENDENTE";
+  const camposDisponiveis = CAMPOS_POR_TIPO[laudo.tipo].filter((c) => !chaves.includes(c));
 
   function alternarTalhao(talhaoId: string) {
     const marcado = destino.talhaoIds.includes(talhaoId);
@@ -258,21 +322,20 @@ function LinhaAmostra({
         <div className="bg-terra-50/60 px-4 pb-4">
           {chaves.length === 0 ? (
             <p className="py-3 text-sm text-terra-500">
-              Nenhum valor foi lido — digite conferindo o laudo original.
+              Nenhum valor foi lido — adicione os campos abaixo e digite conferindo o laudo original.
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2 py-3 sm:grid-cols-5 lg:grid-cols-7">
               {chaves.map((c) => {
                 const derivado = amostra.camposDerivados.includes(c);
+                const unidade = amostra.unidades[c] ?? UNIDADE_POR_TIPO[laudo.tipo][c];
                 return (
                   <label key={c} className="block">
                     <span className="flex items-baseline justify-between gap-1">
                       <span className="block text-[10px] font-semibold uppercase tracking-wide text-terra-500">
                         {ROTULO_VALOR[c] ?? c}
                       </span>
-                      {amostra.unidades[c] && (
-                        <span className="text-[9px] text-terra-400">{amostra.unidades[c]}</span>
-                      )}
+                      {unidade && <span className="text-[9px] text-terra-400">{unidade}</span>}
                     </span>
                     <input
                       type="number"
@@ -290,6 +353,34 @@ function LinhaAmostra({
                   </label>
                 );
               })}
+            </div>
+          )}
+          {podeAdicionar && camposDisponiveis.length > 0 && (
+            <div className="flex items-center gap-1.5 pb-2">
+              <select
+                value={novoCampo}
+                onChange={(e) => setNovoCampo(e.target.value)}
+                className="rounded-md border border-terra-300 px-2 py-1 text-xs"
+              >
+                <option value="">+ adicionar valor…</option>
+                {camposDisponiveis.map((c) => (
+                  <option key={c} value={c}>
+                    {ROTULO_VALOR[c] ?? c}
+                    {UNIDADE_POR_TIPO[laudo.tipo][c] ? ` (${UNIDADE_POR_TIPO[laudo.tipo][c]})` : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!novoCampo}
+                onClick={() => {
+                  onAdicionarCampo(novoCampo);
+                  setNovoCampo("");
+                }}
+                className="rounded-md border border-terra-300 px-2 py-1 text-xs font-medium text-terra-600 transition hover:bg-terra-50 disabled:opacity-40"
+              >
+                Adicionar
+              </button>
             </div>
           )}
           {amostra.camposDerivados.length > 0 && (
@@ -325,6 +416,8 @@ export default function AdicionarAnalise() {
   const [destinos, setDestinos] = useState<Record<string, Destino>>({});
   const [edicoes, setEdicoes] = useState<Record<string, Record<string, number>>>({});
   const [textoAberto, setTextoAberto] = useState<Record<string, boolean>>({});
+  // campos adicionados à mão na digitação manual, por amostra
+  const [camposManuais, setCamposManuais] = useState<Record<string, string[]>>({});
 
   const { data: laudos, isLoading } = useQuery({
     queryKey: ["laudos", aba],
@@ -412,6 +505,15 @@ export default function AdicionarAnalise() {
   const reabrir = useMutation({
     mutationFn: (id: string) => api.patch(`/laudos/${id}/reabrir`, {}),
     onSuccess: atualizar,
+  });
+  // Só para laudo digitado manualmente (PDF sem planilha): o sistema chuta
+  // "química do solo" ao subir, e aqui o usuário corrige antes de digitar,
+  // para os campos certos (foliar, física...) aparecerem na tela.
+  const trocarTipo = useMutation({
+    mutationFn: ({ id, tipo }: { id: string; tipo: TipoLaudo }) =>
+      api.patch(`/laudos/${id}/tipo`, { tipo }),
+    onSuccess: atualizar,
+    onError: (e) => setErro(e instanceof ApiError ? e.message : "Falha ao trocar o tipo"),
   });
 
   function aoSoltar(e: DragEvent<HTMLDivElement>) {
@@ -528,7 +630,24 @@ export default function AdicionarAnalise() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Etiqueta tom={TOM_TIPO[laudo.tipo]}>{ROTULO_TIPO[laudo.tipo]}</Etiqueta>
+              {laudo.digitacaoManual && laudo.situacao === "PENDENTE" ? (
+                <select
+                  value={laudo.tipo}
+                  onChange={(e) =>
+                    trocarTipo.mutate({ id: laudo.id, tipo: e.target.value as TipoLaudo })
+                  }
+                  title="O sistema não sabe o tipo de um PDF — confira e corrija se precisar"
+                  className="rounded-full border border-terra-300 bg-white px-3 py-1 text-xs font-semibold text-terra-700"
+                >
+                  {(Object.keys(ROTULO_TIPO) as TipoLaudo[]).map((t) => (
+                    <option key={t} value={t}>
+                      {ROTULO_TIPO[t]}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Etiqueta tom={TOM_TIPO[laudo.tipo]}>{ROTULO_TIPO[laudo.tipo]}</Etiqueta>
+              )}
               {laudo.digitacaoManual && <Etiqueta tom="alerta">digitar conferindo</Etiqueta>}
               {laudo.situacao === "PENDENTE" ? (
                 <>
@@ -602,11 +721,18 @@ export default function AdicionarAnalise() {
                 lotes={lotes ?? []}
                 destino={destinos[a.id] ?? padrao}
                 valores={edicoes[a.id] ?? valoresIniciais(a)}
+                extras={camposManuais[a.id] ?? []}
                 onDestino={(v) => setDestinos((d) => ({ ...d, [a.id]: v }))}
                 onValor={(chave, v) =>
                   setEdicoes((e) => ({
                     ...e,
                     [a.id]: { ...(e[a.id] ?? valoresIniciais(a)), [chave]: v },
+                  }))
+                }
+                onAdicionarCampo={(chave) =>
+                  setCamposManuais((m) => ({
+                    ...m,
+                    [a.id]: [...new Set([...(m[a.id] ?? []), chave])],
                   }))
                 }
               />

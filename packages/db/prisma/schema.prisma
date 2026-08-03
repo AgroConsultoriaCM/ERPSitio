@@ -663,6 +663,7 @@ model AnaliseSolo {
   ph               Float?
   materiaOrganica  Float?
   fosforo          Float?
+  enxofre          Float?
   potassio         Float?
   calcio           Float?
   magnesio         Float?

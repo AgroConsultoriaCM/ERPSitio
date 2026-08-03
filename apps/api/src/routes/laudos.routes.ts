@@ -195,6 +195,33 @@ export default async function laudosRoutes(fastify: FastifyInstance) {
     },
   );
 
+  /**
+   * Troca o tipo de um laudo digitado manualmente (PDF sem planilha). Ao
+   * subir o PDF o sistema nao sabe se e quimica, fisica, foliar... e chuta
+   * quimica por ser o mais comum; aqui o usuario corrige antes de digitar,
+   * para os campos certos aparecerem na tela.
+   */
+  fastify.patch<{ Params: { id: string } }>(
+    "/laudos/:id/tipo",
+    { preHandler: fastify.requirePermissao("analises", "EDITAR") },
+    async (request) => {
+      const { tipo } = z
+        .object({ tipo: z.enum(["QUIMICA", "FISICA", "MICRO", "FOLIAR", "ORGANICO"]) })
+        .parse(request.body);
+      const laudo = await fastify.prisma.laudoImportado.findFirst({
+        where: { id: request.params.id, propriedadeId: request.user.propriedadeId },
+      });
+      if (!laudo) throw new NaoEncontradoError();
+      if (!laudo.digitacaoManual) {
+        throw new AppError("Só é possível trocar o tipo de laudos digitados manualmente.", 422);
+      }
+      if (laudo.situacao === "IMPORTADO") {
+        throw new AppError("Este laudo já foi importado.", 409);
+      }
+      return fastify.prisma.laudoImportado.update({ where: { id: laudo.id }, data: { tipo } });
+    },
+  );
+
   fastify.patch<{ Params: { id: string } }>(
     "/laudos/:id/ignorar",
     { preHandler: fastify.requirePermissao("analises", "EDITAR") },

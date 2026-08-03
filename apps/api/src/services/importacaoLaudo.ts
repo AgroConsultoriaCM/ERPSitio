@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@erpsitio/db";
+import type { PrismaClient, Prisma } from "@erpsitio/db";
 import { AppError } from "../lib/errors.js";
 import type { AmostraLida, TipoLaudo } from "./analiseLaudo.js";
 
@@ -137,7 +137,7 @@ export interface DadosAmostraConfirmada {
  * coleta, e nenhuma delas completa.
  */
 async function gravarAnaliseNoTalhao(
-  prisma: PrismaClient,
+  prisma: Prisma.TransactionClient,
   tipo: TipoLaudo,
   talhaoId: string,
   base: { propriedadeId: string; dataColeta: Date; laboratorio: string | undefined },
@@ -183,6 +183,14 @@ async function gravarAnaliseNoTalhao(
   }
 }
 
+/**
+ * Tudo numa transacao so: se uma amostra no meio do laudo falhar (unidade
+ * estranha, talhao invalido...), nenhuma das anteriores fica gravada com a
+ * amostra ainda marcada como pendente - ou entra o laudo inteiro, ou nao
+ * entra nada. Sem isso, um erro na segunda amostra deixava a primeira com
+ * AmostraLaudo.talhaoIds preenchido mas SEM a analise correspondente criada,
+ * e reabrir para tentar de novo duplicava o que ja tinha ido.
+ */
 export async function confirmarAmostras(
   prisma: PrismaClient,
   propriedadeId: string,
@@ -190,72 +198,74 @@ export async function confirmarAmostras(
   laudoId: string,
   amostras: DadosAmostraConfirmada[],
 ): Promise<{ gravadas: number; arquivadas: number }> {
-  const laudo = await prisma.laudoImportado.findFirst({
-    where: { id: laudoId, propriedadeId },
-    include: { amostras: true },
-  });
-  if (!laudo) throw new AppError("Laudo não encontrado.", 404);
-  if (laudo.situacao === "IMPORTADO") {
-    throw new AppError("Este laudo já foi importado.", 409);
-  }
-
-  let gravadas = 0;
-  let arquivadas = 0;
-
-  for (const dados of amostras) {
-    const amostra = laudo.amostras.find((a) => a.id === dados.amostraId);
-    if (!amostra) continue;
-
-    const talhaoIds = dados.talhaoIds ?? [];
-    const data = dados.dataColeta
-      ? new Date(dados.dataColeta)
-      : (laudo.dataColeta ?? new Date());
-    const profundidade = dados.profundidade ?? amostra.profundidade;
-
-    // Guarda o que o usuario conferiu, mesmo se decidir arquivar: se ele
-    // reabrir depois, os numeros corrigidos continuam la.
-    await prisma.amostraLaudo.update({
-      where: { id: amostra.id },
-      data: {
-        valores: dados.valores,
-        profundidade,
-        talhaoIds,
-        loteCompostoId: dados.loteCompostoId ?? null,
-      },
+  return prisma.$transaction(async (tx) => {
+    const laudo = await tx.laudoImportado.findFirst({
+      where: { id: laudoId, propriedadeId },
+      include: { amostras: true },
     });
-
-    if (talhaoIds.length === 0 && !dados.loteCompostoId) {
-      arquivadas++;
-      continue;
+    if (!laudo) throw new AppError("Laudo não encontrado.", 404);
+    if (laudo.situacao === "IMPORTADO") {
+      throw new AppError("Este laudo já foi importado.", 409);
     }
 
-    const base = { propriedadeId, dataColeta: data, laboratorio: laudo.cliente ?? undefined };
+    let gravadas = 0;
+    let arquivadas = 0;
 
-    if (dados.loteCompostoId) {
-      await prisma.analiseComposto.create({
+    for (const dados of amostras) {
+      const amostra = laudo.amostras.find((a) => a.id === dados.amostraId);
+      if (!amostra) continue;
+
+      const talhaoIds = dados.talhaoIds ?? [];
+      const data = dados.dataColeta
+        ? new Date(dados.dataColeta)
+        : (laudo.dataColeta ?? new Date());
+      const profundidade = dados.profundidade ?? amostra.profundidade;
+
+      // Guarda o que o usuario conferiu, mesmo se decidir arquivar: se ele
+      // reabrir depois, os numeros corrigidos continuam la.
+      await tx.amostraLaudo.update({
+        where: { id: amostra.id },
         data: {
-          ...base,
-          loteId: dados.loteCompostoId,
-          ...apenas(dados.valores, CAMPOS_COMPOSTO),
-          micronutrientes: micros(dados.valores) ?? undefined,
+          valores: dados.valores,
+          profundidade,
+          talhaoIds,
+          loteCompostoId: dados.loteCompostoId ?? null,
         },
       });
-      gravadas++;
-      continue;
+
+      if (talhaoIds.length === 0 && !dados.loteCompostoId) {
+        arquivadas++;
+        continue;
+      }
+
+      const base = { propriedadeId, dataColeta: data, laboratorio: laudo.cliente ?? undefined };
+
+      if (dados.loteCompostoId) {
+        await tx.analiseComposto.create({
+          data: {
+            ...base,
+            loteId: dados.loteCompostoId,
+            ...apenas(dados.valores, CAMPOS_COMPOSTO),
+            micronutrientes: micros(dados.valores) ?? undefined,
+          },
+        });
+        gravadas++;
+        continue;
+      }
+
+      for (const talhaoId of talhaoIds) {
+        await gravarAnaliseNoTalhao(tx, laudo.tipo, talhaoId, base, dados.valores, profundidade);
+        gravadas++;
+      }
     }
 
-    for (const talhaoId of talhaoIds) {
-      await gravarAnaliseNoTalhao(prisma, laudo.tipo, talhaoId, base, dados.valores, profundidade);
-      gravadas++;
-    }
-  }
+    await tx.laudoImportado.update({
+      where: { id: laudo.id },
+      data: { situacao: "IMPORTADO", importadoEm: new Date(), importadoPorId: usuarioId },
+    });
 
-  await prisma.laudoImportado.update({
-    where: { id: laudo.id },
-    data: { situacao: "IMPORTADO", importadoEm: new Date(), importadoPorId: usuarioId },
+    return { gravadas, arquivadas };
   });
-
-  return { gravadas, arquivadas };
 }
 
 export const TIPOS_QUE_VAO_PARA_TALHAO: TipoLaudo[] = ["QUIMICA", "FISICA", "MICRO", "FOLIAR"];

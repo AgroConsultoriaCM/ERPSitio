@@ -95,6 +95,37 @@ console.log("\n== unidade diferente da padrao (Athenas) e convertida ==");
   afirmar("avisa sobre a conversao do calcio", a.avisosUnidade.some((m) => /CMOLC/i.test(m)));
 }
 
+console.log("\n== potassio em mg/dm3 (metodo antigo): fator /39,1 e' especifico do K ==");
+{
+  // Fonte: Embrapa Documentos 206 (Sobral et al., 2015), Tabela 1 - "K mg
+  // dm-3 -> cmolc dm-3, fator /391". Como o padrao aqui e mmolc/dm3 (nao
+  // cmolc), o fator composto e /39,1.
+  const planilha: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "pH", "K", "CTC"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null, null],
+    [null, null, null, null, null, "CaCl2", "mg/dm3", "mmolc dm-3"],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 5.5, 39.1, 45],
+  ];
+  const a = lerLaudo(planilha).amostras[0];
+  conferir("39,1 mg/dm3 vira 1,00 mmolc/dm3", a.valores.potassio, 1);
+  afirmar("avisa sobre a conversao do potassio", a.avisosUnidade.some((m) => /mg ?dm/i.test(m)));
+
+  // O mesmo "mg/dm3" sob uma coluna de Ca NAO pode usar o fator do potassio -
+  // nao ha fonte confirmada para Ca, entao so sinaliza.
+  const planilhaCa: Planilha = [
+    ["N º Laboratório", "Cliente", null, null, null, "Ca", "CTC"],
+    [null, "Propriedade", "Talhão", "Prof.", "Grid", null, null],
+    [null, null, null, null, null, "mg/dm3", "mmolc dm-3"],
+    ["S26/1", "Sitio", "T1", "0-20", "-", 39.1, 45],
+  ];
+  const b = lerLaudo(planilhaCa).amostras[0];
+  conferir("Ca em mg/dm3 NAO usa o fator do K - mantem o valor bruto", b.valores.calcio, 39.1);
+  afirmar(
+    "avisa que a unidade do calcio nao foi reconhecida",
+    b.avisosUnidade.some((m) => m.includes("não reconhecida")),
+  );
+}
+
 console.log("\n== unidade desconhecida: mantem o valor e avisa, nao chuta ==");
 {
   const planilha: Planilha = [

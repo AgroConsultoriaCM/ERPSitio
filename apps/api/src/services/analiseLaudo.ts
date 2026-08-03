@@ -213,6 +213,23 @@ const CONVERSOES_UNIDADE: Record<string, Record<string, (v: number) => number>> 
   GDM3: { "%": (v) => v * 10 },
 };
 
+/**
+ * Conversoes que so valem para UM nutriente especifico - o fator depende do
+ * peso equivalente-grama de cada ion, que e diferente para cada um. So entra
+ * aqui quando ha fonte confirmada; estender por semelhanca para outro
+ * nutriente sem o fator certo seria chutar.
+ *
+ * Potassio em mg/dm3 -> cmolc/dm3: fator /391 (peso atomico 39,1, carga 1+).
+ * E o metodo "antigo" de K, medido junto com P por fotometria de chama -
+ * ainda aparece em laudo de laboratorio que nao migrou para o metodo mais
+ * novo. Fonte: SOBRAL, L. F. et al. Guia Prático para Interpretação de
+ * Resultados de Análises de Solo. Embrapa Tabuleiros Costeiros, Documentos
+ * 206, 2015, Tabela 1 - a mesma tabela que fixa as demais unidades acima.
+ */
+const CONVERSOES_POR_CHAVE: Partial<Record<string, Record<string, (v: number) => number>>> = {
+  potassio: { MGDM3: (v) => v / 39.1 },
+};
+
 /** So letras, digitos e "%": "-----mg dm-3-----" vira "MGDM3". */
 function unidadeCompacta(bruto: string): string {
   return bruto
@@ -548,7 +565,8 @@ export function lerLaudo(planilha: Planilha): LaudoLido {
         if (linhaUnidades && esperada) {
           const lida = unidadeDaColuna(linhaUnidades, c);
           if (lida && lida !== esperada) {
-            const conversor = CONVERSOES_UNIDADE[esperada]?.[lida];
+            const conversor =
+              CONVERSOES_POR_CHAVE[papel.chave]?.[lida] ?? CONVERSOES_UNIDADE[esperada]?.[lida];
             if (conversor) {
               valorFinal = conversor(n);
               avisosUnidade.push(
