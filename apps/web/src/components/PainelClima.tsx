@@ -1,30 +1,25 @@
-import { CalendarDays, CloudRain, Droplets, Scale, Settings2, SprayCan, Sun, SunMedium, Wind } from "lucide-react";
+import { CalendarDays, CloudRain, Droplets, Scale, Settings2, SprayCan, Sun, SunMedium, Thermometer, Wind } from "lucide-react";
 import type { ComponentType } from "react";
 import type { LucideProps } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import type { ParametroPulverizacao, RespostaClima } from "../lib/types";
+import type { AgoraClima, ParametroPulverizacao, RespostaClima } from "../lib/types";
 import { api } from "../lib/api";
 import { ROTAS } from "../lib/rotas";
 import {
   balancoHidrico,
+  corDoScore,
   diaCurto,
   diaSemana,
+  horaCurta,
   janelaPulverizacao,
   PARAMETROS_PADRAO,
   proximaJanelaBoa,
   resumoClima,
+  scoreAgora,
+  type ParametrosJanela,
 } from "../lib/clima";
 import { numero } from "./ui";
-
-/** Faixas de cor do score contínuo (0-100), do pior ao melhor. */
-function corDoScore(score: number): { fill: string; track: string; rotulo: string } {
-  if (score > 90) return { fill: "from-agua-600 to-agua-400", track: "bg-agua-50", rotulo: "ótimo" };
-  if (score >= 70) return { fill: "from-mata-600 to-mata-400", track: "bg-mata-50", rotulo: "bom" };
-  if (score >= 40) return { fill: "from-amber-600 to-amber-400", track: "bg-amber-50", rotulo: "atenção" };
-  if (score >= 20) return { fill: "from-orange-600 to-orange-400", track: "bg-orange-50", rotulo: "ruim" };
-  return { fill: "from-red-600 to-red-400", track: "bg-red-50", rotulo: "evitar" };
-}
 
 /**
  * Clima da coordenada da propriedade, lido em chave de decisão: quanto choveu,
@@ -62,6 +57,8 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
           Open-Meteo
         </span>
       </div>
+
+      {clima.agora && <BlocoAgora agora={clima.agora} parametros={parametros} />}
 
       <div className="grid grid-cols-2 gap-px bg-terra-100 sm:grid-cols-4">
         <Numero titulo="Chuva 7 dias" valor={`${numero(clima.chuva7DiasMm)} mm`} icone={CloudRain} />
@@ -231,6 +228,42 @@ export default function PainelClima({ clima }: { clima: RespostaClima }) {
           passe o mouse sobre o dia para ver qual fator pesou mais.
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Leitura do instante da consulta, não do dia — é o que responde "ligo a
+ * bomba agora?" em pé no talhão, diferente da janela abaixo, que responde
+ * "que dia da semana está bom?". Mesmo motor de score (scoreAgora), só que
+ * aplicado ao vento/umidade do momento em vez do máximo/média do dia.
+ */
+function BlocoAgora({ agora, parametros }: { agora: AgoraClima; parametros: ParametrosJanela }) {
+  const s = scoreAgora(agora, parametros);
+  const cor = corDoScore(s.score);
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-terra-100 bg-terra-50/50 px-4 py-3 sm:px-5">
+      <span className="text-sm font-semibold text-terra-800">Agora</span>
+      <span className="flex items-center gap-1.5 text-sm text-terra-700" title="Vento no instante da consulta">
+        <Wind size={14} className="text-terra-500" />
+        {agora.ventoKmh != null ? `${Math.round(agora.ventoKmh)} km/h` : "—"}
+      </span>
+      <span className="flex items-center gap-1.5 text-sm text-terra-700" title="Umidade relativa no instante da consulta">
+        <Droplets size={14} className="text-agua-500" />
+        {agora.umidadePct != null ? `${Math.round(agora.umidadePct)}%` : "—"}
+      </span>
+      <span className="flex items-center gap-1.5 text-sm text-terra-700" title="Temperatura no instante da consulta">
+        <Thermometer size={14} className="text-amber-500" />
+        {agora.tempC != null ? `${Math.round(agora.tempC)}°` : "—"}
+      </span>
+      <span
+        className={`rounded-full bg-gradient-to-r px-2.5 py-1 text-xs font-semibold text-white ${cor.fill}`}
+        title={s.motivo}
+      >
+        {s.chovendo ? "chovendo agora" : `${s.score}% ${cor.rotulo}`}
+      </span>
+      <span className="ml-auto text-xs text-terra-400">atualizado às {horaCurta(agora.hora)}</span>
     </div>
   );
 }

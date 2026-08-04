@@ -1,4 +1,4 @@
-import type { DiaClima, RespostaClima } from "./types";
+import type { AgoraClima, DiaClima, RespostaClima } from "./types";
 
 /**
  * Leituras derivadas da previsão do tempo (Open-Meteo, já consumida pela API
@@ -45,6 +45,17 @@ export const PARAMETROS_PADRAO: ParametrosJanela = {
 };
 
 export type QualidadeJanela = "boa" | "atencao" | "ruim";
+
+/** Faixas de cor do score contínuo (0-100), do pior ao melhor — compartilhado
+ *  entre o painel (gestão) e o PWA de campo (encarregado), pra a mesma % ter
+ *  sempre a mesma cor em qualquer tela. */
+export function corDoScore(score: number): { fill: string; track: string; rotulo: string } {
+  if (score > 90) return { fill: "from-agua-600 to-agua-400", track: "bg-agua-50", rotulo: "ótimo" };
+  if (score >= 70) return { fill: "from-mata-600 to-mata-400", track: "bg-mata-50", rotulo: "bom" };
+  if (score >= 40) return { fill: "from-amber-600 to-amber-400", track: "bg-amber-50", rotulo: "atenção" };
+  if (score >= 20) return { fill: "from-orange-600 to-orange-400", track: "bg-orange-50", rotulo: "ruim" };
+  return { fill: "from-red-600 to-red-400", track: "bg-red-50", rotulo: "evitar" };
+}
 
 export interface DiaJanela {
   data: string;
@@ -181,6 +192,34 @@ export function janelaPulverizacao(dias: DiaClima[], parametros: ParametrosJanel
   });
 }
 
+export interface ScoreAgora {
+  score: number;
+  qualidade: QualidadeJanela;
+  motivo: string;
+  chovendo: boolean;
+}
+
+/**
+ * Mesma lógica de `janelaPulverizacao`, mas para o instante da consulta em
+ * vez do dia inteiro — útil pra quem está de pé no talhão decidindo "ligo a
+ * bomba agora?" em vez de "que dia da semana é bom?". Chuva no instante é
+ * tratada à parte (chovendo = score 0 direto): o limiar `chuvaMmZero` dos
+ * parâmetros foi calibrado para total do DIA, não para taxa instantânea, e
+ * misturar os dois exageraria o efeito de uma garoa fraca.
+ */
+export function scoreAgora(agora: AgoraClima, parametros: ParametrosJanela = PARAMETROS_PADRAO): ScoreAgora {
+  if ((agora.precipitacaoMm ?? 0) > 0) {
+    return { score: 0, qualidade: "ruim", motivo: "chovendo agora", chovendo: true };
+  }
+
+  const fatores = [fatorVento(agora.ventoKmh, parametros), fatorUmidade(agora.umidadePct, parametros)];
+  const pior = fatores.reduce((p, f) => (f.score < p.score ? f : p));
+  const score = Math.round(pior.score);
+  const motivo = score >= 95 ? "vento e umidade dentro do esperado" : pior.motivo;
+
+  return { score, qualidade: qualidadeDoScore(score), motivo, chovendo: false };
+}
+
 /** O primeiro dia bom da janela, se houver. Usado para a frase de resumo. */
 export function proximaJanelaBoa(janela: DiaJanela[]): DiaJanela | null {
   return janela.find((d) => d.qualidade === "boa") ?? null;
@@ -268,6 +307,11 @@ export function diaCurto(iso: string): string {
     day: "2-digit",
     month: "2-digit",
   });
+}
+
+/** "2026-08-04T08:15" (hora local, sem fuso na string) -> "08:15". */
+export function horaCurta(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function diaSemana(iso: string): string {

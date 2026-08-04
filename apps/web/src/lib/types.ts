@@ -247,10 +247,21 @@ export interface DiaClima {
   passado: boolean;
 }
 
+/** Leitura do instante da consulta — não é média nem máximo do dia, é "agora". */
+export interface AgoraClima {
+  hora: string;
+  tempC: number | null;
+  umidadePct: number | null;
+  ventoKmh: number | null;
+  rajadaKmh: number | null;
+  precipitacaoMm: number | null;
+}
+
 export interface RespostaClima {
   latitude: number;
   longitude: number;
   atualizadoEm: string;
+  agora: AgoraClima | null;
   dias: DiaClima[];
   chuva7DiasMm: number;
   chuva30DiasMm: number;

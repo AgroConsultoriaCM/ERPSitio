@@ -1,12 +1,13 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
-import { AlertCircle, CalendarClock, ChevronRight, Citrus, ClipboardList, Clock, Plus } from "lucide-react";
+import { AlertCircle, CalendarClock, ChevronRight, Citrus, ClipboardList, Clock, Droplets, Plus, SprayCan, Thermometer, Wind } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { db } from "../../offline/db";
 import { numero } from "../../components/ui";
-import type { Atividade, Colheita } from "../../lib/types";
+import type { AgoraClima, Atividade, Colheita, ParametroPulverizacao, RespostaClima } from "../../lib/types";
+import { corDoScore, horaCurta, PARAMETROS_PADRAO, scoreAgora, type ParametrosJanela } from "../../lib/clima";
 
 function hojeISO() {
   return new Date().toISOString().slice(0, 10);
@@ -14,6 +15,45 @@ function hojeISO() {
 
 function Secao({ children }: { children: string }) {
   return <h2 className="mb-2 rotulo">{children}</h2>;
+}
+
+/** Condição do instante, pensada pra "ligo a bomba agora?" em pé no talhão —
+ *  não a previsão do dia, que é decisão de quem planeja lá no escritório. */
+function BlocoClimaCampo({ agora, parametros }: { agora: AgoraClima; parametros: ParametrosJanela }) {
+  const s = scoreAgora(agora, parametros);
+  const cor = corDoScore(s.score);
+
+  return (
+    <div className="cartao p-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-terra-800">
+          <SprayCan size={16} className="text-terra-500" />
+          Pulverizar agora
+        </p>
+        <span
+          className={`rounded-full bg-gradient-to-r px-2.5 py-1 text-xs font-semibold text-white ${cor.fill}`}
+        >
+          {s.chovendo ? "chovendo" : `${s.score}% ${cor.rotulo}`}
+        </span>
+      </div>
+      <div className="mt-2.5 flex items-center gap-4 text-sm text-terra-600">
+        <span className="flex items-center gap-1">
+          <Wind size={14} className="text-terra-500" />
+          {agora.ventoKmh != null ? `${Math.round(agora.ventoKmh)} km/h` : "—"}
+        </span>
+        <span className="flex items-center gap-1">
+          <Droplets size={14} className="text-agua-500" />
+          {agora.umidadePct != null ? `${Math.round(agora.umidadePct)}%` : "—"}
+        </span>
+        <span className="flex items-center gap-1">
+          <Thermometer size={14} className="text-amber-500" />
+          {agora.tempC != null ? `${Math.round(agora.tempC)}°` : "—"}
+        </span>
+        <span className="ml-auto text-xs text-terra-400">{horaCurta(agora.hora)}</span>
+      </div>
+      <p className="mt-1.5 text-xs text-terra-500">{s.motivo}</p>
+    </div>
+  );
 }
 
 export default function CampoHome() {
@@ -30,6 +70,15 @@ export default function CampoHome() {
   const { data: colheitasHoje, isLoading: carregandoColheitas } = useQuery({
     queryKey: ["colheitas-hoje"],
     queryFn: () => api.get<Colheita[]>(`/colheitas?${intervalo}`),
+  });
+
+  const { data: clima } = useQuery({
+    queryKey: ["clima"],
+    queryFn: () => api.get<RespostaClima>("/clima"),
+  });
+  const { data: parametrosSalvos } = useQuery({
+    queryKey: ["parametros-pulverizacao"],
+    queryFn: () => api.get<ParametroPulverizacao>("/parametros-pulverizacao"),
   });
 
   const opsPendentes = useLiveQuery(
@@ -103,6 +152,8 @@ export default function CampoHome() {
         </span>
         <ChevronRight size={16} className="shrink-0 text-terra-400" />
       </Link>
+
+      {clima?.agora && <BlocoClimaCampo agora={clima.agora} parametros={parametrosSalvos ?? PARAMETROS_PADRAO} />}
 
       {caixasHoje > 0 && (
         <div className="relative overflow-hidden rounded-2xl border border-limao-200 bg-gradient-to-br from-limao-50 to-limao-100/60 px-4 py-4 text-center">

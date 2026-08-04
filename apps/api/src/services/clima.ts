@@ -23,10 +23,22 @@ export interface DiaClima {
   passado: boolean;
 }
 
+/** Leitura do instante da consulta - não é média nem máximo do dia, é "agora". */
+export interface AgoraClima {
+  hora: string;
+  tempC: number | null;
+  umidadePct: number | null;
+  ventoKmh: number | null;
+  rajadaKmh: number | null;
+  precipitacaoMm: number | null;
+}
+
 export interface RespostaClima {
   latitude: number;
   longitude: number;
   atualizadoEm: string;
+  /** null quando a Open-Meteo não devolveu o bloco `current` (raro, mas acontece). */
+  agora: AgoraClima | null;
   dias: DiaClima[];
   chuva7DiasMm: number;
   chuva30DiasMm: number;
@@ -35,6 +47,14 @@ export interface RespostaClima {
 }
 
 interface RespostaOpenMeteo {
+  current?: {
+    time: string;
+    temperature_2m: number | null;
+    relative_humidity_2m: number | null;
+    wind_speed_10m: number | null;
+    wind_gusts_10m: number | null;
+    precipitation: number | null;
+  };
   daily: {
     time: string[];
     precipitation_sum: (number | null)[];
@@ -63,6 +83,7 @@ export async function buscarClima(latitude: number, longitude: number): Promise<
 
   const url =
     `${BASE}?latitude=${latitude}&longitude=${longitude}` +
+    `&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,precipitation` +
     `&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,precipitation_probability_max,et0_fao_evapotranspiration,relative_humidity_2m_mean,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max` +
     `&timezone=${encodeURIComponent(TIMEZONE)}&past_days=30&forecast_days=7`;
 
@@ -114,10 +135,22 @@ export async function buscarClima(latitude: number, longitude: number): Promise<
   const idx = ordenadosDesc.findIndex((d) => (d.chuvaMm ?? 0) >= 1);
   if (idx >= 0) diasSemChuva = idx;
 
+  const agora: AgoraClima | null = json.current
+    ? {
+        hora: json.current.time,
+        tempC: json.current.temperature_2m ?? null,
+        umidadePct: json.current.relative_humidity_2m ?? null,
+        ventoKmh: json.current.wind_speed_10m ?? null,
+        rajadaKmh: json.current.wind_gusts_10m ?? null,
+        precipitacaoMm: json.current.precipitation ?? null,
+      }
+    : null;
+
   const dados: RespostaClima = {
     latitude,
     longitude,
     atualizadoEm: new Date().toISOString(),
+    agora,
     dias,
     chuva7DiasMm: somar(passados.slice(-7)),
     chuva30DiasMm: somar(passados),
