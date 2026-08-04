@@ -17,6 +17,9 @@ const FUNCOES = [
 const insumoSchema = z.object({
   nome: z.string().min(1),
   categoria: z.enum(["DEFENSIVO", "FERTILIZANTE", "EMBALAGEM", "OUTRO"]),
+  // Eixo separado da categoria/funcoes: decide o fluxo financeiro ao
+  // confirmar uma nota (ver comentario do enum TipoInsumo no schema).
+  tipo: z.enum(["INSUMO", "BEM"]).default("INSUMO"),
   // Base do controle de pragas. Lista porque um mesmo defensivo age como
   // fungicida e acaricida - e a aplicacao conta para as duas funcoes.
   funcoes: z.array(z.enum(FUNCOES)).default([]),

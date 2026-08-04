@@ -267,6 +267,13 @@ export default async function notasRoutes(fastify: FastifyInstance) {
                 nomeNovoProduto: z.string().min(1).optional(),
                 /** Litro ou quilo - nunca embalagem, para a sobra do galao voltar. */
                 unidadeNovoProduto: z.string().min(1).optional(),
+                /**
+                 * INSUMO (padrao) vira lote de estoque, como sempre. BEM e
+                 * equipamento/implemento: nao entra em estoque, o valor da
+                 * nota vira Despesa geral do sitio direto. Só importa para
+                 * produto NOVO - produto já cadastrado usa o tipo dele.
+                 */
+                tipoNovoProduto: z.enum(["INSUMO", "BEM"]).default("INSUMO"),
                 funcoesNovoProduto: z
                   .array(
                     z.enum([
@@ -310,14 +317,16 @@ export default async function notasRoutes(fastify: FastifyInstance) {
       const insumosPedidos = [
         ...new Set(itens.map((i) => i.insumoId).filter((v): v is string => Boolean(v))),
       ];
+      const tipoPorInsumoExistente = new Map<string, "INSUMO" | "BEM">();
       if (insumosPedidos.length) {
         const insumos = await fastify.prisma.insumo.findMany({
           where: { id: { in: insumosPedidos }, propriedadeId },
-          select: { id: true },
+          select: { id: true, tipo: true },
         });
         if (insumos.length !== insumosPedidos.length) {
           throw new AppError("Algum produto escolhido não existe nesta propriedade.", 400);
         }
+        for (const i of insumos) tipoPorInsumoExistente.set(i.id, i.tipo);
       }
       for (const escolha of itens) {
         if (!porNumero.has(escolha.numeroItem)) {
@@ -327,6 +336,7 @@ export default async function notasRoutes(fastify: FastifyInstance) {
 
       const resultado = await fastify.prisma.$transaction(async (tx) => {
         const lotesCriados = [];
+        const despesasCriadas = [];
 
         for (const escolha of itens) {
           const item = porNumero.get(escolha.numeroItem)!;
@@ -335,6 +345,10 @@ export default async function notasRoutes(fastify: FastifyInstance) {
           // um cadastro anterior significaria cadastrar tudo a mao antes da
           // primeira importacao - trabalho que a nota ja fez.
           let insumoId = escolha.insumoId;
+          let tipo: "INSUMO" | "BEM" = insumoId
+            ? (tipoPorInsumoExistente.get(insumoId) ?? "INSUMO")
+            : escolha.tipoNovoProduto;
+
           if (!insumoId) {
             const embalagem = lerEmbalagem(item.descricao);
             const unidade =
@@ -347,12 +361,61 @@ export default async function notasRoutes(fastify: FastifyInstance) {
                 nome: escolha.nomeNovoProduto ?? sugerirNome(item.descricao),
                 unidadeMedida: unidade,
                 funcoes,
+                tipo,
                 // Sem funcao declarada nao da para afirmar que e defensivo.
                 categoria: funcoes.length ? "DEFENSIVO" : "OUTRO",
                 propriedadeId,
               },
             });
             insumoId = criado.id;
+          }
+
+          if (escolha.lembrarProduto) {
+            await tx.mapeamentoProdutoNota.upsert({
+              where: {
+                propriedadeId_cnpjEmitente_codigoProduto: {
+                  propriedadeId,
+                  cnpjEmitente: registro.cnpjEmitente,
+                  codigoProduto: item.codigo,
+                },
+              },
+              create: {
+                propriedadeId,
+                cnpjEmitente: registro.cnpjEmitente,
+                codigoProduto: item.codigo,
+                descricaoNota: item.descricao,
+                unidadeNota: item.unidade,
+                insumoId,
+                fatorConversao: escolha.fatorConversao,
+              },
+              update: {
+                descricaoNota: item.descricao,
+                unidadeNota: item.unidade,
+                insumoId,
+                fatorConversao: escolha.fatorConversao,
+              },
+            });
+          }
+
+          // BEM (equipamento/implemento): nao consome de talhao nenhum, entao
+          // nao faz sentido virar lote de estoque. O valor da nota vira
+          // despesa geral do sitio direto - rateada por area no DRE, igual
+          // qualquer outra despesa sem talhao (ver services/dre.ts).
+          if (tipo === "BEM") {
+            const valor = Math.round(item.quantidade * item.custoUnitarioReal * 100) / 100;
+            const despesa = await tx.despesa.create({
+              data: {
+                propriedadeId,
+                categoria: "EQUIPAMENTOS",
+                descricao: escolha.nomeNovoProduto ?? item.descricao,
+                valor,
+                data: registro.dataEmissao,
+                observacoes: `NF ${registro.numero} - ${registro.nomeEmitente}`,
+                criadoPorId: request.user.sub,
+              },
+            });
+            despesasCriadas.push(despesa);
+            continue;
           }
 
           // A nota diz "3 BD"; o estoque controla em litros. Sem converter,
@@ -394,33 +457,6 @@ export default async function notasRoutes(fastify: FastifyInstance) {
             },
           });
 
-          if (escolha.lembrarProduto) {
-            await tx.mapeamentoProdutoNota.upsert({
-              where: {
-                propriedadeId_cnpjEmitente_codigoProduto: {
-                  propriedadeId,
-                  cnpjEmitente: registro.cnpjEmitente,
-                  codigoProduto: item.codigo,
-                },
-              },
-              create: {
-                propriedadeId,
-                cnpjEmitente: registro.cnpjEmitente,
-                codigoProduto: item.codigo,
-                descricaoNota: item.descricao,
-                unidadeNota: item.unidade,
-                insumoId,
-                fatorConversao: escolha.fatorConversao,
-              },
-              update: {
-                descricaoNota: item.descricao,
-                unidadeNota: item.unidade,
-                insumoId,
-                fatorConversao: escolha.fatorConversao,
-              },
-            });
-          }
-
           lotesCriados.push(lote);
         }
 
@@ -433,12 +469,13 @@ export default async function notasRoutes(fastify: FastifyInstance) {
           },
         });
 
-        return { nota, lotes: lotesCriados };
+        return { nota, lotes: lotesCriados, despesas: despesasCriadas };
       });
 
       return reply.status(201).send({
         nota: resultado.nota,
         lotesCriados: resultado.lotes.length,
+        despesasCriadas: resultado.despesas.length,
         lotes: resultado.lotes,
       });
     },

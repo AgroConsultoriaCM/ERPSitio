@@ -7,6 +7,11 @@ import type { FuncaoInsumo, Insumo } from "../../lib/types";
 import { Cartao, TituloSecao, Tabela, Etiqueta, Aviso, EstadoVazio, Esqueleto } from "../../components/ui";
 
 const CATEGORIAS = ["DEFENSIVO", "FERTILIZANTE", "EMBALAGEM", "OUTRO"] as const;
+const TIPOS = ["INSUMO", "BEM"] as const;
+const ROTULO_TIPO: Record<(typeof TIPOS)[number], string> = {
+  INSUMO: "Insumo (vai para o estoque)",
+  BEM: "Bem/equipamento (vira despesa direto)",
+};
 const FUNCOES = Object.keys(ROTULO_FUNCAO_INSUMO) as FuncaoInsumo[];
 
 const moeda = (v: number | null | undefined) =>
@@ -22,6 +27,7 @@ interface Formulario {
   id: string | null;
   nome: string;
   categoria: (typeof CATEGORIAS)[number];
+  tipo: (typeof TIPOS)[number];
   funcoes: FuncaoInsumo[];
   unidadeMedida: string;
   estoqueMinimo: string;
@@ -35,6 +41,7 @@ const VAZIO: Formulario = {
   id: null,
   nome: "",
   categoria: "DEFENSIVO",
+  tipo: "INSUMO",
   funcoes: [],
   unidadeMedida: "L",
   estoqueMinimo: "",
@@ -60,6 +67,7 @@ export default function Produtos() {
       const corpo = {
         nome: f.nome,
         categoria: f.categoria,
+        tipo: f.tipo,
         funcoes: f.funcoes,
         unidadeMedida: f.unidadeMedida,
         estoqueMinimo: f.estoqueMinimo ? Number(f.estoqueMinimo) : null,
@@ -83,6 +91,7 @@ export default function Produtos() {
       id: p.id,
       nome: p.nome,
       categoria: p.categoria,
+      tipo: p.tipo ?? "INSUMO",
       funcoes: p.funcoes ?? [],
       unidadeMedida: p.unidadeMedida,
       estoqueMinimo: p.estoqueMinimo != null ? String(p.estoqueMinimo) : "",
@@ -146,6 +155,20 @@ export default function Produtos() {
               >
                 {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
+            </label>
+            <label>
+              <span className="rotulo">Tipo</span>
+              <select
+                className={CAMPO}
+                value={form.tipo}
+                onChange={(e) => setForm({ ...form, tipo: e.target.value as Formulario["tipo"] })}
+              >
+                {TIPOS.map((t) => <option key={t} value={t}>{ROTULO_TIPO[t]}</option>)}
+              </select>
+              <span className="mt-1 block text-xs text-terra-500">
+                Bem/equipamento (ex.: motosserra) não entra em estoque — o valor da nota vira despesa
+                geral do sítio direto, sem passar por talhão.
+              </span>
             </label>
 
             <label>
@@ -247,7 +270,14 @@ export default function Produtos() {
             <>
               <tr key={p.id} className="border-t border-terra-100 align-top">
                 <td className="px-3 py-2">
-                  <div className="font-medium">{p.nome}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium">{p.nome}</span>
+                    {p.tipo === "BEM" && (
+                      <span title="Não entra em estoque — vira despesa geral do sítio">
+                        <Etiqueta tom="alerta">bem</Etiqueta>
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-terra-500">
                     {p.fabricante ? `${p.fabricante} · ` : ""}{p.categoria.toLowerCase()}
                   </div>

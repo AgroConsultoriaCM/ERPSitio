@@ -288,14 +288,14 @@ export default function PainelLayout() {
 
       {menuAberto && (
         <div
-          className="fixed inset-0 z-30 animate-surgir bg-terra-900/40 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-[1090] animate-surgir bg-terra-900/40 backdrop-blur-[2px] lg:hidden"
           onClick={() => setMenuAberto(false)}
           aria-hidden
         />
       )}
 
       <aside
-        className={`group fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-terra-200 bg-white px-4 py-5 transition-[transform,width,box-shadow] duration-300 ease-suave lg:w-[4.5rem] lg:translate-x-0 lg:px-3 lg:hover:w-64 lg:hover:px-4 lg:hover:shadow-2xl ${
+        className={`group fixed inset-y-0 left-0 z-[1100] flex w-64 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-terra-200 bg-white px-4 py-5 transition-[transform,width,box-shadow] duration-300 ease-suave lg:w-[4.5rem] lg:translate-x-0 lg:px-3 lg:hover:w-64 lg:hover:px-4 lg:hover:shadow-2xl ${
           menuAberto ? "translate-x-0" : "-translate-x-full"
         }`}
       >

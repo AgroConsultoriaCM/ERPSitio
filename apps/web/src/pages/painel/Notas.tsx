@@ -230,6 +230,8 @@ interface Escolha {
   unidade: string;
   funcoes: FuncaoInsumo[];
   fator: string;
+  /** Só importa para produto novo — produto já cadastrado usa o tipo dele. */
+  tipo: "INSUMO" | "BEM";
 }
 
 /** Conferência item a item, numa janela sobre a lista. */
@@ -278,6 +280,7 @@ function JanelaNota({
         unidade: i.insumoUnidade ?? "L",
         funcoes: i.funcoesSugeridas ?? [],
         fator: i.fatorConversao != null ? String(i.fatorConversao) : "",
+        tipo: "INSUMO",
       };
     }
     setEscolhas(inicial);
@@ -291,16 +294,26 @@ function JanelaNota({
           numeroItem: Number(numeroItem),
           ...(v.insumoId
             ? { insumoId: v.insumoId }
-            : { nomeNovoProduto: v.nome, unidadeNovoProduto: v.unidade, funcoesNovoProduto: v.funcoes }),
+            : {
+                nomeNovoProduto: v.nome,
+                unidadeNovoProduto: v.unidade,
+                funcoesNovoProduto: v.funcoes,
+                tipoNovoProduto: v.tipo,
+              }),
           fatorConversao: Number(v.fator) || 1,
           lembrarProduto: true,
         }));
       if (!itens.length) throw new ApiError("Marque ao menos um item para lançar", 400);
       const semNome = itens.find((i) => "nomeNovoProduto" in i && !i.nomeNovoProduto);
       if (semNome) throw new ApiError("Dê um nome ao produto novo", 400);
-      return api.post<{ lotesCriados: number }>(`/notas/${id}/importar`, { itens });
+      return api.post<{ lotesCriados: number; despesasCriadas: number }>(`/notas/${id}/importar`, { itens });
     },
-    onSuccess: (r) => onConcluir(`Nota lançada: ${r.lotesCriados} produto(s) no estoque.`),
+    onSuccess: (r) => {
+      const partes = [];
+      if (r.lotesCriados > 0) partes.push(`${r.lotesCriados} produto(s) no estoque`);
+      if (r.despesasCriadas > 0) partes.push(`${r.despesasCriadas} despesa(s) lançada(s)`);
+      onConcluir(`Nota lançada: ${partes.join(" e ")}.`);
+    },
     onError: (e) => setErro(e instanceof ApiError ? e.message : "Falha ao lançar"),
   });
 
@@ -363,7 +376,7 @@ function JanelaNota({
               )}
               {erro && <Aviso tom="perigo" titulo="Não deu para lançar">{erro}</Aviso>}
 
-              <Tabela cabecalho={["", "Item da nota", "Qtd.", "Custo/un", "Produto no estoque", "Função", "Embalagem", "Entra no estoque"]}>
+              <Tabela cabecalho={["", "Item da nota", "Qtd.", "Custo/un", "Produto", "Função", "Embalagem", "Destino"]}>
                 {nota.itens.map((item) => (
                   <LinhaItem
                     key={item.numero}
@@ -391,7 +404,7 @@ function JanelaNota({
                   disabled={importar.isPending}
                 >
                   <Check className="h-4 w-4" />
-                  {importar.isPending ? "Lançando..." : "Lançar no estoque"}
+                  {importar.isPending ? "Lançando..." : "Confirmar"}
                 </button>
                 <button
                   className="inline-flex items-center gap-2 rounded-lg border border-terra-300 px-3 py-2 text-sm font-medium text-terra-600 transition hover:bg-terra-50"
@@ -425,6 +438,8 @@ function LinhaItem({
   const fator = Number(escolha.fator) || 0;
   const existente = insumos.find((i) => i.id === escolha.insumoId);
   const unidade = existente?.unidadeMedida ?? escolha.unidade;
+  const tipoEfetivo = existente?.tipo ?? escolha.tipo;
+  const ehBem = tipoEfetivo === "BEM";
   const campo =
     "w-full rounded-md border border-terra-300 px-2 py-1.5 text-sm focus:border-mata-500 focus:outline-none disabled:bg-terra-50";
 
@@ -477,12 +492,26 @@ function LinhaItem({
                 <option key={i.id} value={i.id}>ou usar: {i.nome} ({i.unidadeMedida})</option>
               ))}
             </select>
+            {!escolha.insumoId && (
+              <select
+                className={`${campo} mt-1 text-xs`}
+                value={escolha.tipo}
+                disabled={bloqueado || !escolha.lancar}
+                onChange={(e) => onMudar({ tipo: e.target.value as "INSUMO" | "BEM" })}
+                title="Insumo vai para o estoque; bem/equipamento vira despesa direto"
+              >
+                <option value="INSUMO">insumo (vai para o estoque)</option>
+                <option value="BEM">bem/equipamento (vira despesa)</option>
+              </select>
+            )}
           </>
         )}
       </td>
 
       <td className="px-3 py-2 min-w-44">
-        {item.jaConhecido || escolha.insumoId ? (
+        {ehBem ? (
+          <span className="text-xs text-terra-400">não se aplica a bem/equipamento</span>
+        ) : item.jaConhecido || escolha.insumoId ? (
           <span className="text-xs text-terra-500">definida no produto</span>
         ) : (
           <div className="flex flex-col gap-1">
@@ -526,28 +555,41 @@ function LinhaItem({
       </td>
 
       <td className="px-3 py-2">
-        <div className="flex items-center gap-1">
-          <input
-            className="w-20 rounded-md border border-terra-300 px-2 py-1.5 text-sm focus:border-mata-500 focus:outline-none disabled:bg-terra-50"
-            type="number"
-            min="0"
-            step="any"
-            value={escolha.fator}
-            disabled={bloqueado || !escolha.lancar}
-            onChange={(e) => onMudar({ fator: e.target.value })}
-          />
-          <span className="text-xs text-terra-500">{unidade}</span>
-        </div>
-        {item.trechoEmbalagem && (
-          <div className="mt-1 flex items-center gap-1 text-xs text-mata-700" title="Lido da descrição da nota">
-            <Sparkles className="h-3 w-3" />
-            {item.trechoEmbalagem}
-          </div>
+        {ehBem ? (
+          <span className="text-xs text-terra-400">não se aplica</span>
+        ) : (
+          <>
+            <div className="flex items-center gap-1">
+              <input
+                className="w-20 rounded-md border border-terra-300 px-2 py-1.5 text-sm focus:border-mata-500 focus:outline-none disabled:bg-terra-50"
+                type="number"
+                min="0"
+                step="any"
+                value={escolha.fator}
+                disabled={bloqueado || !escolha.lancar}
+                onChange={(e) => onMudar({ fator: e.target.value })}
+              />
+              <span className="text-xs text-terra-500">{unidade}</span>
+            </div>
+            {item.trechoEmbalagem && (
+              <div className="mt-1 flex items-center gap-1 text-xs text-mata-700" title="Lido da descrição da nota">
+                <Sparkles className="h-3 w-3" />
+                {item.trechoEmbalagem}
+              </div>
+            )}
+          </>
         )}
       </td>
 
       <td className="px-3 py-2 whitespace-nowrap">
-        {escolha.lancar && fator > 0 ? (
+        {!escolha.lancar ? (
+          <span className="text-terra-400">—</span>
+        ) : ehBem ? (
+          <>
+            <div className="font-semibold text-amber-700">→ despesa</div>
+            <div className="text-xs text-terra-500">{moeda(item.quantidade * item.custoUnitarioReal)}, rateada por área</div>
+          </>
+        ) : fator > 0 ? (
           <>
             <div className="font-semibold">{num(item.quantidade * fator)} {unidade}</div>
             <div className="text-xs text-terra-500">

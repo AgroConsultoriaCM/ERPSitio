@@ -99,6 +99,12 @@ export interface Insumo {
   id: string;
   nome: string;
   categoria: "DEFENSIVO" | "FERTILIZANTE" | "EMBALAGEM" | "OUTRO";
+  /**
+   * INSUMO (padrão) vira estoque, consumido em operações, custo rateado por
+   * talhão. BEM (equipamento/implemento) não entra em estoque — ao confirmar
+   * a nota, o valor vira despesa geral do sítio direto.
+   */
+  tipo?: "INSUMO" | "BEM";
   /** Um produto pode ser fungicida E acaricida ao mesmo tempo. */
   funcoes: FuncaoInsumo[];
   /** Litro ou quilo, nunca embalagem: é o que permite lançar a sobra do galão. */
@@ -650,6 +656,7 @@ export const CATEGORIAS_DESPESA = [
   "MANUTENCAO",
   "DEPRECIACAO",
   "FRETE",
+  "EQUIPAMENTOS",
   "OUTROS",
 ] as const;
 export type CategoriaDespesa = (typeof CATEGORIAS_DESPESA)[number];
@@ -661,6 +668,7 @@ export const ROTULO_CATEGORIA_DESPESA: Record<CategoriaDespesa, string> = {
   MANUTENCAO: "Manutenção",
   DEPRECIACAO: "Depreciação",
   FRETE: "Frete",
+  EQUIPAMENTOS: "Equipamentos e bens",
   OUTROS: "Outros",
 };
 

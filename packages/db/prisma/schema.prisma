@@ -400,6 +400,17 @@ enum CategoriaInsumo {
   OUTRO
 }
 
+/// Eixo separado das "funcoes" (que sao agronomicas): decide o fluxo
+/// FINANCEIRO do produto ao confirmar uma nota fiscal. INSUMO segue o
+/// caminho de sempre (vira lote de estoque, e consumido em operacoes, custo
+/// rateado por talhao). BEM nao entra em estoque - o valor da nota vira
+/// Despesa geral do sitio direto (rateada por area no DRE), porque coisa
+/// como motosserra ou implemento nao e consumida numa pulverizacao.
+enum TipoInsumo {
+  INSUMO
+  BEM
+}
+
 // Funcao agronomica do produto - base do controle de pragas: permite saber
 // "quando foi a ultima vez que este talhao levou herbicida".
 enum FuncaoInsumo {
@@ -418,6 +429,9 @@ model Insumo {
   id             String   @id @default(uuid())
   nome           String
   categoria      CategoriaInsumo @default(OUTRO)
+  /// Ver comentario do enum: decide se o produto vira estoque ou despesa
+  /// direta ao confirmar a nota fiscal.
+  tipo           TipoInsumo @default(INSUMO)
 
   /// Um produto pode ter mais de uma funcao - um mesmo defensivo age como
   /// fungicida e acaricida, por exemplo. Isso importa no controle de pragas:
@@ -1324,6 +1338,9 @@ enum CategoriaDespesa {
   MANUTENCAO
   DEPRECIACAO
   FRETE
+  /// Onde cai o valor de uma nota confirmada com produto do tipo BEM
+  /// (Insumo.tipo) - equipamento e implemento, nao consumivel de talhao.
+  EQUIPAMENTOS
   OUTROS
 }
 
