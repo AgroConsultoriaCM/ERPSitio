@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -21,9 +22,11 @@ import { ROTULO_FUNCAO_INSUMO } from "../../lib/types";
 import type {
   AlertaPraga,
   Atividade,
+  AtividadePlanejada,
   Colheita,
   Insumo,
   Propriedade,
+  RegistroPulverizacao,
   ResumoColheitaTalhao,
   RespostaClima,
   SetorIrrigacao,
@@ -31,8 +34,9 @@ import type {
   Talhao,
 } from "../../lib/types";
 import GraficoColheita from "../../components/GraficoColheita";
-import MapaPropriedade from "../../components/MapaPropriedade";
+import MapaPropriedade, { type SelecaoMapa } from "../../components/MapaPropriedade";
 import PainelClima from "../../components/PainelClima";
+import PainelResumoMapa from "../../components/PainelResumoMapa";
 import {
   Aviso,
   Cartao,
@@ -92,6 +96,18 @@ export default function Dashboard() {
     queryKey: ["setores-irrigacao"],
     queryFn: () => api.get<SetorIrrigacao[]>("/setores-irrigacao"),
   });
+  const { data: atividadesPlanejadas } = useQuery({
+    queryKey: ["atividades-planejadas"],
+    queryFn: () => api.get<AtividadePlanejada[]>("/atividades-planejadas"),
+  });
+  const { data: pulverizacoes } = useQuery({
+    queryKey: ["pulverizacoes"],
+    queryFn: () => api.get<RegistroPulverizacao[]>("/pulverizacoes"),
+  });
+
+  const [selecaoMapa, setSelecaoMapa] = useState<SelecaoMapa>(null);
+  const [camadaTalhoes, setCamadaTalhoes] = useState(true);
+  const [camadaSetores, setCamadaSetores] = useState(true);
   // O clima depende de coordenada cadastrada; falha dele não pode derrubar
   // o resto do painel, por isso fica isolado num bloco condicional.
   const clima = useQuery({
@@ -249,33 +265,81 @@ export default function Dashboard() {
       )}
 
       <Cartao className="!p-0 overflow-hidden">
-        <div className="p-4 pb-0 sm:p-5 sm:pb-0">
+        <div className="flex flex-wrap items-start justify-between gap-3 p-4 pb-0 sm:p-5 sm:pb-0">
           <TituloSecao
             icone={Map}
-            descricao="Contorno, talhões e setores — clique em ver mapa completo para o modo cheio, com camadas e filtros"
-            acao={
-              <Link
-                to="/painel/mapa"
-                className="group flex items-center gap-1 text-sm font-medium text-mata-700 transition hover:text-mata-900"
-              >
-                ver mapa completo
-                <ArrowRight
-                  size={14}
-                  className="transition-transform duration-200 ease-suave group-hover:translate-x-0.5"
-                />
-              </Link>
+            descricao={
+              selecaoMapa
+                ? "Clique noutro talhão/setor para trocar, ou numa área vazia do mapa para limpar"
+                : "Clique num talhão ou setor para ver os avisos dele"
             }
           >
             Mapa da propriedade
           </TituloSecao>
+          <Link
+            to="/painel/mapa"
+            className="group flex shrink-0 items-center gap-1 text-sm font-medium text-mata-700 transition hover:text-mata-900"
+          >
+            ver mapa completo
+            <ArrowRight
+              size={14}
+              className="transition-transform duration-200 ease-suave group-hover:translate-x-0.5"
+            />
+          </Link>
         </div>
-        <MapaPropriedade
-          propriedade={propriedade}
-          talhoes={talhoes}
-          setores={setoresIrrigacao}
-          altura="h-64 sm:h-80"
-          compacto
-        />
+
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-3 sm:px-5">
+          <button
+            type="button"
+            onClick={() => setCamadaTalhoes((v) => !v)}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+              camadaTalhoes
+                ? "border-mata-300 bg-mata-50 text-mata-700"
+                : "border-terra-200 text-terra-500 hover:bg-terra-50"
+            }`}
+          >
+            Talhões
+          </button>
+          <button
+            type="button"
+            onClick={() => setCamadaSetores((v) => !v)}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+              camadaSetores
+                ? "border-agua-300 bg-agua-50 text-agua-700"
+                : "border-terra-200 text-terra-500 hover:bg-terra-50"
+            }`}
+          >
+            Setores de irrigação
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-col lg:flex-row">
+          <div className="w-full shrink-0 lg:w-[380px]">
+            <MapaPropriedade
+              propriedade={propriedade}
+              talhoes={talhoes}
+              setores={setoresIrrigacao}
+              verTalhoes={camadaTalhoes}
+              verSetores={camadaSetores}
+              altura="h-80 lg:h-[400px]"
+              compacto
+              selecao={selecaoMapa}
+              aoSelecionar={setSelecaoMapa}
+            />
+          </div>
+          <div className="min-w-0 flex-1 border-t border-terra-100 p-4 sm:p-5 lg:border-l lg:border-t-0">
+            <PainelResumoMapa
+              selecao={selecaoMapa}
+              talhoes={talhoes}
+              setoresIrrigacao={setoresIrrigacao}
+              alertas={alertas}
+              atividadesPlanejadas={atividadesPlanejadas}
+              pulverizacoes={pulverizacoes}
+              atividades={atividades}
+              situacaoSetores={setores}
+            />
+          </div>
+        </div>
       </Cartao>
 
       <Cartao>
