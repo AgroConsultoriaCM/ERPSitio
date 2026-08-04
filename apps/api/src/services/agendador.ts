@@ -2,6 +2,7 @@ import cron from "node-cron";
 import type { PrismaClient } from "@erpsitio/db";
 import { sateliteConfigurado } from "./satelite.js";
 import { sincronizarLeiturasSatelite } from "./sincronizacaoSatelite.js";
+import { emailNotasConfigurado, sincronizarCaixaDeNotas } from "./emailNotas.js";
 
 /**
  * Tarefas que rodam sozinhas, sem ninguem clicar em nada.
@@ -28,6 +29,30 @@ export function agendarTarefas(prisma: PrismaClient) {
           await sincronizarLeiturasSatelite(prisma, p.id);
         } catch (err) {
           console.error(`[agendador] falha ao sincronizar satelite da propriedade ${p.id}:`, err);
+        }
+      }
+    },
+    { timezone: "America/Sao_Paulo" },
+  );
+
+  // De hora em hora: a caixa recebe nota o dia inteiro (fornecedor nao avisa
+  // quando manda), e reler so custa uma conexao IMAP - a dedupe por
+  // chaveAcesso (notasEntrada.ts) cobre reenvio sem criar duplicata.
+  cron.schedule(
+    "0 * * * *",
+    async () => {
+      if (!emailNotasConfigurado()) return;
+      const propriedades = await prisma.propriedade.findMany({ select: { id: true } });
+      for (const p of propriedades) {
+        try {
+          const resumo = await sincronizarCaixaDeNotas(prisma, p.id);
+          if (resumo.novas > 0 || resumo.recusadas.length > 0) {
+            console.log(
+              `[agendador] caixa de notas (${p.id}): ${resumo.novas} nova(s), ${resumo.repetidas} repetida(s), ${resumo.recusadas.length} recusada(s)`,
+            );
+          }
+        } catch (err) {
+          console.error(`[agendador] falha ao ler caixa de notas da propriedade ${p.id}:`, err);
         }
       }
     },

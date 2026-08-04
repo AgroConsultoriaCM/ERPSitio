@@ -25,6 +25,13 @@ const envSchema = z.object({
   // planilha. Opcional pelo mesmo motivo das demais: sem ela, o PDF entra na
   // fila para digitacao 100% manual, como ja funcionava antes.
   OCR_SPACE_API_KEY: z.string().optional(),
+
+  // Caixa de e-mail que recebe as NF-e dos fornecedores (encaminhadas por
+  // filtro do Gmail). Opcionais pelo mesmo motivo das demais: sem elas, a
+  // leitura automática fica desligada e as notas continuam entrando só pela
+  // tela (anexar XML manualmente).
+  EMAIL_NOTAS_USUARIO: z.string().optional(),
+  EMAIL_NOTAS_SENHA: z.string().optional(),
 });
 
 export const env = envSchema.parse({
@@ -42,4 +49,6 @@ export const env = envSchema.parse({
   COPERNICUS_CLIENT_ID: process.env.COPERNICUS_CLIENT_ID,
   COPERNICUS_CLIENT_SECRET: process.env.COPERNICUS_CLIENT_SECRET,
   OCR_SPACE_API_KEY: process.env.OCR_SPACE_API_KEY,
+  EMAIL_NOTAS_USUARIO: process.env.EMAIL_NOTAS_USUARIO,
+  EMAIL_NOTAS_SENHA: process.env.EMAIL_NOTAS_SENHA,
 });

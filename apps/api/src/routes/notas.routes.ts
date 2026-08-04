@@ -12,7 +12,8 @@
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { lerXmlNfe, conferirTotal, XmlInvalidoError } from "../services/nfe.js";
+import { lerXmlNfe, conferirTotal } from "../services/nfe.js";
+import { receberNotaXml, XmlInvalidoError } from "../services/notasEntrada.js";
 import { lerEmbalagem, sugerirNome } from "../services/embalagem.js";
 import {
   agrofitConfigurado,
@@ -54,39 +55,17 @@ export default async function notasRoutes(fastify: FastifyInstance) {
       const { xml, nomeArquivo } = receberSchema.parse(request.body);
       const propriedadeId = request.user.propriedadeId;
 
-      let nota;
+      let resultado;
       try {
-        nota = lerXmlNfe(xml);
+        resultado = await receberNotaXml(fastify.prisma, propriedadeId, xml, nomeArquivo);
       } catch (erro) {
         if (erro instanceof XmlInvalidoError) throw new AppError(erro.message, 400);
         throw erro;
       }
 
-      const jaExiste = await fastify.prisma.notaFiscalEntrada.findUnique({
-        where: { chaveAcesso: nota.chaveAcesso },
-      });
-      if (jaExiste) {
-        return reply.status(200).send({ ...jaExiste, jaExistia: true });
-      }
-
-      const criada = await fastify.prisma.notaFiscalEntrada.create({
-        data: {
-          chaveAcesso: nota.chaveAcesso,
-          numero: nota.numero,
-          serie: nota.serie,
-          dataEmissao: nota.dataEmissao,
-          cnpjEmitente: nota.cnpjEmitente,
-          nomeEmitente: nota.nomeEmitente,
-          documentoDestinatario: nota.documentoDestinatario || null,
-          nomeDestinatario: nota.nomeDestinatario || null,
-          valorTotal: nota.valorTotal,
-          xmlOriginal: xml,
-          observacoes: nomeArquivo ?? null,
-          propriedadeId,
-        },
-      });
-
-      return reply.status(201).send({ ...criada, jaExistia: false });
+      return reply
+        .status(resultado.jaExistia ? 200 : 201)
+        .send({ ...resultado.nota, jaExistia: resultado.jaExistia });
     },
   );
 
