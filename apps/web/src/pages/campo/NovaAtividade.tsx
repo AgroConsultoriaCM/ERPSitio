@@ -43,7 +43,10 @@ export default function NovaAtividade() {
   useEffect(() => {
     fetchComCache<Talhao[]>("talhoes", "/talhoes").then(setTalhoes);
     fetchComCache<GrupoTalhaoResumo[]>("grupos", "/grupos").then(setGrupos);
-    fetchComCache<TipoAtividade[]>("tipos-atividade", "/tipos-atividade").then(setTipos);
+    // Pulverização tem fluxo próprio (bomba/calda) — não entra nesta lista genérica.
+    fetchComCache<TipoAtividade[]>("tipos-atividade", "/tipos-atividade").then((t) =>
+      setTipos(t.filter((tipo) => !tipo.nome.toLowerCase().includes("pulveriz"))),
+    );
     fetchComCache<Executor[]>("executores", "/executores").then(setExecutores);
     fetchComCache<Insumo[]>("insumos", "/insumos").then(setInsumosDisponiveis);
   }, []);
@@ -317,7 +320,7 @@ export default function NovaAtividade() {
               onChange={(e) => setModoSobra(e.target.checked)}
               className="h-4 w-4"
             />
-            Declarar o que levei e o que sobrou (pulverização)
+            Declarar o que levei e o que sobrou
           </label>
         )}
 

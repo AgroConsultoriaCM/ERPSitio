@@ -137,6 +137,15 @@ export default function CampoHome() {
           </span>
           Nova operação
         </Link>
+        <Link
+          to="/campo/pulverizacao"
+          className="group flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-sky-500 to-sky-700 py-6 text-lg font-bold text-white shadow-cartao transition duration-200 ease-suave active:scale-[0.98]"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition-transform duration-200 group-active:scale-90">
+            <SprayCan size={20} strokeWidth={2.5} />
+          </span>
+          Pulverização
+        </Link>
       </div>
 
       <Link

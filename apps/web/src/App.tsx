@@ -11,6 +11,7 @@ import CampoLayout from "./pages/campo/CampoLayout";
 import CampoHome from "./pages/campo/CampoHome";
 import NovaAtividade from "./pages/campo/NovaAtividade";
 import RegistrarColheita from "./pages/campo/RegistrarColheita";
+import RegistrarPulverizacao from "./pages/campo/RegistrarPulverizacao";
 
 const CampoCalendario = lazy(() => import("./pages/campo/CampoCalendario"));
 
@@ -80,6 +81,7 @@ export default function App() {
               <Route index element={<CampoHome />} />
               <Route path="nova" element={<NovaAtividade />} />
               <Route path="colheita" element={<RegistrarColheita />} />
+              <Route path="pulverizacao" element={<RegistrarPulverizacao />} />
               <Route path="calendario" element={<CampoCalendario />} />
             </Route>
 
