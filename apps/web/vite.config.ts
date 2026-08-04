@@ -46,6 +46,11 @@ export default defineConfig({
         icons: [
           { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          // Mesmo arquivo: a marca já está desenhada com margem de sobra (~66%
+          // de preenchimento), então o mesmo PNG serve sem recorte também
+          // quando o Android aplica a máscara adaptativa (círculo/quadrado).
+          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         // Atalhos do toque longo no ícone, no Android: leva direto ao
         // lançamento, sem passar pela home do app.
