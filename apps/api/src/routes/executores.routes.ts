@@ -5,6 +5,10 @@ import { NaoEncontradoError } from "../lib/errors.js";
 const executorSchema = z.object({
   nome: z.string().min(1),
   tipo: z.enum(["EQUIPE_PROPRIA", "EMPREITEIRO", "PRESTADOR_SERVICO"]),
+  // So importa para EMPREITEIRO de colheita - decide a formula do custo em
+  // Colheita (ver colheitas.routes.ts). Mudar isto NUNCA recalcula colheita
+  // ja lancada; so vale para a proxima vez que o custo dela for calculado.
+  modalidadePagamentoColheita: z.enum(["POR_CAIXA", "POR_CAIXA_PESO"]).default("POR_CAIXA"),
   contato: z.string().optional(),
   observacoes: z.string().optional(),
   ativo: z.boolean().optional(),

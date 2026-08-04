@@ -130,10 +130,19 @@ export const ROTULO_TIPO_EXECUTOR: Record<TipoExecutor, string> = {
   PRESTADOR_SERVICO: "Prestador de serviço",
 };
 
+export type ModalidadePagamentoColheita = "POR_CAIXA" | "POR_CAIXA_PESO";
+
+export const ROTULO_MODALIDADE_PAGAMENTO_COLHEITA: Record<ModalidadePagamentoColheita, string> = {
+  POR_CAIXA: "Por caixa colhida",
+  POR_CAIXA_PESO: "Por caixa-peso (calcula depois do peso real)",
+};
+
 export interface Executor {
   id: string;
   nome: string;
   tipo: TipoExecutor;
+  /** Só importa para EMPREITEIRO de colheita — decide quando/como o custo é calculado. */
+  modalidadePagamentoColheita: ModalidadePagamentoColheita;
   contato?: string | null;
   observacoes?: string | null;
   ativo: boolean;

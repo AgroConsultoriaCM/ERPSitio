@@ -232,10 +232,24 @@ enum TipoExecutor {
   PRESTADOR_SERVICO
 }
 
+/// Como o empreiteiro de colheita e pago - so importa quando ha valorPorCaixa
+/// lancado. POR_CAIXA: pela quantidade de caixas contadas no campo, sem
+/// considerar o peso real (o que sempre foi o comportamento do sistema).
+/// POR_CAIXA_PESO: pela caixa-peso (pesoTotalKg / peso padrao da caixa da
+/// cultura) - so da para calcular depois que o peso real da colheita entra,
+/// no complemento comercial (momento 2), entao o custo fica pendente ate la.
+enum ModalidadePagamentoColheita {
+  POR_CAIXA
+  POR_CAIXA_PESO
+}
+
 model Executor {
   id            String   @id @default(uuid())
   nome          String
   tipo          TipoExecutor
+  /// So relevante para EMPREITEIRO que colhe - decide a formula do
+  /// custoColheita em Colheita (ver services/colheitas e ModalidadePagamentoColheita).
+  modalidadePagamentoColheita ModalidadePagamentoColheita @default(POR_CAIXA)
   contato       String?
   observacoes   String?
   ativo         Boolean  @default(true)

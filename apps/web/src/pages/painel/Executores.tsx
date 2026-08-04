@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import { ROTULO_TIPO_EXECUTOR } from "../../lib/types";
-import type { Executor, TipoExecutor } from "../../lib/types";
+import { ROTULO_MODALIDADE_PAGAMENTO_COLHEITA, ROTULO_TIPO_EXECUTOR } from "../../lib/types";
+import type { Executor, ModalidadePagamentoColheita, TipoExecutor } from "../../lib/types";
 
 const tipos: TipoExecutor[] = ["EQUIPE_PROPRIA", "EMPREITEIRO", "PRESTADOR_SERVICO"];
+const modalidades: ModalidadePagamentoColheita[] = ["POR_CAIXA", "POR_CAIXA_PESO"];
 
 export default function Executores() {
   const qc = useQueryClient();
@@ -16,6 +17,8 @@ export default function Executores() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState<TipoExecutor>("EMPREITEIRO");
+  const [modalidadePagamentoColheita, setModalidadePagamentoColheita] =
+    useState<ModalidadePagamentoColheita>("POR_CAIXA");
   const [contato, setContato] = useState("");
   const [observacoes, setObservacoes] = useState("");
 
@@ -23,13 +26,20 @@ export default function Executores() {
     setEditandoId(null);
     setNome("");
     setTipo("EMPREITEIRO");
+    setModalidadePagamentoColheita("POR_CAIXA");
     setContato("");
     setObservacoes("");
   }
 
   const salvar = useMutation({
     mutationFn: () => {
-      const body = { nome, tipo, contato: contato || undefined, observacoes: observacoes || undefined };
+      const body = {
+        nome,
+        tipo,
+        modalidadePagamentoColheita,
+        contato: contato || undefined,
+        observacoes: observacoes || undefined,
+      };
       return editandoId ? api.patch(`/executores/${editandoId}`, body) : api.post("/executores", body);
     },
     onSuccess: () => {
@@ -74,6 +84,26 @@ export default function Executores() {
               </option>
             ))}
           </select>
+          {tipo === "EMPREITEIRO" && (
+            <select
+              value={modalidadePagamentoColheita}
+              onChange={(e) => setModalidadePagamentoColheita(e.target.value as ModalidadePagamentoColheita)}
+              title="Como o custo da colheita deste empreiteiro é calculado"
+              className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              {modalidades.map((m) => (
+                <option key={m} value={m}>
+                  {ROTULO_MODALIDADE_PAGAMENTO_COLHEITA[m]}
+                </option>
+              ))}
+            </select>
+          )}
+          {tipo === "EMPREITEIRO" && (
+            <p className="col-span-2 -mt-1 text-xs text-gray-500">
+              Mudar isto só vale para a próxima colheita lançada — as que já foram lançadas mantêm o
+              custo que já tinham.
+            </p>
+          )}
           <input
             placeholder="Contato (telefone)"
             value={contato}
@@ -118,7 +148,14 @@ export default function Executores() {
             {executores?.map((e) => (
               <tr key={e.id} className={`border-t ${e.ativo ? "" : "text-gray-500"}`}>
                 <td className="px-4 py-2">{e.nome}</td>
-                <td className="px-4 py-2">{ROTULO_TIPO_EXECUTOR[e.tipo]}</td>
+                <td className="px-4 py-2">
+                  {ROTULO_TIPO_EXECUTOR[e.tipo]}
+                  {e.tipo === "EMPREITEIRO" && (
+                    <span className="block text-xs text-gray-400">
+                      {e.modalidadePagamentoColheita === "POR_CAIXA_PESO" ? "por caixa-peso" : "por caixa"}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-2">{e.contato ?? "-"}</td>
                 <td className="px-4 py-2">{e.ativo ? "Ativo" : "Inativo"}</td>
                 <td className="px-4 py-2 whitespace-nowrap text-right">
@@ -127,6 +164,7 @@ export default function Executores() {
                       setEditandoId(e.id);
                       setNome(e.nome);
                       setTipo(e.tipo);
+                      setModalidadePagamentoColheita(e.modalidadePagamentoColheita ?? "POR_CAIXA");
                       setContato(e.contato ?? "");
                       setObservacoes(e.observacoes ?? "");
                     }}

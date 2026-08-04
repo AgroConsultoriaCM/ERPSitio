@@ -67,6 +67,46 @@ const arredondar = (v: number, casas = 2) => {
   return Math.round(v * f) / f;
 };
 
+/**
+ * Peso da caixa: da cultura do talhao quando cadastrada, senao o padrao (ver
+ * PESO_CAIXA_PADRAO_KG). Mesma regra usada em comDerivados() para o preco do
+ * quilo - aqui serve para converter peso real em "caixas-peso" na modalidade
+ * POR_CAIXA_PESO.
+ */
+export function pesoCaixaKgDoTalhao(talhao?: {
+  cultura?: { pesoCaixaKg: number | null } | null;
+} | null): number {
+  if (talhao?.cultura) return talhao.cultura.pesoCaixaKg ?? PESO_CAIXA_PADRAO_KG;
+  return PESO_CAIXA_PADRAO_KG;
+}
+
+/**
+ * Custo da colheita, na modalidade de pagamento do empreiteiro (ver
+ * ModalidadePagamentoColheita no schema):
+ *  - POR_CAIXA: quantidade de caixas contadas no campo x valor/caixa. Sempre
+ *    dá para calcular na hora do lançamento.
+ *  - POR_CAIXA_PESO: peso real / peso padrão da caixa (da cultura) x
+ *    valor/caixa. Só dá para calcular depois que o peso real entrar (momento
+ *    2, complemento comercial) - antes disso o custo fica pendente (null).
+ *  - sem valorPorCaixa (equipe própria, sem custo direto): sempre null.
+ */
+export function calcularCustoColheita(params: {
+  modalidade: "POR_CAIXA" | "POR_CAIXA_PESO";
+  quantidadeCaixas: number;
+  valorPorCaixa: number | null;
+  pesoTotalKg: number | null;
+  pesoCaixaKg: number;
+}): number | null {
+  const { modalidade, quantidadeCaixas, valorPorCaixa, pesoTotalKg, pesoCaixaKg } = params;
+  if (valorPorCaixa == null) return null;
+
+  if (modalidade === "POR_CAIXA_PESO") {
+    if (pesoTotalKg == null || pesoCaixaKg <= 0) return null;
+    return arredondar((pesoTotalKg / pesoCaixaKg) * valorPorCaixa);
+  }
+  return arredondar(quantidadeCaixas * valorPorCaixa);
+}
+
 // Indicadores derivados - nunca digitados, sempre calculados a partir do que
 // foi lancado no campo + o complemento comercial.
 type ColheitaComRelacoes = Awaited<
@@ -176,14 +216,27 @@ async function criarColheita(
 
   const talhao = await prisma.talhao.findFirst({
     where: { id: dados.talhaoId, propriedadeId },
+    select: { id: true, cultura: { select: { pesoCaixaKg: true } } },
   });
   if (!talhao) throw new NaoEncontradoError("Talhão não encontrado");
 
-  // Custo so existe quando ha valor por caixa (tipicamente empreiteiro).
-  const custoColheita =
-    dados.valorPorCaixa != null
-      ? arredondar(dados.quantidadeCaixas * dados.valorPorCaixa)
-      : null;
+  const executor = dados.executorId
+    ? await prisma.executor.findFirst({
+        where: { id: dados.executorId, propriedadeId },
+        select: { modalidadePagamentoColheita: true },
+      })
+    : null;
+
+  // Custo so existe quando ha valor por caixa (tipicamente empreiteiro). Na
+  // modalidade por caixa-peso, ainda nao da pra calcular aqui - falta o peso
+  // real, que so chega no complemento comercial (momento 2).
+  const custoColheita = calcularCustoColheita({
+    modalidade: executor?.modalidadePagamentoColheita ?? "POR_CAIXA",
+    quantidadeCaixas: dados.quantidadeCaixas,
+    valorPorCaixa: dados.valorPorCaixa ?? null,
+    pesoTotalKg: null,
+    pesoCaixaKg: pesoCaixaKgDoTalhao(talhao),
+  });
 
   const colheita = await prisma.colheita.create({
     data: {
@@ -332,20 +385,52 @@ export default async function colheitasRoutes(fastify: FastifyInstance) {
     { preHandler: fastify.requirePermissao("colheitas", "EDITAR") },
     async (request, reply) => {
       const dados = colheitaComercialSchema.parse(request.body);
+      const propriedadeId = request.user.propriedadeId;
       const existente = await fastify.prisma.colheita.findFirst({
-        where: { id: request.params.id, propriedadeId: request.user.propriedadeId },
+        where: { id: request.params.id, propriedadeId },
       });
       if (!existente) throw new NaoEncontradoError();
 
-      // Recalcula o custo se caixas ou valor/caixa mudarem.
-      const caixas = dados.quantidadeCaixas ?? existente.quantidadeCaixas;
-      const valorCaixa =
-        dados.valorPorCaixa !== undefined ? dados.valorPorCaixa : existente.valorPorCaixa;
-      const custoColheita = valorCaixa != null ? arredondar(caixas * valorCaixa) : null;
+      // So recalcula o custo quando algo que entra na conta de fato mudou -
+      // um PATCH que só toca observações/classificação não pode fazer um
+      // custo já lançado pular de valor. E é exatamente esta checagem que
+      // garante que mudar a modalidade do empreiteiro depois não altera
+      // colheita antiga: sem um destes campos no corpo, custoColheita nem
+      // entra no `data` do update.
+      const financeiroMudou =
+        dados.quantidadeCaixas !== undefined ||
+        dados.valorPorCaixa !== undefined ||
+        dados.pesoTotalKg !== undefined ||
+        dados.executorId !== undefined;
+
+      let custoColheita: number | null | undefined = undefined;
+      if (financeiroMudou) {
+        const executorId = dados.executorId !== undefined ? dados.executorId : existente.executorId;
+        const [executor, talhao] = await Promise.all([
+          executorId
+            ? fastify.prisma.executor.findFirst({
+                where: { id: executorId, propriedadeId },
+                select: { modalidadePagamentoColheita: true },
+              })
+            : null,
+          fastify.prisma.talhao.findFirst({
+            where: { id: existente.talhaoId },
+            select: { cultura: { select: { pesoCaixaKg: true } } },
+          }),
+        ]);
+
+        custoColheita = calcularCustoColheita({
+          modalidade: executor?.modalidadePagamentoColheita ?? "POR_CAIXA",
+          quantidadeCaixas: dados.quantidadeCaixas ?? existente.quantidadeCaixas,
+          valorPorCaixa: dados.valorPorCaixa !== undefined ? dados.valorPorCaixa : existente.valorPorCaixa,
+          pesoTotalKg: dados.pesoTotalKg !== undefined ? dados.pesoTotalKg : existente.pesoTotalKg,
+          pesoCaixaKg: pesoCaixaKgDoTalhao(talhao),
+        });
+      }
 
       const colheita = await fastify.prisma.colheita.update({
         where: { id: existente.id },
-        data: { ...dados, custoColheita },
+        data: { ...dados, ...(financeiroMudou ? { custoColheita } : {}) },
         include: INCLUDE_COMPLETO,
       });
       return reply.send(comDerivados(colheita));

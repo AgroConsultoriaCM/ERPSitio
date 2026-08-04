@@ -5,7 +5,12 @@
 // O limao e vendido por caixa padrao de 27,2 kg, com preco diferente para
 // fruta boa e refugo. A receita nao e digitada: sai da conversao do preco da
 // caixa em preco do quilo, multiplicado pelo peso de cada qualidade.
-import { comDerivados, PESO_CAIXA_PADRAO_KG } from "../src/routes/colheitas.routes.js";
+import {
+  calcularCustoColheita,
+  comDerivados,
+  PESO_CAIXA_PADRAO_KG,
+  pesoCaixaKgDoTalhao,
+} from "../src/routes/colheitas.routes.js";
 
 let falhas = 0;
 function conferir(nome: string, obtido: unknown, esperado: unknown) {
@@ -205,6 +210,85 @@ console.log("\n== o arredondamento em 6 casas nao pode se propagar ==");
   conferir("receita usa o preco de 6 casas", r.valorVendaBom, 333.33);
 }
 
+
+console.log("\n== CUSTO DO EMPREITEIRO: POR_CAIXA (padrao, sem considerar peso) ==");
+{
+  // 100 caixas contadas x R$8/caixa = R$800, mesmo que o peso real de depois
+  // corresponda a mais ou menos que 100 caixas-peso.
+  const r = calcularCustoColheita({
+    modalidade: "POR_CAIXA",
+    quantidadeCaixas: 100,
+    valorPorCaixa: 8,
+    pesoTotalKg: null,
+    pesoCaixaKg: 27.2,
+  });
+  conferir("custo = caixas contadas x valor, sem peso nenhum", r, 800);
+
+  // Peso real chegando depois NAO muda nada nesta modalidade.
+  const r2 = calcularCustoColheita({
+    modalidade: "POR_CAIXA",
+    quantidadeCaixas: 100,
+    valorPorCaixa: 8,
+    pesoTotalKg: 3000, // dariam so ~110 caixas-peso de 27,2kg - irrelevante aqui
+    pesoCaixaKg: 27.2,
+  });
+  conferir("peso real chegando depois nao afeta o POR_CAIXA", r2, 800);
+}
+
+console.log("\n== CUSTO DO EMPREITEIRO: POR_CAIXA_PESO (so calcula com peso real) ==");
+{
+  // Sem peso ainda (momento 1, lancamento de campo): custo fica pendente.
+  const semPeso = calcularCustoColheita({
+    modalidade: "POR_CAIXA_PESO",
+    quantidadeCaixas: 100,
+    valorPorCaixa: 8,
+    pesoTotalKg: null,
+    pesoCaixaKg: 27.2,
+  });
+  conferir("sem peso real, custo fica pendente (null)", semPeso, null);
+
+  // Peso real chega (momento 2): 3000 kg / 27,2 kg = 110,29... caixas-peso.
+  // x R$8 = R$882,35 (arredondado).
+  const comPeso = calcularCustoColheita({
+    modalidade: "POR_CAIXA_PESO",
+    quantidadeCaixas: 100,
+    valorPorCaixa: 8,
+    pesoTotalKg: 3000,
+    pesoCaixaKg: 27.2,
+  });
+  conferir("caixas-peso x valor, calculado com o peso real", comPeso, 882.35);
+}
+
+console.log("\n== sem valor/caixa (equipe propria), custo e sempre nulo ==");
+{
+  const r1 = calcularCustoColheita({
+    modalidade: "POR_CAIXA",
+    quantidadeCaixas: 100,
+    valorPorCaixa: null,
+    pesoTotalKg: null,
+    pesoCaixaKg: 27.2,
+  });
+  conferir("POR_CAIXA sem valor/caixa", r1, null);
+  const r2 = calcularCustoColheita({
+    modalidade: "POR_CAIXA_PESO",
+    quantidadeCaixas: 100,
+    valorPorCaixa: null,
+    pesoTotalKg: 3000,
+    pesoCaixaKg: 27.2,
+  });
+  conferir("POR_CAIXA_PESO sem valor/caixa, mesmo com peso", r2, null);
+}
+
+console.log("\n== peso da caixa: cultura cadastrada manda, senao usa o padrao ==");
+{
+  conferir("cultura por caixa (limao)", pesoCaixaKgDoTalhao({ cultura: { pesoCaixaKg: 27.2 } }), 27.2);
+  conferir(
+    "cultura por quilo (abacate) cai no padrao",
+    pesoCaixaKgDoTalhao({ cultura: { pesoCaixaKg: null } }),
+    PESO_CAIXA_PADRAO_KG,
+  );
+  conferir("talhao sem cultura cai no padrao", pesoCaixaKgDoTalhao(null), PESO_CAIXA_PADRAO_KG);
+}
 
 console.log(falhas === 0 ? "\nTUDO OK\n" : `\n${falhas} FALHA(S)\n`);
 process.exit(falhas === 0 ? 0 : 1);

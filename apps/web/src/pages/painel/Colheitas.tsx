@@ -307,7 +307,20 @@ export default function Colheitas() {
                   <td className="px-3 py-2 font-medium">{num(c.quantidadeCaixas)}</td>
                   <td className="px-3 py-2">{c.executor?.nome ?? "-"}</td>
                   <td className="px-3 py-2">{moeda(c.valorPorCaixa)}</td>
-                  <td className="px-3 py-2">{moeda(c.custoColheita)}</td>
+                  <td className="px-3 py-2">
+                    {c.custoColheita == null &&
+                    c.valorPorCaixa != null &&
+                    c.executor?.modalidadePagamentoColheita === "POR_CAIXA_PESO" ? (
+                      <span
+                        className="text-xs font-medium text-amber-600"
+                        title="Este empreiteiro é pago por caixa-peso — o custo só é calculado depois que o peso real da colheita for lançado (aba Venda)."
+                      >
+                        aguarda peso
+                      </span>
+                    ) : (
+                      moeda(c.custoColheita)
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     {editando ? (
                       <input
