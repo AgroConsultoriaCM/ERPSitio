@@ -16,10 +16,22 @@ const UNIDADE_SOLO: Record<string, string> = {
   ph: "CaCl₂", materiaOrganica: "g/dm³", fosforo: "mg/dm³", enxofre: "mg/dm³",
   potassio: "mmolc/dm³", calcio: "mmolc/dm³", magnesio: "mmolc/dm³", aluminio: "mmolc/dm³",
   hAl: "mmolc/dm³", somaBases: "mmolc/dm³", ctc: "mmolc/dm³", saturacaoBases: "%", saturacaoAluminio: "%",
+  boro: "mg/dm³", cobre: "mg/dm³", ferro: "mg/dm³", manganes: "mg/dm³", zinco: "mg/dm³",
 };
 const UNIDADE_FOLIAR: Record<string, string> = {
   nitrogenio: "g/kg", fosforo: "g/kg", potassio: "g/kg", calcio: "g/kg", magnesio: "g/kg", enxofre: "g/kg",
+  boro: "mg/kg", cobre: "mg/kg", ferro: "mg/kg", manganes: "mg/kg", molibdenio: "mg/kg", zinco: "mg/kg",
 };
+
+/** Mesmas chaves usadas no perfil de correção (recomendacaoSolo.ts) - só o que entra no diagnóstico. */
+const MICRO_SOLO = [
+  ["boro", "Boro (B)"], ["cobre", "Cobre (Cu)"], ["ferro", "Ferro (Fe)"],
+  ["manganes", "Manganês (Mn)"], ["zinco", "Zinco (Zn)"],
+] as const;
+const MICRO_FOLIAR = [
+  ["boro", "Boro (B)"], ["cobre", "Cobre (Cu)"], ["ferro", "Ferro (Fe)"],
+  ["manganes", "Manganês (Mn)"], ["molibdenio", "Molibdênio (Mo)"], ["zinco", "Zinco (Zn)"],
+] as const;
 
 function campoNum(label: string, unidade: string | undefined, valor: string, onChange: (v: string) => void) {
   return (
@@ -44,10 +56,12 @@ const SOLO_VAZIO: Record<string, string> = {
   dataColeta: "", profundidadeCm: "", laboratorio: "", ph: "", materiaOrganica: "", fosforo: "",
   enxofre: "", potassio: "", calcio: "", magnesio: "", aluminio: "", hAl: "", somaBases: "",
   ctc: "", saturacaoBases: "", saturacaoAluminio: "",
+  boro: "", cobre: "", ferro: "", manganes: "", zinco: "",
 };
 const FOLIAR_VAZIO: Record<string, string> = {
   dataColeta: "", estadioFenologico: "", nitrogenio: "", fosforo: "", potassio: "", calcio: "",
   magnesio: "", enxofre: "",
+  boro: "", cobre: "", ferro: "", manganes: "", molibdenio: "", zinco: "",
 };
 
 export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
@@ -88,6 +102,11 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
       ctc: a.ctc?.toString() ?? "",
       saturacaoBases: a.saturacaoBases?.toString() ?? "",
       saturacaoAluminio: a.saturacaoAluminio?.toString() ?? "",
+      boro: a.micronutrientes?.boro?.toString() ?? "",
+      cobre: a.micronutrientes?.cobre?.toString() ?? "",
+      ferro: a.micronutrientes?.ferro?.toString() ?? "",
+      manganes: a.micronutrientes?.manganes?.toString() ?? "",
+      zinco: a.micronutrientes?.zinco?.toString() ?? "",
     });
   }
 
@@ -99,6 +118,9 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
   const salvarSolo = useMutation({
     mutationFn: () => {
       const n = (v: string) => (v ? Number(v) : null);
+      const micronutrientes = Object.fromEntries(
+        MICRO_SOLO.map(([chave]) => [chave, soloForm[chave]]).filter(([, v]) => v !== ""),
+      ) as Record<string, string>;
       const body = {
         talhaoId,
         dataColeta: soloForm.dataColeta,
@@ -117,6 +139,9 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
         ctc: n(soloForm.ctc),
         saturacaoBases: n(soloForm.saturacaoBases),
         saturacaoAluminio: n(soloForm.saturacaoAluminio),
+        micronutrientes: Object.keys(micronutrientes).length
+          ? Object.fromEntries(Object.entries(micronutrientes).map(([k, v]) => [k, Number(v)]))
+          : null,
       };
       return editandoSoloId ? api.patch(`/analises-solo/${editandoSoloId}`, body) : api.post("/analises-solo", body);
     },
@@ -149,6 +174,12 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
       calcio: a.calcio?.toString() ?? "",
       magnesio: a.magnesio?.toString() ?? "",
       enxofre: a.enxofre?.toString() ?? "",
+      boro: a.micronutrientes?.boro?.toString() ?? "",
+      cobre: a.micronutrientes?.cobre?.toString() ?? "",
+      ferro: a.micronutrientes?.ferro?.toString() ?? "",
+      manganes: a.micronutrientes?.manganes?.toString() ?? "",
+      molibdenio: a.micronutrientes?.molibdenio?.toString() ?? "",
+      zinco: a.micronutrientes?.zinco?.toString() ?? "",
     });
   }
 
@@ -160,6 +191,9 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
   const salvarFoliar = useMutation({
     mutationFn: () => {
       const n = (v: string) => (v ? Number(v) : null);
+      const micronutrientes = Object.fromEntries(
+        MICRO_FOLIAR.map(([chave]) => [chave, foliarForm[chave]]).filter(([, v]) => v !== ""),
+      ) as Record<string, string>;
       const body = {
         talhaoId,
         dataColeta: foliarForm.dataColeta,
@@ -170,6 +204,9 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
         calcio: n(foliarForm.calcio),
         magnesio: n(foliarForm.magnesio),
         enxofre: n(foliarForm.enxofre),
+        micronutrientes: Object.keys(micronutrientes).length
+          ? Object.fromEntries(Object.entries(micronutrientes).map(([k, v]) => [k, Number(v)]))
+          : null,
       };
       return editandoFoliarId
         ? api.patch(`/analises-foliar/${editandoFoliarId}`, body)
@@ -300,6 +337,9 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
             {campoNum("CTC", UNIDADE_SOLO.ctc, soloForm.ctc, (v) => setSoloForm((f) => ({ ...f, ctc: v })))}
             {campoNum("Saturação por bases (V%)", UNIDADE_SOLO.saturacaoBases, soloForm.saturacaoBases, (v) => setSoloForm((f) => ({ ...f, saturacaoBases: v })))}
             {campoNum("Saturação por alumínio (m%)", UNIDADE_SOLO.saturacaoAluminio, soloForm.saturacaoAluminio, (v) => setSoloForm((f) => ({ ...f, saturacaoAluminio: v })))}
+            {MICRO_SOLO.map(([chave, label]) =>
+              campoNum(label, UNIDADE_SOLO[chave], soloForm[chave], (v) => setSoloForm((f) => ({ ...f, [chave]: v }))),
+            )}
           </div>
           <div className="mt-3 flex gap-2">
             <button
@@ -374,6 +414,9 @@ export default function AbaAnalises({ talhaoId }: { talhaoId: string }) {
             {campoNum("Cálcio (Ca)", UNIDADE_FOLIAR.calcio, foliarForm.calcio, (v) => setFoliarForm((f) => ({ ...f, calcio: v })))}
             {campoNum("Magnésio (Mg)", UNIDADE_FOLIAR.magnesio, foliarForm.magnesio, (v) => setFoliarForm((f) => ({ ...f, magnesio: v })))}
             {campoNum("Enxofre (S)", UNIDADE_FOLIAR.enxofre, foliarForm.enxofre, (v) => setFoliarForm((f) => ({ ...f, enxofre: v })))}
+            {MICRO_FOLIAR.map(([chave, label]) =>
+              campoNum(label, UNIDADE_FOLIAR[chave], foliarForm[chave], (v) => setFoliarForm((f) => ({ ...f, [chave]: v }))),
+            )}
           </div>
           <div className="mt-3 flex gap-2">
             <button

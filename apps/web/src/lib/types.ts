@@ -428,6 +428,8 @@ export interface AnaliseSolo {
   ctc?: number | null;
   saturacaoBases?: number | null;
   saturacaoAluminio?: number | null;
+  /** { boro: 1.2, cobre: 0.5, ... } - mesmas chaves do perfil de correção. */
+  micronutrientes?: Record<string, number> | null;
   observacoes?: string | null;
 }
 
@@ -443,6 +445,7 @@ export interface AnaliseFoliar {
   calcio?: number | null;
   magnesio?: number | null;
   enxofre?: number | null;
+  micronutrientes?: Record<string, number> | null;
   observacoes?: string | null;
 }
 
