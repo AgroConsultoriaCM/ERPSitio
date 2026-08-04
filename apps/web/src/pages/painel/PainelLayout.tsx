@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bug,
+  CalendarClock,
   ChevronRight,
   Citrus,
   ClipboardList,
@@ -13,6 +14,7 @@ import {
   Map,
   Menu,
   Package,
+  Scale,
   SlidersHorizontal,
   SprayCan,
   WifiOff,
@@ -165,6 +167,20 @@ export default function PainelLayout() {
               Notas fiscais
             </ItemMenu>
           )}
+          {podeVer("calendario") && (
+            <ItemMenu para={ROTAS.calendario} icone={CalendarClock}>
+              Calendário
+            </ItemMenu>
+          )}
+        </>
+      )}
+
+      {podeVer("dre") && (
+        <>
+          <GrupoMenu>Financeiro</GrupoMenu>
+          <ItemMenu para={ROTAS.dre} icone={Scale}>
+            DRE
+          </ItemMenu>
         </>
       )}
 

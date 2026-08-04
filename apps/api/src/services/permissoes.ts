@@ -12,6 +12,8 @@ export const MODULOS = [
   { id: "pragas", rotulo: "Controle de pragas", descricao: "Alertas e histórico de aplicações" },
   { id: "irrigacao", rotulo: "Manejo hídrico", descricao: "Irrigação e clima" },
   { id: "analises", rotulo: "Análises de solo/folha", descricao: "Laudos e diagnóstico" },
+  { id: "calendario", rotulo: "Calendário", descricao: "Atividades planejadas e agenda de campo" },
+  { id: "dre", rotulo: "DRE", descricao: "Resultado financeiro, geral e por talhão" },
   { id: "cadastros", rotulo: "Cadastros", descricao: "Talhões, culturas, insumos, executores..." },
   { id: "propriedade", rotulo: "Propriedade", descricao: "Dados e contorno do sítio" },
   { id: "usuarios", rotulo: "Usuários e permissões", descricao: "Acesso ao sistema" },
@@ -46,6 +48,11 @@ const PADRAO: Record<RolePapel, Record<string, [ver: boolean, editar: boolean]>>
     pragas: [false, false],
     irrigacao: [true, true],
     analises: [false, false],
+    // agenda de campo: o encarregado ve e marca como feito, mas quem programa
+    // o que vai ser feito e a gestao (podeEditar controla criar/editar aqui)
+    calendario: [true, true],
+    // dinheiro do sitio, assunto do escritorio - mesmo criterio de "notas"
+    dre: [false, false],
     // precisa enxergar talhoes/insumos/executores para conseguir lancar
     cadastros: [true, false],
     propriedade: [false, false],

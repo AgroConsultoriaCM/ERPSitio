@@ -6,6 +6,8 @@ export const ROTAS = {
   colheitas: "/painel/colheitas",
   operacoes: "/painel/atividades",
   pulverizacoes: "/painel/pulverizacoes",
+  calendario: "/painel/calendario",
+  dre: "/painel/dre",
   pragas: "/painel/pragas",
   irrigacao: "/painel/irrigacao",
   manejoNutricional: "/painel/manejo-nutricional",

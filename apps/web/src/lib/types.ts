@@ -627,3 +627,78 @@ export interface RegistroPulverizacao {
   atividadeId: string;
   talhoes: RegistroPulverizacaoTalhao[];
 }
+
+export interface AtividadePlanejada {
+  id: string;
+  titulo: string;
+  descricao?: string | null;
+  data: string;
+  tipoAtividadeId?: string | null;
+  tipoAtividade?: { id: string; nome: string } | null;
+  talhaoId?: string | null;
+  talhao?: { id: string; nome: string; codigo: string | null } | null;
+  executorId?: string | null;
+  executor?: { id: string; nome: string } | null;
+  concluida: boolean;
+  concluidaEm?: string | null;
+}
+
+export const CATEGORIAS_DESPESA = [
+  "ADMINISTRATIVO",
+  "CONTABILIDADE",
+  "IMPOSTOS_TAXAS",
+  "MANUTENCAO",
+  "DEPRECIACAO",
+  "FRETE",
+  "OUTROS",
+] as const;
+export type CategoriaDespesa = (typeof CATEGORIAS_DESPESA)[number];
+
+export const ROTULO_CATEGORIA_DESPESA: Record<CategoriaDespesa, string> = {
+  ADMINISTRATIVO: "Administrativo",
+  CONTABILIDADE: "Contabilidade",
+  IMPOSTOS_TAXAS: "Impostos e taxas",
+  MANUTENCAO: "Manutenção",
+  DEPRECIACAO: "Depreciação",
+  FRETE: "Frete",
+  OUTROS: "Outros",
+};
+
+export interface Despesa {
+  id: string;
+  talhaoId?: string | null;
+  talhao?: { id: string; nome: string; codigo: string | null } | null;
+  categoria: CategoriaDespesa;
+  descricao: string;
+  valor: number;
+  data: string;
+  observacoes?: string | null;
+}
+
+export interface LinhaTalhaoDre {
+  talhaoId: string;
+  nome: string;
+  codigo: string | null;
+  areaHa: number | null;
+  receita: number;
+  custoDireto: number;
+  despesasRateadas: number;
+  resultado: number;
+}
+
+export interface ResultadoDre {
+  periodo: { inicio: string; fim: string };
+  talhao: { id: string; nome: string; codigo: string | null; areaHa: number | null } | null;
+  receita: { colheitas: number; caixas: number };
+  custos: {
+    operacoes: number;
+    colheita: number;
+    despesasProprias: number;
+    despesasRateadas: number;
+    total: number;
+  };
+  resultado: number;
+  margemPercentual: number | null;
+  despesasPorCategoria: { categoria: string; valor: number }[];
+  porTalhao: LinhaTalhaoDre[] | null;
+}

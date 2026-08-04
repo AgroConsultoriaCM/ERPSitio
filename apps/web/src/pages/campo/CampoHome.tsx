@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
-import { AlertCircle, Citrus, ClipboardList, Clock, Plus } from "lucide-react";
+import { AlertCircle, CalendarClock, ChevronRight, Citrus, ClipboardList, Clock, Plus } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { db } from "../../offline/db";
@@ -89,6 +89,20 @@ export default function CampoHome() {
           Nova operação
         </Link>
       </div>
+
+      <Link
+        to="/campo/calendario"
+        className="flex items-center gap-3 rounded-2xl border border-terra-200 bg-white px-4 py-3 shadow-cartao transition active:scale-[0.99]"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-mata-50 text-mata-600">
+          <CalendarClock size={18} strokeWidth={2} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-terra-800">Tarefas programadas</span>
+          <span className="block text-xs text-terra-500">O que a gestão pediu para fazer</span>
+        </span>
+        <ChevronRight size={16} className="shrink-0 text-terra-400" />
+      </Link>
 
       {caixasHoje > 0 && (
         <div className="relative overflow-hidden rounded-2xl border border-limao-200 bg-gradient-to-br from-limao-50 to-limao-100/60 px-4 py-4 text-center">

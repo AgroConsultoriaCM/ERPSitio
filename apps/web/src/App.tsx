@@ -12,6 +12,8 @@ import CampoHome from "./pages/campo/CampoHome";
 import NovaAtividade from "./pages/campo/NovaAtividade";
 import RegistrarColheita from "./pages/campo/RegistrarColheita";
 
+const CampoCalendario = lazy(() => import("./pages/campo/CampoCalendario"));
+
 // O painel só é aberto no navegador, com internet. Carregar sob demanda tira o
 // mapa (Leaflet) e os gráficos (Recharts) do primeiro download de quem só vai
 // lançar caixa no meio do talhão.
@@ -45,6 +47,8 @@ const ParametrosPulverizacao = lazy(() => import("./pages/painel/ParametrosPulve
 const PerfisBomba = lazy(() => import("./pages/painel/PerfisBomba"));
 const Caldas = lazy(() => import("./pages/painel/Caldas"));
 const Pulverizacoes = lazy(() => import("./pages/painel/Pulverizacoes"));
+const Calendario = lazy(() => import("./pages/painel/Calendario"));
+const Dre = lazy(() => import("./pages/painel/Dre"));
 
 function Carregando() {
   return (
@@ -76,6 +80,7 @@ export default function App() {
               <Route index element={<CampoHome />} />
               <Route path="nova" element={<NovaAtividade />} />
               <Route path="colheita" element={<RegistrarColheita />} />
+              <Route path="calendario" element={<CampoCalendario />} />
             </Route>
 
             <Route element={<SomenteGestao />}>
@@ -90,6 +95,12 @@ export default function App() {
                 <Route element={<ExigePermissao modulo="operacoes" />}>
                   <Route path="atividades" element={<Atividades />} />
                   <Route path="pulverizacoes" element={<Pulverizacoes />} />
+                </Route>
+                <Route element={<ExigePermissao modulo="calendario" />}>
+                  <Route path="calendario" element={<Calendario />} />
+                </Route>
+                <Route element={<ExigePermissao modulo="dre" />}>
+                  <Route path="dre" element={<Dre />} />
                 </Route>
                 <Route element={<ExigePermissao modulo="pragas" />}>
                   <Route path="pragas" element={<Pragas />} />

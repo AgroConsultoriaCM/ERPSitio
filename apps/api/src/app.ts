@@ -40,6 +40,9 @@ import parametrosPulverizacaoRoutes from "./routes/parametrosPulverizacao.routes
 import perfisBombaRoutes from "./routes/perfisBomba.routes.js";
 import caldasRoutes from "./routes/caldas.routes.js";
 import pulverizacoesRoutes from "./routes/pulverizacoes.routes.js";
+import atividadesPlanejadasRoutes from "./routes/atividadesPlanejadas.routes.js";
+import despesasRoutes from "./routes/despesas.routes.js";
+import dreRoutes from "./routes/dre.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -104,6 +107,9 @@ export async function buildApp() {
       await api.register(perfisBombaRoutes);
       await api.register(caldasRoutes);
       await api.register(pulverizacoesRoutes);
+      await api.register(atividadesPlanejadasRoutes);
+      await api.register(despesasRoutes);
+      await api.register(dreRoutes);
     },
     { prefix: "/api/v1" },
   );

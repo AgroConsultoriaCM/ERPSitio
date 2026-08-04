@@ -61,6 +61,8 @@ model Propriedade {
   perfisBomba           PerfilBomba[]
   caldas                Calda[]
   registrosPulverizacao RegistroPulverizacao[]
+  atividadesPlanejadas  AtividadePlanejada[]
+  despesas              Despesa[]
 }
 
 // Permissao de um papel sobre um modulo do sistema. Quando nao ha linha
@@ -98,6 +100,8 @@ model Usuario {
   refreshTokens         RefreshToken[]
   notasImportadas       NotaFiscalEntrada[] @relation("NotaImportadaPor")
   laudosImportados      LaudoImportado[]    @relation("LaudoImportadoPor")
+  atividadesPlanejadasCriadas AtividadePlanejada[] @relation("AtividadePlanejadaCriadoPor")
+  despesasCriadas       Despesa[]        @relation("DespesaCriadoPor")
 
   @@index([propriedadeId])
 }
@@ -178,6 +182,8 @@ model Talhao {
   leiturasSatelite LeituraSatelite[]
   analisesFisicas  AnaliseFisicaSolo[]
   pulverizacoes    RegistroPulverizacaoTalhao[]
+  atividadesPlanejadas AtividadePlanejada[]
+  despesas         Despesa[]
 
   @@index([propriedadeId])
   @@index([culturaId])
@@ -240,6 +246,7 @@ model Executor {
 
   atividades Atividade[]
   colheitas  Colheita[]
+  atividadesPlanejadas AtividadePlanejada[]
 
   @@index([propriedadeId])
 }
@@ -296,6 +303,7 @@ model TipoAtividade {
   updatedAt     DateTime @updatedAt
 
   atividades  Atividade[]
+  atividadesPlanejadas AtividadePlanejada[]
 
   @@index([propriedadeId])
 }
@@ -1267,4 +1275,77 @@ model RegistroPulverizacaoTalhao {
 
   @@unique([registroId, talhaoId])
   @@index([talhaoId])
+}
+
+// ---------------------------------------------------------------------------
+// Calendario: atividades planejadas, viram lista de tarefas para o campo.
+// ---------------------------------------------------------------------------
+
+/// Uma atividade programada (ainda nao lancada). Quando concluida no campo,
+/// o lancamento real continua sendo feito em Atividade/Colheita como sempre -
+/// esta tabela so guarda o planejamento e o "feito/nao feito", nao duplica
+/// custo nem estoque.
+model AtividadePlanejada {
+  id              String   @id @default(uuid())
+  propriedadeId   String
+  propriedade     Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  titulo          String
+  descricao       String?
+  data            DateTime
+  tipoAtividadeId String?
+  tipoAtividade   TipoAtividade? @relation(fields: [tipoAtividadeId], references: [id])
+  talhaoId        String?
+  talhao          Talhao?  @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+  executorId      String?
+  executor        Executor? @relation(fields: [executorId], references: [id])
+  concluida       Boolean  @default(false)
+  concluidaEm     DateTime?
+  criadoPorId     String
+  criadoPor       Usuario  @relation("AtividadePlanejadaCriadoPor", fields: [criadoPorId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([data])
+  @@index([talhaoId])
+}
+
+// ---------------------------------------------------------------------------
+// DRE: resultado financeiro. Receita vem de Colheita, custo direto vem de
+// AtividadeTalhao.custoRateado (ja calculado por operacao/pulverizacao) - o
+// que falta e a despesa geral (contabilidade, ITR, administrativo...), que
+// nao nasce de nenhum lancamento de campo e por isso precisa de tela propria.
+// ---------------------------------------------------------------------------
+
+enum CategoriaDespesa {
+  ADMINISTRATIVO
+  CONTABILIDADE
+  IMPOSTOS_TAXAS
+  MANUTENCAO
+  DEPRECIACAO
+  FRETE
+  OUTROS
+}
+
+/// talhaoId nulo = despesa geral do sitio, rateada por area na hora de montar
+/// o DRE por talhao (mesma logica de rateio.ts ja usada em Atividade).
+model Despesa {
+  id            String   @id @default(uuid())
+  propriedadeId String
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  talhaoId      String?
+  talhao        Talhao?  @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+  categoria     CategoriaDespesa
+  descricao     String
+  valor         Float
+  data          DateTime
+  observacoes   String?
+  criadoPorId   String
+  criadoPor     Usuario  @relation("DespesaCriadoPor", fields: [criadoPorId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([propriedadeId])
+  @@index([talhaoId])
+  @@index([data])
 }
