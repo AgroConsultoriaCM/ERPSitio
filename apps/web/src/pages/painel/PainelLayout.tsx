@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bug,
-  ChevronLeft,
   Citrus,
   ClipboardList,
   Droplets,
@@ -30,26 +29,22 @@ import type { Propriedade } from "../../lib/types";
 
 type Icone = ComponentType<LucideProps>;
 
-const COLAPSADO_KEY = "erpsitio_menu_colapsado";
-
 function ItemMenu({
   para,
   icone: Ico,
-  colapsado,
   children,
 }: {
   para: string;
   icone: Icone;
-  colapsado: boolean;
   children: string;
 }) {
   return (
     <NavLink
       to={para}
       end={para === ROTAS.dashboard}
-      title={colapsado ? children : undefined}
+      title={children}
       className={({ isActive }) =>
-        `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-suave ${
+        `group/item relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-suave ${
           isActive
             ? "bg-mata-600 text-white shadow-cartao"
             : "text-terra-700 hover:bg-mata-50 hover:text-mata-800"
@@ -70,14 +65,10 @@ function ItemMenu({
             size={17}
             strokeWidth={2}
             className={`shrink-0 transition-transform duration-200 ease-suave ${
-              isActive ? "" : "group-hover:scale-110"
+              isActive ? "" : "group-hover/item:scale-110"
             }`}
           />
-          <span
-            className={`overflow-hidden whitespace-nowrap transition-all duration-300 ease-suave ${
-              colapsado ? "w-0 opacity-0" : "w-auto opacity-100"
-            }`}
-          >
+          <span className="overflow-hidden whitespace-nowrap opacity-100 transition-all duration-300 ease-suave lg:w-0 lg:opacity-0 lg:group-hover:w-auto lg:group-hover:opacity-100">
             {children}
           </span>
         </>
@@ -86,13 +77,9 @@ function ItemMenu({
   );
 }
 
-function GrupoMenu({ children, colapsado }: { children: string; colapsado: boolean }) {
+function GrupoMenu({ children }: { children: string }) {
   return (
-    <p
-      className={`overflow-hidden whitespace-nowrap px-3 pb-1.5 pt-5 rotulo transition-all duration-300 ease-suave ${
-        colapsado ? "h-0 pb-0 pt-2 opacity-0" : "opacity-100"
-      }`}
-    >
+    <p className="overflow-hidden whitespace-nowrap px-3 pb-1.5 pt-5 rotulo opacity-100 transition-all duration-300 ease-suave lg:h-0 lg:pb-0 lg:pt-2 lg:opacity-0 lg:group-hover:h-auto lg:group-hover:pb-1.5 lg:group-hover:pt-5 lg:group-hover:opacity-100">
       {children}
     </p>
   );
@@ -104,7 +91,6 @@ export default function PainelLayout() {
   const { pathname } = useLocation();
   const online = useOnline();
   const [menuAberto, setMenuAberto] = useState(false);
-  const [colapsado, setColapsado] = useState(() => localStorage.getItem(COLAPSADO_KEY) === "1");
 
   const { data: propriedade } = useQuery({
     queryKey: ["propriedade"],
@@ -114,10 +100,6 @@ export default function PainelLayout() {
   // Navegar fecha o menu do celular; sem isto o painel abre atrás da gaveta.
   useEffect(() => setMenuAberto(false), [pathname]);
 
-  useEffect(() => {
-    localStorage.setItem(COLAPSADO_KEY, colapsado ? "1" : "0");
-  }, [colapsado]);
-
   const emCadastros = pathname.startsWith(ROTAS.cadastros);
   const veDiaADia = podeVer("colheitas") || podeVer("operacoes") || podeVer("estoque") || podeVer("notas");
   const veAcompanhamento = podeVer("pragas") || podeVer("irrigacao") || podeVer("analises");
@@ -126,41 +108,41 @@ export default function PainelLayout() {
   const navegacao = (
     <nav className="space-y-1">
       {podeVer("dashboard") && (
-        <ItemMenu para={ROTAS.dashboard} icone={LayoutDashboard} colapsado={colapsado}>
+        <ItemMenu para={ROTAS.dashboard} icone={LayoutDashboard}>
           Painel
         </ItemMenu>
       )}
       {podeVer("mapa") && (
-        <ItemMenu para={ROTAS.mapa} icone={Map} colapsado={colapsado}>
+        <ItemMenu para={ROTAS.mapa} icone={Map}>
           Mapa da propriedade
         </ItemMenu>
       )}
 
       {veDiaADia && (
         <>
-          <GrupoMenu colapsado={colapsado}>Dia a dia</GrupoMenu>
+          <GrupoMenu>Dia a dia</GrupoMenu>
           {podeVer("colheitas") && (
-            <ItemMenu para={ROTAS.colheitas} icone={Citrus} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.colheitas} icone={Citrus}>
               Colheitas
             </ItemMenu>
           )}
           {podeVer("operacoes") && (
-            <ItemMenu para={ROTAS.operacoes} icone={ClipboardList} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.operacoes} icone={ClipboardList}>
               Operações
             </ItemMenu>
           )}
           {podeVer("operacoes") && (
-            <ItemMenu para={ROTAS.pulverizacoes} icone={SprayCan} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.pulverizacoes} icone={SprayCan}>
               Pulverizações
             </ItemMenu>
           )}
           {podeVer("estoque") && (
-            <ItemMenu para={ROTAS.estoque} icone={Package} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.estoque} icone={Package}>
               Estoque
             </ItemMenu>
           )}
           {podeVer("notas") && (
-            <ItemMenu para={ROTAS.notas} icone={FileText} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.notas} icone={FileText}>
               Notas fiscais
             </ItemMenu>
           )}
@@ -169,19 +151,19 @@ export default function PainelLayout() {
 
       {veAcompanhamento && (
         <>
-          <GrupoMenu colapsado={colapsado}>Acompanhamento</GrupoMenu>
+          <GrupoMenu>Acompanhamento</GrupoMenu>
           {podeVer("pragas") && (
-            <ItemMenu para={ROTAS.pragas} icone={Bug} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.pragas} icone={Bug}>
               Controle de pragas
             </ItemMenu>
           )}
           {podeVer("irrigacao") && (
-            <ItemMenu para={ROTAS.irrigacao} icone={Droplets} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.irrigacao} icone={Droplets}>
               Manejo hídrico
             </ItemMenu>
           )}
           {podeVer("analises") && (
-            <ItemMenu para={ROTAS.manejoNutricional} icone={FlaskConical} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.manejoNutricional} icone={FlaskConical}>
               Manejo nutricional
             </ItemMenu>
           )}
@@ -190,12 +172,12 @@ export default function PainelLayout() {
 
       {veConfiguracao && (
         <>
-          <GrupoMenu colapsado={colapsado}>Configuração</GrupoMenu>
+          <GrupoMenu>Configuração</GrupoMenu>
           {(podeVer("cadastros") || podeVer("propriedade")) && (
             <NavLink
               to={ROTAS.cadastros}
-              title={colapsado ? "Cadastros" : undefined}
-              className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-suave ${
+              title="Cadastros"
+              className={`group/item relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-suave ${
                 emCadastros
                   ? "bg-mata-600 text-white shadow-cartao"
                   : "text-terra-700 hover:bg-mata-50 hover:text-mata-800"
@@ -208,17 +190,13 @@ export default function PainelLayout() {
                 aria-hidden
               />
               <SlidersHorizontal size={17} strokeWidth={2} className="shrink-0" />
-              <span
-                className={`overflow-hidden whitespace-nowrap transition-all duration-300 ease-suave ${
-                  colapsado ? "w-0 opacity-0" : "w-auto opacity-100"
-                }`}
-              >
+              <span className="overflow-hidden whitespace-nowrap opacity-100 transition-all duration-300 ease-suave lg:w-0 lg:opacity-0 lg:group-hover:w-auto lg:group-hover:opacity-100">
                 Cadastros
               </span>
             </NavLink>
           )}
           {podeVer("usuarios") && (
-            <ItemMenu para={ROTAS.usuarios} icone={Users} colapsado={colapsado}>
+            <ItemMenu para={ROTAS.usuarios} icone={Users}>
               Usuários
             </ItemMenu>
           )}
@@ -232,7 +210,7 @@ export default function PainelLayout() {
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-mata-500 to-mata-700 text-white shadow-cartao">
         <Citrus size={20} strokeWidth={2} />
       </div>
-      <div className={`min-w-0 overflow-hidden transition-all duration-300 ease-suave ${colapsado ? "lg:w-0 lg:opacity-0" : "w-auto opacity-100"}`}>
+      <div className="min-w-0 overflow-hidden opacity-100 transition-all duration-300 ease-suave lg:w-0 lg:opacity-0 lg:group-hover:w-auto lg:group-hover:opacity-100">
         <p className="truncate font-semibold leading-tight tracking-tight text-terra-900">
           {propriedade?.nome ?? "Sítio"}
         </p>
@@ -274,9 +252,9 @@ export default function PainelLayout() {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-terra-200 bg-white px-4 py-5 transition-[transform,width] duration-300 ease-suave lg:static lg:translate-x-0 ${
+        className={`group fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-terra-200 bg-white px-4 py-5 transition-[transform,width,box-shadow] duration-300 ease-suave lg:w-[4.5rem] lg:translate-x-0 lg:px-3 lg:hover:w-64 lg:hover:px-4 lg:hover:shadow-2xl ${
           menuAberto ? "translate-x-0" : "-translate-x-full"
-        } ${colapsado ? "lg:w-[4.5rem] lg:px-3" : "lg:w-64"}`}
+        }`}
       >
         <div className="mb-6 flex items-center justify-between">
           {marca}
@@ -284,27 +262,14 @@ export default function PainelLayout() {
 
         <div className="flex-1">{navegacao}</div>
 
-        {/* Botão de colapsar: só no desktop, gaveta do celular já tem seu próprio fechar. */}
-        <button
-          onClick={() => setColapsado((v) => !v)}
-          className="mb-2 hidden items-center justify-center gap-2 rounded-lg border border-terra-200 py-2 text-terra-500 transition duration-200 hover:border-terra-300 hover:bg-terra-50 hover:text-terra-700 lg:flex"
-          aria-label={colapsado ? "Expandir menu" : "Recolher menu"}
-          title={colapsado ? "Expandir menu" : "Recolher menu"}
-        >
-          <ChevronLeft
-            size={16}
-            className={`transition-transform duration-300 ease-suave ${colapsado ? "rotate-180" : ""}`}
-          />
-        </button>
-
         <div className="mt-2 space-y-2 border-t border-terra-200 pt-4">
           {!online && (
             <p
-              className={`flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 ${colapsado ? "lg:justify-center lg:px-2" : ""}`}
-              title={colapsado ? "Sem conexão — dados salvos" : undefined}
+              className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 lg:justify-center lg:px-2 lg:group-hover:justify-start lg:group-hover:px-3"
+              title="Sem conexão — dados salvos"
             >
               <WifiOff size={14} className="shrink-0 animate-pulsar" />
-              <span className={`overflow-hidden whitespace-nowrap ${colapsado ? "lg:hidden" : ""}`}>
+              <span className="overflow-hidden whitespace-nowrap lg:hidden lg:group-hover:inline">
                 Sem conexão — dados salvos
               </span>
             </p>
@@ -314,16 +279,16 @@ export default function PainelLayout() {
               logout();
               navigate("/login");
             }}
-            title={colapsado ? "Sair" : undefined}
-            className={`flex w-full items-center justify-center gap-2 rounded-lg border border-terra-300 px-3 py-2 text-sm font-medium text-terra-700 transition duration-200 hover:border-terra-400 hover:bg-terra-50`}
+            title="Sair"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-terra-300 px-3 py-2 text-sm font-medium text-terra-700 transition duration-200 hover:border-terra-400 hover:bg-terra-50"
           >
             <LogOut size={15} />
-            <span className={colapsado ? "lg:hidden" : ""}>Sair</span>
+            <span className="lg:hidden lg:group-hover:inline">Sair</span>
           </button>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto p-4 pt-[4.5rem] sm:p-6 lg:pt-6">
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 pt-[4.5rem] sm:p-6 lg:ml-[4.5rem] lg:pt-6">
         <Outlet />
       </main>
     </div>
