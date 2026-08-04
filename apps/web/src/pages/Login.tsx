@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { AlertCircle, Citrus, Loader2, Lock, Mail, WifiOff } from "lucide-react";
+import { AlertCircle, Loader2, Lock, Mail, WifiOff } from "lucide-react";
+import LogoMarca from "../components/LogoMarca";
 import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
 import { useOnline } from "../lib/useOnline";
@@ -53,8 +54,8 @@ export default function Login() {
 
       <div className="relative w-full max-w-sm animate-surgir-de-baixo">
         <div className="mb-7 flex items-center gap-3.5">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-limao-300 to-limao-500 text-mata-900 shadow-cartao-alto">
-            <Citrus size={28} strokeWidth={2} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-terra-50 shadow-cartao-alto">
+            <LogoMarca size={32} />
           </div>
           <div>
             <h1 className="text-2xl font-bold leading-tight tracking-tight text-white">Sítio</h1>
@@ -135,6 +136,9 @@ export default function Login() {
 
         <p className="mt-6 text-center text-xs text-mata-300/80">
           Sítio Santo Antônio · Monte Alto, SP
+        </p>
+        <p className="mt-2 text-center font-num text-[11px] font-bold uppercase tracking-[0.15em] text-limao-400/70">
+          Costa Mello <span className="text-mata-400/70">Agroconsultoria</span>
         </p>
       </div>
     </div>

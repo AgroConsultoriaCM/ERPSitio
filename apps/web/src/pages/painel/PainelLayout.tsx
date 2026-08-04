@@ -21,6 +21,7 @@ import {
   type LucideProps,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import LogoMarca from "../../components/LogoMarca";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { useOnline } from "../../lib/useOnline";
@@ -207,8 +208,8 @@ export default function PainelLayout() {
 
   const marca = (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-mata-500 to-mata-700 text-white shadow-cartao">
-        <Citrus size={20} strokeWidth={2} />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-terra-50 shadow-cartao">
+        <LogoMarca size={24} />
       </div>
       <div className="min-w-0 overflow-hidden opacity-100 transition-all duration-300 ease-suave lg:w-0 lg:opacity-0 lg:group-hover:w-auto lg:group-hover:opacity-100">
         <p className="truncate font-semibold leading-tight tracking-tight text-terra-900">
@@ -226,8 +227,8 @@ export default function PainelLayout() {
       {/* Barra superior só no celular */}
       <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-terra-200 bg-white/90 px-4 py-2.5 backdrop-blur lg:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-mata-500 to-mata-700 text-white">
-            <Citrus size={16} strokeWidth={2} />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-terra-50 shadow-cartao">
+            <LogoMarca size={18} />
           </div>
           <span className="font-semibold tracking-tight text-terra-900">
             {propriedade?.nome ?? "Sítio"}
