@@ -69,6 +69,10 @@ services:
       # vazia por padrão, e sem ela o PDF entra na fila para digitação
       # 100% manual, sem o texto de apoio.
       OCR_SPACE_API_KEY: ${OCR_SPACE_API_KEY:-}
+      # Caixa de e-mail das NF-e (leitura automática, de hora em hora). Mesma
+      # lógica — vazias por padrão, e sem elas a rotina fica desligada.
+      EMAIL_NOTAS_USUARIO: ${EMAIL_NOTAS_USUARIO:-}
+      EMAIL_NOTAS_SENHA: ${EMAIL_NOTAS_SENHA:-}
       # Teto de heap abaixo do mem_limit: o Node precisa saber que tem pouco,
       # ou só descobre quando o container já morreu.
       NODE_OPTIONS: --max-old-space-size=256
