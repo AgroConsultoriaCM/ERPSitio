@@ -4,7 +4,6 @@ import { useLiveQuery } from "dexie-react-hooks";
 import {
   AlertTriangle,
   CloudUpload,
-  Citrus,
   Download,
   Loader2,
   LogOut,
@@ -17,6 +16,7 @@ import { useOnline } from "../../lib/useOnline";
 import { useInstalarApp } from "../../lib/useInstalarApp";
 import { db } from "../../offline/db";
 import { reenviarComErro, sincronizarPendentes } from "../../offline/sync";
+import LogoMarca from "../../components/LogoMarca";
 
 export default function CampoLayout() {
   const { usuario, logout } = useAuth();
@@ -66,7 +66,7 @@ export default function CampoLayout() {
         <div className="mx-auto flex max-w-md items-center justify-between">
           <Link to="/campo" className="flex min-w-0 items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
-              <Citrus size={18} strokeWidth={2} />
+              <LogoMarca size={22} />
             </span>
             <span className="min-w-0">
               <span className="block text-base font-bold leading-tight tracking-tight">
