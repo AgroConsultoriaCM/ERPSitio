@@ -63,6 +63,8 @@ model Propriedade {
   registrosPulverizacao RegistroPulverizacao[]
   atividadesPlanejadas  AtividadePlanejada[]
   despesas              Despesa[]
+  regaNoturnaConfig     RegaNoturnaConfig?
+  respostasColheitaHoje RespostaColheitaHoje[]
 }
 
 // Permissao de um papel sobre um modulo do sistema. Quando nao ha linha
@@ -102,6 +104,8 @@ model Usuario {
   laudosImportados      LaudoImportado[]    @relation("LaudoImportadoPor")
   atividadesPlanejadasCriadas AtividadePlanejada[] @relation("AtividadePlanejadaCriadoPor")
   despesasCriadas       Despesa[]        @relation("DespesaCriadoPor")
+  respostasColheitaHoje RespostaColheitaHoje[]
+  pushInscricoes        PushInscricao[]
 
   @@index([propriedadeId])
 }
@@ -610,6 +614,52 @@ model Irrigacao {
   @@index([propriedadeId])
   @@index([setorId])
   @@index([data])
+}
+
+/// Horario padrao da rega noturna (1 por propriedade, como
+/// ParametroPulverizacao). So muda quando o encarregado edita na tela - a
+/// selecao de QUAIS setores recebem agua em cada noite nao mora aqui, vira
+/// Irrigacao mesmo (um POST /irrigacoes por setor marcado): assim o reset
+/// diario e de graca (nao ha "selecao de hoje" pra limpar) e o historico ja
+/// aparece pronto na tela de Manejo Hidrico que o Igor ja usa.
+model RegaNoturnaConfig {
+  id            String   @id @default(uuid())
+  propriedadeId String   @unique
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  horaInicio    String   @default("21:00")
+  horaFim       String   @default("05:00")
+  updatedAt     DateTime @updatedAt
+}
+
+/// Resposta diaria do encarregado a pergunta "hoje iremos colher?", feita ao
+/// abrir o app pela manha. Dispara o lembrete condicional das 15h30 quando
+/// a resposta e sim.
+model RespostaColheitaHoje {
+  id              String   @id @default(uuid())
+  propriedadeId   String
+  propriedade     Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  data            DateTime
+  resposta        Boolean
+  respondidoPorId String
+  respondidoPor   Usuario  @relation(fields: [respondidoPorId], references: [id])
+  respondidoEm    DateTime @default(now())
+
+  @@unique([propriedadeId, data])
+}
+
+/// Inscricao de um dispositivo (endpoint do navegador) para receber Web
+/// Push. Um usuario pode ter mais de uma (celular + navegador do
+/// escritorio, ou reinstalou o PWA e o endpoint mudou).
+model PushInscricao {
+  id        String   @id @default(uuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  authKey   String
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
 }
 
 // ---------------------------------------------------------------------------

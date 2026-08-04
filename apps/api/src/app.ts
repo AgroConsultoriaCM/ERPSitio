@@ -43,6 +43,9 @@ import pulverizacoesRoutes from "./routes/pulverizacoes.routes.js";
 import atividadesPlanejadasRoutes from "./routes/atividadesPlanejadas.routes.js";
 import despesasRoutes from "./routes/despesas.routes.js";
 import dreRoutes from "./routes/dre.routes.js";
+import regaNoturnaRoutes from "./routes/regaNoturna.routes.js";
+import colheitaHojeRoutes from "./routes/colheitaHoje.routes.js";
+import pushRoutes from "./routes/push.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -110,6 +113,9 @@ export async function buildApp() {
       await api.register(atividadesPlanejadasRoutes);
       await api.register(despesasRoutes);
       await api.register(dreRoutes);
+      await api.register(regaNoturnaRoutes);
+      await api.register(colheitaHojeRoutes);
+      await api.register(pushRoutes);
     },
     { prefix: "/api/v1" },
   );

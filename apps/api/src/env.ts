@@ -32,6 +32,13 @@ const envSchema = z.object({
   // tela (anexar XML manualmente).
   EMAIL_NOTAS_USUARIO: z.string().optional(),
   EMAIL_NOTAS_SENHA: z.string().optional(),
+
+  // Chaves VAPID para Web Push. Opcionais pelo mesmo motivo das demais: sem
+  // elas o sistema sobe igual, so o envio de aviso vira no-op silencioso
+  // (pushConfigurado() em services/push.ts).
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
 });
 
 export const env = envSchema.parse({
@@ -51,4 +58,7 @@ export const env = envSchema.parse({
   OCR_SPACE_API_KEY: process.env.OCR_SPACE_API_KEY,
   EMAIL_NOTAS_USUARIO: process.env.EMAIL_NOTAS_USUARIO,
   EMAIL_NOTAS_SENHA: process.env.EMAIL_NOTAS_SENHA,
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT,
 });

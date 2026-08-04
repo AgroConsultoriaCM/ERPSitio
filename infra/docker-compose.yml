@@ -57,6 +57,9 @@ services:
       OCR_SPACE_API_KEY: ${OCR_SPACE_API_KEY}
       EMAIL_NOTAS_USUARIO: ${EMAIL_NOTAS_USUARIO}
       EMAIL_NOTAS_SENHA: ${EMAIL_NOTAS_SENHA}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
       # "tsx watch" usa chokidar por baixo, que sofre do mesmo problema do
       # Vite (ver "web" abaixo): Docker Desktop no Windows nao propaga
       # eventos nativos de arquivo do host para o container. Sem isto, editar
@@ -79,6 +82,7 @@ services:
     command: sh -c "npm install && npm run dev --workspace apps/web -- --host"
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:3333/api/v1}
+      VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
     ports:
       - "${WEB_PORT:-5173}:5173"
     depends_on:

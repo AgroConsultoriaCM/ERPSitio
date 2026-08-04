@@ -231,6 +231,17 @@ export interface Irrigacao {
   responsavel?: { id: string; nome: string } | null;
 }
 
+export interface RegaNoturnaConfig {
+  id: string;
+  horaInicio: string;
+  horaFim: string;
+}
+
+export interface RespostaColheitaHoje {
+  id: string;
+  resposta: boolean;
+}
+
 export interface SituacaoSetor {
   setorId: string;
   nome: string;

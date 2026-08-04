@@ -6,7 +6,8 @@ import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { db } from "../../offline/db";
 import { numero } from "../../components/ui";
-import type { AgoraClima, Atividade, Colheita, ParametroPulverizacao, RespostaClima } from "../../lib/types";
+import IconeRegaNoturna from "../../components/campo/IconeRegaNoturna";
+import type { AgoraClima, Atividade, Colheita, Irrigacao, ParametroPulverizacao, RespostaClima } from "../../lib/types";
 import { corDoScore, horaCurta, PARAMETROS_PADRAO, scoreAgora, type ParametrosJanela } from "../../lib/clima";
 
 function hojeISO() {
@@ -80,6 +81,11 @@ export default function CampoHome() {
     queryKey: ["parametros-pulverizacao"],
     queryFn: () => api.get<ParametroPulverizacao>("/parametros-pulverizacao"),
   });
+  const { data: irrigacoes } = useQuery({
+    queryKey: ["irrigacoes"],
+    queryFn: () => api.get<Irrigacao[]>("/irrigacoes"),
+  });
+  const setoresHoje = irrigacoes?.filter((i) => i.data.slice(0, 10) === hoje) ?? [];
 
   const opsPendentes = useLiveQuery(
     () =>
@@ -118,19 +124,19 @@ export default function CampoHome() {
 
   return (
     <div className="escalonar space-y-4">
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Link
           to="/campo/colheita"
-          className="group flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-limao-400 to-limao-600 py-6 text-lg font-bold text-mata-900 shadow-cartao transition duration-200 ease-suave active:scale-[0.98] active:shadow-cartao"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-limao-400 to-limao-600 py-6 text-base font-bold text-mata-900 shadow-cartao transition duration-200 ease-suave active:scale-[0.98] active:shadow-cartao"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mata-900/10 transition-transform duration-200 group-active:scale-90">
             <Plus size={20} strokeWidth={3} />
           </span>
-          Registrar colheita
+          Colheita
         </Link>
         <Link
           to="/campo/nova"
-          className="group flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-mata-600 to-mata-800 py-6 text-lg font-bold text-white shadow-cartao transition duration-200 ease-suave active:scale-[0.98]"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-mata-600 to-mata-800 py-6 text-base font-bold text-white shadow-cartao transition duration-200 ease-suave active:scale-[0.98]"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition-transform duration-200 group-active:scale-90">
             <Plus size={20} strokeWidth={3} />
@@ -139,14 +145,41 @@ export default function CampoHome() {
         </Link>
         <Link
           to="/campo/pulverizacao"
-          className="group flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-sky-500 to-sky-700 py-6 text-lg font-bold text-white shadow-cartao transition duration-200 ease-suave active:scale-[0.98]"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-sky-500 to-sky-700 py-6 text-base font-bold text-white shadow-cartao transition duration-200 ease-suave active:scale-[0.98]"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition-transform duration-200 group-active:scale-90">
             <SprayCan size={20} strokeWidth={2.5} />
           </span>
           Pulverização
         </Link>
+        <Link
+          to="/campo/rega-noturna"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-indigo-500 to-indigo-800 py-6 text-base font-bold text-white shadow-cartao transition duration-200 ease-suave active:scale-[0.98]"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition-transform duration-200 group-active:scale-90">
+            <IconeRegaNoturna size={20} strokeWidth={2.5} />
+          </span>
+          Rega noturna
+        </Link>
       </div>
+
+      <Link
+        to="/campo/rega-noturna"
+        className="flex items-center gap-3 rounded-2xl border border-terra-200 bg-white px-4 py-3 shadow-cartao transition active:scale-[0.99]"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+          <IconeRegaNoturna size={18} strokeWidth={2} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-terra-800">
+            Rega de hoje: {setoresHoje.length > 0 ? `${setoresHoje.length} setor(es) configurado(s)` : "ainda não configurada"}
+          </span>
+          <span className="block text-xs text-terra-500">
+            {setoresHoje.length > 0 ? setoresHoje.map((i) => i.setor?.nome).join(", ") : "Toque para marcar quem rega esta noite"}
+          </span>
+        </span>
+        <ChevronRight size={16} className="shrink-0 text-terra-400" />
+      </Link>
 
       <Link
         to="/campo/calendario"

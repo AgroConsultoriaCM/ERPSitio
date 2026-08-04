@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { NaoEncontradoError } from "../lib/errors.js";
+import { enviarPushParaPapel } from "../services/push.js";
 
 // So o planejamento ("o que fazer, quando, onde") - o lancamento real
 // (custo, estoque, mao de obra) continua em Atividade/Colheita como sempre.
@@ -58,6 +59,12 @@ export default async function atividadesPlanejadasRoutes(fastify: FastifyInstanc
         },
         include: INCLUDE,
       });
+      // Aviso e melhoria, nao pode derrubar o lancamento da tarefa se falhar.
+      enviarPushParaPapel(fastify.prisma, propriedadeId, "ENCARREGADO", {
+        title: "Nova tarefa",
+        body: dados.titulo,
+        url: "/campo/calendario",
+      }).catch((err) => console.error("[atividades-planejadas] falha ao avisar:", err));
       return reply.status(201).send(criada);
     },
   );

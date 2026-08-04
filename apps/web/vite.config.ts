@@ -78,6 +78,11 @@ export default defineConfig({
         // carrega a biblioteca xlsx, pesada sozinha. No navegador do
         // escritório eles continuam carregando normalmente, pela rede.
         globIgnores: ["**/mapa-*.js", "**/graficos-*.js", "**/AdicionarAnalise-*.js"],
+        // Listener de push/notificationclick: generateSW nao permite
+        // acrescentar codigo customizado direto, mas importScripts carrega
+        // um arquivo separado (public/push-sw.js) dentro do mesmo service
+        // worker gerado - sem mexer em nada do cache que ja funciona.
+        importScripts: ["/push-sw.js"],
         runtimeCaching: [
           {
             urlPattern: PADRAO_API,

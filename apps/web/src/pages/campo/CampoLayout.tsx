@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   AlertTriangle,
+  Bell,
   CloudUpload,
   Download,
   Loader2,
@@ -16,7 +17,9 @@ import { useOnline } from "../../lib/useOnline";
 import { useInstalarApp } from "../../lib/useInstalarApp";
 import { db } from "../../offline/db";
 import { reenviarComErro, sincronizarPendentes } from "../../offline/sync";
+import { jaPediuPermissao, MARCA_PEDIDO, pedirPermissaoEInscrever, pushSuportado } from "../../lib/push";
 import LogoMarca from "../../components/LogoMarca";
+import PopupColheitaHoje from "../../components/campo/PopupColheitaHoje";
 
 export default function CampoLayout() {
   const { usuario, logout } = useAuth();
@@ -25,6 +28,9 @@ export default function CampoLayout() {
   const instalacao = useInstalarApp();
   const [sincronizando, setSincronizando] = useState(false);
   const [recado, setRecado] = useState<string | null>(null);
+  const [mostrarPush, setMostrarPush] = useState(
+    () => pushSuportado() && !jaPediuPermissao() && Notification.permission === "default",
+  );
 
   // Conta operações e colheitas juntas: para o encarregado é uma fila só.
   const pendentes = useLiveQuery(
@@ -161,8 +167,42 @@ export default function CampoLayout() {
           </div>
         )}
 
+        {mostrarPush && (
+          <div className="mb-4 flex animate-surgir-de-baixo items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 shadow-cartao">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-sky-700 text-white">
+              <Bell size={20} strokeWidth={2} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-terra-900">Ativar avisos no celular</p>
+              <p className="text-xs leading-snug text-terra-500">
+                Lembretes de tarefa nova e da rega noturna, mesmo com o app fechado.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={() => pedirPermissaoEInscrever().finally(() => setMostrarPush(false))}
+                className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition active:scale-95"
+              >
+                Ativar
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem(MARCA_PEDIDO, "1");
+                  setMostrarPush(false);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-terra-400 transition active:scale-95"
+                aria-label="Agora não"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <Outlet />
       </main>
+
+      <PopupColheitaHoje />
     </div>
   );
 }
