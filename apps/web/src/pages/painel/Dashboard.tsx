@@ -8,6 +8,7 @@ import {
   ClipboardList,
   CloudOff,
   Droplets,
+  Map,
   Package,
   Plus,
   Sprout,
@@ -25,10 +26,12 @@ import type {
   Propriedade,
   ResumoColheitaTalhao,
   RespostaClima,
+  SetorIrrigacao,
   SituacaoSetor,
   Talhao,
 } from "../../lib/types";
 import GraficoColheita from "../../components/GraficoColheita";
+import MapaPropriedade from "../../components/MapaPropriedade";
 import PainelClima from "../../components/PainelClima";
 import {
   Aviso,
@@ -84,6 +87,10 @@ export default function Dashboard() {
   const { data: setores } = useQuery({
     queryKey: ["irrigacao-situacao"],
     queryFn: () => api.get<SituacaoSetor[]>("/irrigacoes/situacao"),
+  });
+  const { data: setoresIrrigacao } = useQuery({
+    queryKey: ["setores-irrigacao"],
+    queryFn: () => api.get<SetorIrrigacao[]>("/setores-irrigacao"),
   });
   // O clima depende de coordenada cadastrada; falha dele não pode derrubar
   // o resto do painel, por isso fica isolado num bloco condicional.
@@ -240,6 +247,36 @@ export default function Dashboard() {
           .
         </Aviso>
       )}
+
+      <Cartao className="!p-0 overflow-hidden">
+        <div className="p-4 pb-0 sm:p-5 sm:pb-0">
+          <TituloSecao
+            icone={Map}
+            descricao="Contorno, talhões e setores — clique em ver mapa completo para o modo cheio, com camadas e filtros"
+            acao={
+              <Link
+                to="/painel/mapa"
+                className="group flex items-center gap-1 text-sm font-medium text-mata-700 transition hover:text-mata-900"
+              >
+                ver mapa completo
+                <ArrowRight
+                  size={14}
+                  className="transition-transform duration-200 ease-suave group-hover:translate-x-0.5"
+                />
+              </Link>
+            }
+          >
+            Mapa da propriedade
+          </TituloSecao>
+        </div>
+        <MapaPropriedade
+          propriedade={propriedade}
+          talhoes={talhoes}
+          setores={setoresIrrigacao}
+          altura="h-64 sm:h-80"
+          compacto
+        />
+      </Cartao>
 
       <Cartao>
         <TituloSecao

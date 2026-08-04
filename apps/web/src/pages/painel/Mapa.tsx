@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapContainer, Polygon, Popup, Tooltip } from "react-leaflet";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
-import CamadasBaseMapa from "../../components/CamadasBaseMapa";
-import CentralizarMapa from "../../components/CentralizarMapa";
+import MapaPropriedade from "../../components/MapaPropriedade";
 import type { Propriedade as PropriedadeType, SetorIrrigacao, Talhao } from "../../lib/types";
-
-// Visao ampla do Brasil - so usada quando a propriedade ainda nao tem
-// nenhum poligono nem latitude/longitude cadastrados.
-const CENTRO_BRASIL: [number, number] = [-14.235, -51.9253];
 
 export default function Mapa() {
   const { data: talhoes } = useQuery({ queryKey: ["talhoes"], queryFn: () => api.get<Talhao[]>("/talhoes") });
@@ -24,11 +18,6 @@ export default function Mapa() {
 
   const [verTalhoes, setVerTalhoes] = useState(true);
   const [verSetores, setVerSetores] = useState(true);
-
-  const centro =
-    propriedade?.latitude != null && propriedade?.longitude != null
-      ? { latitude: propriedade.latitude, longitude: propriedade.longitude }
-      : null;
 
   return (
     <div className="space-y-4">
@@ -51,69 +40,15 @@ export default function Mapa() {
         </label>
       </div>
 
-      <div className="h-[70vh] overflow-hidden rounded-xl shadow-sm">
-        <MapContainer center={CENTRO_BRASIL} zoom={4} className="h-full w-full">
-          <CamadasBaseMapa />
-          <CentralizarMapa poligono={propriedade?.poligono} centro={centro} />
-
-          {propriedade?.poligono && (
-            <Polygon
-              positions={propriedade.poligono.coordinates[0].map(([lng, lat]) => [lat, lng])}
-              pathOptions={{ color: "#374151", weight: 3, dashArray: "8 6", fillOpacity: 0.02 }}
-              interactive={false}
-            />
-          )}
-
-          {/* setores primeiro, para os talhoes ficarem clicaveis por cima */}
-          {verSetores &&
-            setores
-              ?.filter((s) => s.poligono)
-              .map((s) => (
-                <Polygon
-                  key={s.id}
-                  positions={s.poligono!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-                  pathOptions={{
-                    color: s.corMapa ?? "#0284c7",
-                    weight: 2,
-                    dashArray: "4 4",
-                    fillOpacity: 0.15,
-                  }}
-                >
-                  <Tooltip sticky>{s.codigo ? `${s.codigo} · ${s.nome}` : s.nome}</Tooltip>
-                  <Popup>
-                    <p className="font-semibold">{s.nome}</p>
-                    <p className="text-sm text-gray-600">Setor de irrigação {s.codigo ?? ""}</p>
-                    {s.areaHa != null && <p className="text-sm">{s.areaHa} ha</p>}
-                    <Link to={`/painel/cadastros/setores/${s.id}`} className="text-sm text-sky-700 underline">
-                      Ver setor
-                    </Link>
-                  </Popup>
-                </Polygon>
-              ))}
-
-          {verTalhoes &&
-            talhoes
-              ?.filter((t) => t.poligono)
-              .map((t) => (
-                <Polygon
-                  key={t.id}
-                  positions={t.poligono!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-                  pathOptions={{ color: t.corMapa ?? "#16a34a", fillOpacity: 0.2 }}
-                >
-                  <Tooltip sticky>{t.codigo ? `${t.codigo} · ${t.nome}` : t.nome}</Tooltip>
-                  <Popup>
-                    <p className="font-semibold">{t.nome}</p>
-                    <p className="text-sm">
-                      {t.cultura?.nome} {t.cultura?.variedade ? `- ${t.cultura.variedade}` : ""}
-                    </p>
-                    {t.areaHa && <p className="text-sm">{t.areaHa} ha</p>}
-                    <Link to={`/painel/cadastros/talhoes/${t.id}`} className="text-sm text-green-700 underline">
-                      Ver talhão
-                    </Link>
-                  </Popup>
-                </Polygon>
-              ))}
-        </MapContainer>
+      <div className="overflow-hidden rounded-xl shadow-sm">
+        <MapaPropriedade
+          propriedade={propriedade}
+          talhoes={talhoes}
+          setores={setores}
+          verTalhoes={verTalhoes}
+          verSetores={verSetores}
+          altura="h-[70vh]"
+        />
       </div>
 
       {!propriedade?.poligono && (

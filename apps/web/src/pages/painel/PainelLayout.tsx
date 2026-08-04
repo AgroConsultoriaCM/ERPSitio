@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bug,
@@ -9,9 +9,7 @@ import {
   ClipboardList,
   Droplets,
   FlaskConical,
-  LayoutDashboard,
   LogOut,
-  Map,
   Menu,
   Package,
   Scale,
@@ -128,17 +126,6 @@ export default function PainelLayout() {
 
   const navegacao = (
     <nav className="space-y-1">
-      {podeVer("dashboard") && (
-        <ItemMenu para={ROTAS.dashboard} icone={LayoutDashboard}>
-          Painel
-        </ItemMenu>
-      )}
-      {podeVer("mapa") && (
-        <ItemMenu para={ROTAS.mapa} icone={Map}>
-          Mapa da propriedade
-        </ItemMenu>
-      )}
-
       {veDiaADia && (
         <>
           <GrupoMenu>Dia a dia</GrupoMenu>
@@ -249,9 +236,9 @@ export default function PainelLayout() {
   );
 
   const marca = (
-    <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-terra-50 shadow-cartao">
-        <LogoMarca size={24} />
+    <Link to={ROTAS.dashboard} className="group/marca flex items-center gap-3" title="Ir para o painel">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-terra-50 shadow-cartao transition-transform duration-200 ease-suave group-hover/marca:scale-105">
+        <LogoMarca size={36} />
       </div>
       <div className="min-w-0 overflow-hidden opacity-100 transition-all duration-300 ease-suave lg:w-0 lg:opacity-0 lg:group-hover:w-auto lg:group-hover:opacity-100">
         <p className="truncate font-semibold leading-tight tracking-tight text-terra-900">
@@ -261,21 +248,21 @@ export default function PainelLayout() {
           {usuario?.nome} · {usuario?.role.toLowerCase()}
         </p>
       </div>
-    </div>
+    </Link>
   );
 
   return (
     <div className="flex min-h-screen bg-terra-100">
       {/* Barra superior só no celular */}
       <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-terra-200 bg-white/90 px-4 py-2.5 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-terra-50 shadow-cartao">
-            <LogoMarca size={18} />
+        <Link to={ROTAS.dashboard} className="flex items-center gap-2.5" title="Ir para o painel">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-terra-50 shadow-cartao">
+            <LogoMarca size={26} />
           </div>
           <span className="font-semibold tracking-tight text-terra-900">
             {propriedade?.nome ?? "Sítio"}
           </span>
-        </div>
+        </Link>
         <button
           onClick={() => setMenuAberto((v) => !v)}
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-terra-300 text-terra-700 transition active:scale-95"

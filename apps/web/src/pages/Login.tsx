@@ -54,8 +54,8 @@ export default function Login() {
 
       <div className="relative w-full max-w-sm animate-surgir-de-baixo">
         <div className="mb-7 flex items-center gap-3.5">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-terra-50 shadow-cartao-alto">
-            <LogoMarca size={32} />
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-terra-50 shadow-cartao-alto">
+            <LogoMarca size={50} />
           </div>
           <div>
             <h1 className="text-2xl font-bold leading-tight tracking-tight text-white">Sítio</h1>
